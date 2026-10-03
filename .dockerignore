@@ -1,5 +1,8 @@
 node_modules
 npm-debug.log
+*.exe
+*.msi
+*.dll
 .git
 .gitignore
 .env
