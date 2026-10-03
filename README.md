@@ -67,6 +67,7 @@ La base PostgreSQL est initialisée au démarrage par le script `database/init.s
 - `.env.production.example` : exemple de configuration de production
 - `JWT_SECRET` doit contenir au moins 32 octets aléatoires. Le serveur refuse de démarrer sans cette variable.
 - En production, remplacez toutes les valeurs d'exemple et définissez un mot de passe PostgreSQL fort.
+- `DATABASE_SSL=false` pour PostgreSQL dans le réseau Docker local ; activez-le seulement si le serveur PostgreSQL distant est configuré pour TLS.
 
 ## Sessions et contenu
 

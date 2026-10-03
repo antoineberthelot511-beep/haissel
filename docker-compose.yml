@@ -10,6 +10,7 @@ services:
       PORT: ${PORT:-3000}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-lycee.fr}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (minimum 32 bytes)}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
     depends_on:
