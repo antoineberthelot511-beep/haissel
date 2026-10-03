@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lycee Social</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-mark">L</div>
+          <div>
+            <div class="brand-name">Lycee Social</div>
+            <div class="brand-tag">Réseau privé du lycée</div>
+          </div>
+        </div>
+
+        <nav class="topbar-nav">
+          <button class="nav-button active">Accueil</button>
+          <button class="nav-button">Messages</button>
+          <button class="nav-button">Notifications</button>
+          <button class="nav-button">Profil</button>
+        </nav>
+
+        <div class="topbar-actions">
+          <span id="backend-status" class="status-pill offline">Vérification…</span>
+          <button id="logout-button" class="ghost-button hidden">Déconnexion</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="sidebar left-panel">
+          <div class="card profile-card">
+            <div class="profile-header">
+              <div class="avatar large">A</div>
+              <div>
+                <h2 id="profile-name">Bienvenue</h2>
+                <p id="profile-email">Connectez-vous pour commencer</p>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div>
+                <strong id="stats-followers">0</strong>
+                <span>Abonnés</span>
+              </div>
+              <div>
+                <strong id="stats-following">0</strong>
+                <span>Suivis</span>
+              </div>
+              <div>
+                <strong id="stats-posts">0</strong>
+                <span>Posts</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Recherche</h3>
+            <div class="search-box">
+              <input id="search-input" type="text" placeholder="Rechercher un élève" />
+            </div>
+          </div>
+        </aside>
+
+        <section class="content-panel">
+          <div id="auth-panel" class="card auth-card">
+            <div class="auth-tabs">
+              <button class="tab-button active" data-tab="login">Connexion</button>
+              <button class="tab-button" data-tab="register">Inscription</button>
+            </div>
+
+            <form id="login-form" class="auth-form active">
+              <label>
+                Identifiant ou email
+                <input id="login-identifier" type="text" placeholder="nom@lycee.fr" required />
+              </label>
+              <label>
+                Mot de passe
+                <input id="login-password" type="password" placeholder="••••••••" required />
+              </label>
+              <button class="primary-button" type="submit">Se connecter</button>
+            </form>
+
+            <form id="register-form" class="auth-form">
+              <label>
+                Nom d'utilisateur
+                <input id="register-username" type="text" placeholder="alice" required />
+              </label>
+              <label>
+                Email du lycée
+                <input id="register-email" type="email" placeholder="alice@lycee.fr" required />
+              </label>
+              <label>
+                Mot de passe
+                <input id="register-password" type="password" placeholder="Minimum 8 caractères" required />
+              </label>
+              <button class="primary-button" type="submit">Créer un compte</button>
+            </form>
+          </div>
+
+          <div id="composer-panel" class="card composer hidden">
+            <h3>Créer une publication</h3>
+            <textarea id="post-content" rows="4" placeholder="Quoi de neuf à l’école aujourd’hui ?"></textarea>
+            <div class="composer-actions">
+              <button class="secondary-button" type="button">Ajouter une photo</button>
+              <button id="publish-button" class="primary-button" type="button">Publier</button>
+            </div>
+          </div>
+
+          <div id="feed" class="feed"></div>
+        </section>
+
+        <aside class="sidebar right-panel">
+          <div class="card">
+            <h3>Notifications</h3>
+            <ul id="notifications-list" class="simple-list">
+              <li>Aucune notification.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>Messages</h3>
+            <ul id="messages-list" class="simple-list">
+              <li>Pas de conversation ouverte.</li>
+            </ul>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
