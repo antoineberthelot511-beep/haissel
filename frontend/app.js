@@ -1,4 +1,4 @@
-function readStoredUser() {
+﻿function readStoredUser() {
   try {
     return JSON.parse(localStorage.getItem('lycee_user') || 'null');
   } catch {
@@ -11,6 +11,7 @@ const state = {
   token: localStorage.getItem('lycee_token') || '',
   user: readStoredUser(),
   activeTab: 'login',
+  posts: [],
 };
 
 const backendStatusEl = document.getElementById('backend-status');
@@ -18,7 +19,6 @@ const authPanel = document.getElementById('auth-panel');
 const composerPanel = document.getElementById('composer-panel');
 const feedEl = document.getElementById('feed');
 const notificationsList = document.getElementById('notifications-list');
-const messagesList = document.getElementById('messages-list');
 const profileName = document.getElementById('profile-name');
 const profileEmail = document.getElementById('profile-email');
 const logoutButton = document.getElementById('logout-button');
@@ -34,6 +34,30 @@ function escapeHTML(value) {
     '"': '&quot;',
     "'": '&#39;',
   })[character]);
+}
+
+function formatRelativeTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'à l’instant';
+  }
+
+  const minutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+  if (minutes < 1) return 'il y a moins d’une minute';
+  if (minutes < 60) return `il y a ${minutes} min`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `il y a ${hours} h`;
+
+  const days = Math.round(hours / 24);
+  return `il y a ${days} j`;
+}
+
+function getAuthHeaders(extraHeaders = {}) {
+  return {
+    ...extraHeaders,
+    ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+  };
 }
 
 function setLoggedInState(user) {
@@ -61,13 +85,183 @@ function setLoggedInState(user) {
   }
 }
 
+function parseBooleanFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n', ''].includes(normalized)) return false;
+  }
+  return Boolean(value);
+}
+
+function normalizePost(post) {
+  return {
+    ...post,
+    likes_count: Number(post.likes_count || 0),
+    comments_count: Number(post.comments_count || 0),
+    liked_by_me: parseBooleanFlag(post.liked_by_me),
+  };
+}
+
+function attachPostInteractions() {
+  document.querySelectorAll('.like-toggle').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const postId = Number(button.dataset.postId);
+      if (!state.token || !state.user) {
+        alert('Connectez-vous pour aimer une publication.');
+        return;
+      }
+
+      const isLiked = button.dataset.liked === 'true';
+      const method = isLiked ? 'DELETE' : 'POST';
+
+      try {
+        const response = await fetch(`/api/posts/${postId}/like`, {
+          method,
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        });
+
+        if (!response.ok) {
+          const json = await response.json().catch(() => ({}));
+          alert(json.error?.message || 'Impossible de mettre à jour le like.');
+          return;
+        }
+
+        const target = state.posts.find((post) => Number(post.id) === postId);
+        if (target) {
+          const nextLiked = !isLiked;
+          target.liked_by_me = nextLiked;
+          target.likes_count = Math.max(0, target.likes_count + (nextLiked ? 1 : -1));
+        }
+
+        const nextCount = target ? target.likes_count : 0;
+        const nextLikedState = target ? target.liked_by_me : false;
+        const icon = button.querySelector('.icon');
+        const count = button.querySelector('.count');
+        if (icon) icon.textContent = nextLikedState ? '♥' : '♡';
+        if (count) count.textContent = String(nextCount);
+        button.dataset.liked = String(nextLikedState);
+        button.classList.toggle('liked', nextLikedState);
+      } catch (error) {
+        alert('Le like n’a pas pu être enregistré.');
+      }
+    });
+  });
+
+  document.querySelectorAll('.comment-toggle').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const postId = Number(button.dataset.postId);
+      const panel = document.querySelector(`.comments-panel[data-panel="${postId}"]`);
+      if (!panel) return;
+
+      const isHidden = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !isHidden);
+
+      if (isHidden) {
+        await loadComments(postId);
+      }
+    });
+  });
+
+  document.querySelectorAll('.comment-form').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const postId = Number(form.dataset.postId);
+
+      if (!state.token || !state.user) {
+        alert('Connectez-vous pour laisser un commentaire.');
+        return;
+      }
+
+      const textarea = form.querySelector('textarea');
+      const content = textarea.value.trim();
+      if (!content) {
+        alert('Rédigez un commentaire avant de l’envoyer.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/posts/${postId}/comments`, {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ content }),
+        });
+
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(json.error?.message || 'Le commentaire n’a pas pu être publié.');
+          return;
+        }
+
+        textarea.value = '';
+        const target = state.posts.find((post) => Number(post.id) === postId);
+        if (target) {
+          target.comments_count = Number(target.comments_count || 0) + 1;
+        }
+
+        const commentCount = document.querySelector(`.comment-toggle[data-post-id="${postId}"] .count`);
+        if (commentCount) {
+          commentCount.textContent = String(target ? target.comments_count : 0);
+        }
+
+        await loadComments(postId);
+      } catch (error) {
+        alert('Le commentaire n’a pas pu être enregistré.');
+      }
+    });
+  });
+
+  document.querySelectorAll('.comment-delete').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const commentId = Number(button.dataset.commentId);
+      const postId = Number(button.dataset.postId);
+
+      if (!state.token || !state.user) {
+        alert('Vous devez être connecté pour supprimer un commentaire.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/comments/${commentId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        });
+
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(json.error?.message || 'Suppression impossible.');
+          return;
+        }
+
+        const target = state.posts.find((post) => Number(post.id) === postId);
+        if (target && target.comments_count > 0) {
+          target.comments_count -= 1;
+        }
+
+        const commentCount = document.querySelector(`.comment-toggle[data-post-id="${postId}"] .count`);
+        if (commentCount) {
+          commentCount.textContent = String(target ? target.comments_count : 0);
+        }
+
+        await loadComments(postId);
+      } catch (error) {
+        alert('Le commentaire n’a pas pu être supprimé.');
+      }
+    });
+  });
+}
+
 function renderPosts(posts) {
-  if (!posts || posts.length === 0) {
+  state.posts = (posts || []).map(normalizePost);
+
+  if (!state.posts.length) {
     feedEl.innerHTML = '<div class="card"><p>Aucune publication pour le moment.</p></div>';
     return;
   }
 
-  feedEl.innerHTML = posts
+  feedEl.innerHTML = state.posts
     .map((post) => {
       const author = post.author || { username: 'inconnu', display_name: 'Utilisateur' };
       const initials = (author.display_name || author.username || 'U')
@@ -78,29 +272,99 @@ function renderPosts(posts) {
         .toUpperCase();
 
       return `
-        <article class="post-card">
+        <article class="post-card" data-post-id="${post.id}">
           <div class="post-header">
             <div class="post-user">
               <div class="avatar">${escapeHTML(initials)}</div>
               <div>
                 <strong>${escapeHTML(author.display_name || author.username)}</strong>
-                <span>@${escapeHTML(author.username)}</span>
+                <span>@${escapeHTML(author.username)} · ${escapeHTML(formatRelativeTime(post.created_at))}</span>
               </div>
             </div>
-            <span>${escapeHTML(new Date(post.created_at || Date.now()).toLocaleDateString('fr-FR'))}</span>
           </div>
           <div class="post-body">${escapeHTML(post.content)}</div>
           <div class="post-actions">
-            <div>
-              <button type="button">♥ ${post.likes_count || 0}</button>
-              <button type="button">💬 ${post.comments_count || 0}</button>
-            </div>
-            <button type="button">Partager</button>
+            <button
+              type="button"
+              class="action-button like-toggle ${post.liked_by_me ? 'liked' : ''}"
+              data-post-id="${post.id}"
+              data-liked="${String(parseBooleanFlag(post.liked_by_me))}"
+            >
+              <span class="icon">${parseBooleanFlag(post.liked_by_me) ? '♥' : '♡'}</span>
+              <span class="count">${Number(post.likes_count || 0)}</span>
+            </button>
+            <button type="button" class="action-button comment-toggle" data-post-id="${post.id}">
+              <span>💬</span>
+              <span class="count">${Number(post.comments_count || 0)}</span>
+            </button>
+          </div>
+          <div class="comments-panel hidden" data-panel="${post.id}">
+            <div class="comment-list"></div>
+            <form class="comment-form" data-post-id="${post.id}">
+              <textarea
+                rows="2"
+                placeholder="${state.user ? 'Écrire un commentaire…' : 'Connectez-vous pour commenter'}"
+                ${state.user ? '' : 'disabled'}
+              ></textarea>
+              <button type="submit" ${state.user ? '' : 'disabled'}>Publier</button>
+            </form>
           </div>
         </article>
       `;
     })
     .join('');
+
+  attachPostInteractions();
+}
+
+async function loadComments(postId) {
+  const panel = document.querySelector(`.comments-panel[data-panel="${postId}"]`);
+  if (!panel) return;
+
+  const list = panel.querySelector('.comment-list');
+  if (!list) return;
+
+  list.innerHTML = '<div class="comment-loading">Chargement…</div>';
+
+  try {
+    const response = await fetch(`/api/posts/${postId}/comments`, {
+      cache: 'no-store',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      list.innerHTML = '<div class="comment-empty">Impossible de charger les commentaires.</div>';
+      return;
+    }
+
+    const json = await response.json().catch(() => ({}));
+    const comments = Array.isArray(json?.data?.comments) ? json.data.comments : [];
+
+    if (!comments.length) {
+      list.innerHTML = '<div class="comment-empty">Aucun commentaire pour le moment.</div>';
+      return;
+    }
+
+    list.innerHTML = comments
+      .map((comment) => {
+        const isMine = String(comment.user_id) === String(state.user?.id || '');
+        return `
+          <div class="comment-item">
+            <div class="comment-header">
+              <strong>${escapeHTML(comment.author_display_name || comment.author_username || 'Utilisateur')}</strong>
+              <span>${escapeHTML(comment.author_username ? `@${comment.author_username}` : '')}</span>
+              ${isMine ? `<button type="button" class="comment-delete" data-comment-id="${comment.id}" data-post-id="${postId}">Supprimer</button>` : ''}
+            </div>
+            <div class="comment-body">${escapeHTML(comment.content)}</div>
+          </div>
+        `;
+      })
+      .join('');
+
+    attachPostInteractions();
+  } catch (error) {
+    list.innerHTML = '<div class="comment-empty">Impossible de charger les commentaires.</div>';
+  }
 }
 
 async function checkBackend() {
@@ -136,7 +400,11 @@ function showEmptyState(message) {
 
 async function loadPosts() {
   try {
-    const response = await fetch('/api/posts', { cache: 'no-store' });
+    const response = await fetch('/api/posts', {
+      cache: 'no-store',
+      headers: getAuthHeaders(),
+    });
+
     if (!response.ok) {
       showEmptyState('Impossible de charger le fil. Réessayez dans un instant.');
       return;
@@ -233,15 +501,13 @@ async function handlePublish() {
   try {
     const response = await fetch('/api/posts', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${state.token}`,
-      },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ content }),
     });
 
+    const json = await response.json().catch(() => ({}));
     if (!response.ok) {
-      alert('Publication impossible. Vérifiez votre connexion.');
+      alert(json.error?.message || 'Publication impossible. Vérifiez votre connexion.');
       return;
     }
 
@@ -259,7 +525,7 @@ async function restoreSession() {
 
   try {
     const response = await fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${state.token}` },
+      headers: getAuthHeaders(),
       cache: 'no-store',
     });
     const json = await response.json();
@@ -285,7 +551,7 @@ function bindForms() {
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${state.token}` },
+        headers: getAuthHeaders(),
       });
     } catch {
       alert('La session sera supprimée de cet appareil, mais sa révocation côté serveur a échoué.');
@@ -311,13 +577,9 @@ async function init() {
   }
 
   notificationsList.replaceChildren();
-  messagesList.replaceChildren();
   const notificationsEmpty = document.createElement('li');
   notificationsEmpty.textContent = 'Aucune notification chargée.';
-  const messagesEmpty = document.createElement('li');
-  messagesEmpty.textContent = 'Aucune conversation chargée.';
   notificationsList.append(notificationsEmpty);
-  messagesList.append(messagesEmpty);
   await loadPosts();
 }
 

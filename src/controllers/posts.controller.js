@@ -1,6 +1,19 @@
 const { pool } = require('../config/database');
 
+function parseBooleanFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n', ''].includes(normalized)) return false;
+  }
+  return Boolean(value);
+}
+
 function formatPostRow(post) {
+  const hasAuthor = post.author_id !== undefined || post.author_username || post.author_display_name;
+
   return {
     id: post.id,
     user_id: post.user_id,
@@ -8,7 +21,7 @@ function formatPostRow(post) {
     image_url: post.image_url,
     created_at: post.created_at,
     updated_at: post.updated_at,
-    author: post.author
+    author: hasAuthor
       ? {
           id: post.author_id,
           username: post.author_username,
@@ -18,6 +31,7 @@ function formatPostRow(post) {
       : null,
     likes_count: Number(post.likes_count || 0),
     comments_count: Number(post.comments_count || 0),
+    liked_by_me: parseBooleanFlag(post.liked_by_me),
   };
 }
 
@@ -26,6 +40,7 @@ async function listPosts(req, res, next) {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
+    const currentUserId = req.user?.id ?? null;
     const query = `
       SELECT
         p.id,
@@ -39,7 +54,8 @@ async function listPosts(req, res, next) {
         u.display_name AS author_display_name,
         u.avatar_url AS author_avatar_url,
         COUNT(DISTINCT l.id) AS likes_count,
-        COUNT(DISTINCT c.id) AS comments_count
+        COUNT(DISTINCT c.id) AS comments_count,
+        MAX(CASE WHEN l.user_id = $3 THEN 1 ELSE 0 END) AS liked_by_me
       FROM posts p
       INNER JOIN users u ON u.id = p.user_id
       LEFT JOIN likes l ON l.post_id = p.id
@@ -49,7 +65,7 @@ async function listPosts(req, res, next) {
       LIMIT $1 OFFSET $2
     `;
 
-    const result = await pool.query(query, [limit, offset]);
+    const result = await pool.query(query, [limit, offset, currentUserId]);
 
     return res.status(200).json({
       success: true,
@@ -67,6 +83,7 @@ async function getPostById(req, res, next) {
   try {
     const { id } = req.params;
 
+    const currentUserId = req.user?.id ?? null;
     const query = `
       SELECT
         p.id,
@@ -80,7 +97,8 @@ async function getPostById(req, res, next) {
         u.display_name AS author_display_name,
         u.avatar_url AS author_avatar_url,
         COUNT(DISTINCT l.id) AS likes_count,
-        COUNT(DISTINCT c.id) AS comments_count
+        COUNT(DISTINCT c.id) AS comments_count,
+        MAX(CASE WHEN l.user_id = $2 THEN 1 ELSE 0 END) AS liked_by_me
       FROM posts p
       INNER JOIN users u ON u.id = p.user_id
       LEFT JOIN likes l ON l.post_id = p.id
@@ -90,7 +108,7 @@ async function getPostById(req, res, next) {
       LIMIT 1
     `;
 
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, currentUserId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -156,6 +174,7 @@ async function createPost(req, res, next) {
           author: null,
           likes_count: 0,
           comments_count: 0,
+          liked_by_me: false,
         }),
       },
     });
@@ -229,6 +248,7 @@ async function updatePost(req, res, next) {
           author: null,
           likes_count: 0,
           comments_count: 0,
+          liked_by_me: false,
         }),
       },
     });
