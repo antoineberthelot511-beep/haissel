@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Haissel</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,117 +12,275 @@
         <div class="brand-wrap">
           <div class="brand-mark">H</div>
           <div>
-            <div class="brand-name">Haissel</div>
-            <div class="brand-tag">Réseau privé du lycée</div>
+            <div class="brand-name">HAISSEL</div>
+            <div class="brand-tag">Affiliation &amp; performance</div>
           </div>
         </div>
 
-        <nav class="topbar-nav">
-          <button class="nav-button active">Accueil</button>
-          <button class="nav-button">Notifications</button>
-          <button class="nav-button">Profil</button>
+        <nav class="topbar-nav" aria-label="Navigation principale">
+          <button class="nav-button active" type="button" data-view="dashboard">Dashboard</button>
+          <button class="nav-button" type="button" data-view="offers">Offres</button>
+          <button class="nav-button" type="button" data-view="link">Mon lien</button>
+          <button class="nav-button" type="button" data-view="stats">Statistiques</button>
+          <button class="nav-button" type="button" data-view="profile">Profil</button>
         </nav>
 
         <div class="topbar-actions">
-          <span id="backend-status" class="status-pill offline">Vérification…</span>
-          <button id="logout-button" class="ghost-button hidden">Déconnexion</button>
+          <span id="status-badge" class="status-pill offline">Connexion</span>
+          <button id="logout-button" class="ghost-button hidden" type="button">Déconnexion</button>
         </div>
       </header>
 
       <main class="layout">
-        <aside class="sidebar left-panel">
+        <aside class="sidebar">
           <div class="card profile-card">
             <div class="profile-header">
-              <div class="avatar large">A</div>
+              <div class="avatar" id="sidebar-avatar">H</div>
               <div>
-                <h2 id="profile-name">Bienvenue</h2>
-                <p id="profile-email">Connectez-vous pour commencer</p>
+                <h2 id="sidebar-name">Bonjour</h2>
+                <p id="sidebar-email">Connectez-vous</p>
               </div>
             </div>
-            <div class="stats-grid">
-              <div>
-                <strong id="stats-followers">0</strong>
-                <span>Abonnés</span>
-              </div>
-              <div>
-                <strong id="stats-following">0</strong>
-                <span>Suivis</span>
-              </div>
-              <div>
-                <strong id="stats-posts">0</strong>
-                <span>Posts</span>
-              </div>
-            </div>
-          </div>
 
-          <div class="card">
-            <h3>Recherche</h3>
-            <div class="search-box">
-              <input id="search-input" type="text" placeholder="Rechercher un élève" />
+            <div class="mini-grid">
+              <div class="mini-card">
+                <span>Clics</span>
+                <strong id="mini-clicks">0</strong>
+              </div>
+              <div class="mini-card">
+                <span>Conv.</span>
+                <strong id="mini-conversions">0</strong>
+              </div>
+              <div class="mini-card">
+                <span>Gains</span>
+                <strong id="mini-earnings">0 €</strong>
+              </div>
             </div>
           </div>
         </aside>
 
         <section class="content-panel">
-          <div id="auth-panel" class="card auth-card">
-            <div class="auth-tabs">
-              <button class="tab-button active" data-tab="login">Connexion</button>
-              <button class="tab-button" data-tab="register">Inscription</button>
+          <div id="auth-screen" class="auth-layout">
+            <div class="auth-intro">
+              <div class="intro-kicker"><span></span> VOTRE ESPACE AFFILIÉ</div>
+              <h1>Transformez vos<br />recommandations<br /><em>en résultats.</em></h1>
+              <p>Un espace simple pour partager vos offres, suivre vos performances et retrouver vos gains.</p>
+              <div class="intro-proof">
+                <div class="proof-symbol" aria-hidden="true">↗</div>
+                <div><strong>Tout au même endroit</strong><span>Vos liens et statistiques, réunis clairement.</span></div>
+              </div>
+              <div class="intro-decoration" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             </div>
 
-            <form id="login-form" class="auth-form active">
-              <label>
-                Identifiant ou email
-                <input id="login-identifier" type="text" placeholder="nom@lycee.fr" required />
-              </label>
-              <label>
-                Mot de passe
-                <input id="login-password" type="password" placeholder="••••••••" required />
-              </label>
-              <button class="primary-button" type="submit">Se connecter</button>
-            </form>
+            <div class="card auth-card">
+              <div class="auth-header">
+                <div class="brand-mark large">H</div>
+                <div>
+                  <div class="eyebrow">RAVI DE VOUS REVOIR</div>
+                  <h2>Bienvenue sur Haissel</h2>
+                  <p>Connectez-vous pour accéder à votre espace.</p>
+                </div>
+              </div>
 
-            <form id="register-form" class="auth-form">
-              <label>
-                Nom d'utilisateur
-                <input id="register-username" type="text" placeholder="alice" required />
-              </label>
-              <label>
-                Email du lycée
-                <input id="register-email" type="email" placeholder="alice@lycee.fr" required />
-              </label>
-              <label>
-                Mot de passe
-                <input id="register-password" type="password" placeholder="Minimum 8 caractères" required />
-              </label>
-              <button class="primary-button" type="submit">Créer un compte</button>
-            </form>
-          </div>
+              <div class="auth-tabs" role="tablist" aria-label="Choix d'authentification">
+                <button class="tab-button active" type="button" data-form="login">Connexion</button>
+                <button class="tab-button" type="button" data-form="register">Créer un compte</button>
+              </div>
 
-          <div id="composer-panel" class="card composer hidden">
-            <h3>Créer une publication</h3>
-            <textarea id="post-content" rows="4" placeholder="Quoi de neuf à l’école aujourd’hui ?"></textarea>
-            <div class="composer-actions">
-              <button class="secondary-button" type="button">Ajouter une photo</button>
-              <button id="publish-button" class="primary-button" type="button">Publier</button>
+              <div id="auth-error" class="auth-error hidden" aria-live="polite"></div>
+
+              <form id="login-form" class="auth-form active" novalidate>
+                <label class="field">
+                  <span>Identifiant ou adresse e-mail</span>
+                  <input id="login-identifier" type="text" placeholder="ex. camille ou camille@mail.fr" autocomplete="username" required />
+                </label>
+                <label class="field">
+                  <span>Mot de passe</span>
+                  <input id="login-password" type="password" placeholder="Votre mot de passe" autocomplete="current-password" required />
+                </label>
+                <button class="primary-button" type="submit">Se connecter <span aria-hidden="true">→</span></button>
+              </form>
+
+              <form id="register-form" class="auth-form hidden" novalidate>
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Prénom</span>
+                    <input id="register-first-name" type="text" placeholder="Prénom" autocomplete="given-name" required />
+                  </label>
+                  <label class="field">
+                    <span>Nom</span>
+                    <input id="register-last-name" type="text" placeholder="Nom" autocomplete="family-name" required />
+                  </label>
+                </div>
+
+                <label class="field">
+                  <span>Nom d'utilisateur</span>
+                  <input id="register-username" type="text" placeholder="nom_utilisateur" autocomplete="username" required />
+                </label>
+
+                <label class="field">
+                  <span>Adresse e-mail</span>
+                  <input id="register-email" type="email" placeholder="prenom@mail.com" autocomplete="email" required />
+                </label>
+
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Mot de passe</span>
+                    <input id="register-password" type="password" placeholder="8 caractères minimum" autocomplete="new-password" required />
+                  </label>
+                  <label class="field">
+                    <span>Confirmation</span>
+                    <input id="register-confirm-password" type="password" placeholder="Répéter le mot de passe" autocomplete="new-password" required />
+                  </label>
+                </div>
+
+                <button class="primary-button" type="submit">Créer mon compte <span aria-hidden="true">→</span></button>
+              </form>
+              <p class="auth-footnote">Vos données restent privées et sécurisées.</p>
             </div>
           </div>
 
-          <div id="feed" class="feed"></div>
+          <div id="app-screen" class="app-screen hidden">
+            <section id="dashboard-view" class="view-panel active">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Accueil</p>
+                  <h2>Bonjour, <span id="welcome-name">utilisateur</span></h2>
+                </div>
+              </div>
+
+              <div class="stats-grid cards-grid">
+                <article class="stat-card blue">
+                  <span>Clics</span>
+                  <strong id="metric-clicks">0</strong>
+                  <small id="metric-clicks-delta">0%</small>
+                </article>
+                <article class="stat-card violet">
+                  <span>Conversions</span>
+                  <strong id="metric-conversions">0</strong>
+                  <small id="metric-conversions-delta">0</small>
+                </article>
+                <article class="stat-card green">
+                  <span>Gains</span>
+                  <strong id="metric-earnings">0 €</strong>
+                  <small id="metric-earnings-delta">0 €</small>
+                </article>
+                <article class="stat-card orange">
+                  <span>Taux</span>
+                  <strong id="metric-rate">0%</strong>
+                  <small id="metric-rate-delta">Performance</small>
+                </article>
+              </div>
+
+              <div class="panel-card">
+                <div class="panel-head">
+                  <h3>Mes offres</h3>
+                  <button class="secondary-button" type="button" data-view="offers">Voir tout</button>
+                </div>
+                <div id="dashboard-offers" class="offer-grid compact"></div>
+              </div>
+            </section>
+
+            <section id="offers-view" class="view-panel hidden">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Offres</p>
+                  <h2>Offres disponibles</h2>
+                </div>
+              </div>
+              <div id="offers-list" class="offer-grid"></div>
+            </section>
+
+            <section id="link-view" class="view-panel hidden">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Mon lien</p>
+                  <h2>Votre lien personnel</h2>
+                </div>
+              </div>
+
+              <div class="panel-card">
+                <label class="field">
+                  <span>Choisir une offre</span>
+                  <select id="affiliate-offer-select"></select>
+                </label>
+
+                <div class="link-box">
+                  <span class="small-label">Lien d'affiliation</span>
+                  <div class="link-row">
+                    <input id="affiliate-link-input" type="text" readonly value="" />
+                    <button id="copy-link-button" class="primary-button" type="button">Copier le lien</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="stats-view" class="view-panel hidden">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Statistiques</p>
+                  <h2>Performance</h2>
+                </div>
+              </div>
+
+              <div class="stats-grid compact-grid">
+                <article class="stat-card blue">
+                  <span>Total clics</span>
+                  <strong id="stats-clicks">0</strong>
+                </article>
+                <article class="stat-card violet">
+                  <span>Total conversions</span>
+                  <strong id="stats-conversions">0</strong>
+                </article>
+                <article class="stat-card green">
+                  <span>Gains</span>
+                  <strong id="stats-earnings">0 €</strong>
+                </article>
+                <article class="stat-card orange">
+                  <span>Taux</span>
+                  <strong id="stats-rate">0%</strong>
+                </article>
+              </div>
+
+              <div class="panel-card">
+                <div class="panel-head">
+                  <h3>Détail par code</h3>
+                </div>
+                <div id="stats-table-wrap" class="table-wrap"></div>
+              </div>
+            </section>
+
+            <section id="profile-view" class="view-panel hidden">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Profil</p>
+                  <h2>Informations du compte</h2>
+                </div>
+              </div>
+
+              <div class="panel-card profile-card-box">
+                <div class="profile-top">
+                  <div class="avatar large" id="profile-avatar">H</div>
+                  <div>
+                    <h3 id="profile-display-name">Utilisateur</h3>
+                    <p id="profile-username">@username</p>
+                  </div>
+                </div>
+
+                <ul class="profile-list">
+                  <li><span>Nom complet</span><strong id="profile-full-name">-</strong></li>
+                  <li><span>Email</span><strong id="profile-email">-</strong></li>
+                  <li><span>Date d'inscription</span><strong id="profile-created-at">-</strong></li>
+                </ul>
+
+                <button id="profile-logout" class="ghost-button danger-button" type="button">Se déconnecter</button>
+              </div>
+            </section>
+          </div>
         </section>
-
-        <aside class="sidebar right-panel">
-          <div class="card">
-            <h3>Notifications</h3>
-            <ul id="notifications-list" class="simple-list">
-              <li>Aucune notification.</li>
-            </ul>
-          </div>
-
-        </aside>
       </main>
     </div>
 
-    <script src="/app.js"></script>
+    <script src="app.js"></script>
   </body>
 </html>

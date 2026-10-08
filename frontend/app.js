@@ -1,56 +1,39 @@
-﻿function readStoredUser() {
+
+const STORAGE_TOKEN_KEY = 'haissel_token';
+const STORAGE_USER_KEY = 'haissel_user';
+
+const state = {
+  token: localStorage.getItem(STORAGE_TOKEN_KEY) || '',
+  user: readStoredUser(),
+  offers: [],
+  stats: null,
+  activeView: 'dashboard',
+};
+
+const ui = {};
+
+function readStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem('lycee_user') || 'null');
-  } catch {
-    localStorage.removeItem('lycee_user');
+    return JSON.parse(localStorage.getItem(STORAGE_USER_KEY) || 'null');
+  } catch (error) {
+    localStorage.removeItem(STORAGE_USER_KEY);
     return null;
   }
 }
 
-const state = {
-  token: localStorage.getItem('lycee_token') || '',
-  user: readStoredUser(),
-  activeTab: 'login',
-  posts: [],
-};
-
-const backendStatusEl = document.getElementById('backend-status');
-const authPanel = document.getElementById('auth-panel');
-const composerPanel = document.getElementById('composer-panel');
-const feedEl = document.getElementById('feed');
-const notificationsList = document.getElementById('notifications-list');
-const profileName = document.getElementById('profile-name');
-const profileEmail = document.getElementById('profile-email');
-const logoutButton = document.getElementById('logout-button');
-const statsFollowers = document.getElementById('stats-followers');
-const statsFollowing = document.getElementById('stats-following');
-const statsPosts = document.getElementById('stats-posts');
-
-function escapeHTML(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  })[character]);
-}
-
-function formatRelativeTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'à l’instant';
+function setStoredSession(token, user) {
+  state.token = token || '';
+  state.user = user || null;
+  if (state.token) {
+    localStorage.setItem(STORAGE_TOKEN_KEY, state.token);
+  } else {
+    localStorage.removeItem(STORAGE_TOKEN_KEY);
   }
-
-  const minutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
-  if (minutes < 1) return 'il y a moins d’une minute';
-  if (minutes < 60) return `il y a ${minutes} min`;
-
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `il y a ${hours} h`;
-
-  const days = Math.round(hours / 24);
-  return `il y a ${days} j`;
+  if (state.user) {
+    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(state.user));
+  } else {
+    localStorage.removeItem(STORAGE_USER_KEY);
+  }
 }
 
 function getAuthHeaders(extraHeaders = {}) {
@@ -60,527 +43,448 @@ function getAuthHeaders(extraHeaders = {}) {
   };
 }
 
-function setLoggedInState(user) {
-  state.user = user;
-  localStorage.setItem('lycee_user', JSON.stringify(user || null));
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+      ...(options.headers || {}),
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error?.message || 'La requête a échoué.');
+  return payload;
+}
 
-  if (user) {
-    profileName.textContent = user.display_name || user.username;
-    profileEmail.textContent = user.email || user.username;
-    authPanel.classList.add('hidden');
-    composerPanel.classList.remove('hidden');
-    logoutButton.classList.remove('hidden');
-    statsFollowers.textContent = '0';
-    statsFollowing.textContent = '0';
-    statsPosts.textContent = '0';
+function setAuthError(message) {
+  if (!ui.authError) return;
+  if (!message) {
+    ui.authError.textContent = '';
+    ui.authError.classList.add('hidden');
+    return;
+  }
+  ui.authError.textContent = message;
+  ui.authError.classList.remove('hidden');
+}
+
+function initialsFromName(name) {
+  const value = String(name || '').trim();
+  if (!value) return 'H';
+  const parts = value.split(/\s+/).slice(0, 2);
+  return parts.map((part) => part[0].toUpperCase()).join('').slice(0, 2) || 'H';
+}
+
+function formatMoney(cents) {
+  const total = Number(cents || 0) / 100;
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(total);
+}
+
+function formatPercent(value) {
+  return `${Number(value || 0).toFixed(1)} %`;
+}
+
+function updateUserSummary() {
+  const displayName = state.user?.display_name || state.user?.username || 'Utilisateur';
+  const email = state.user?.email || 'Utilisateur';
+  const initial = initialsFromName(displayName);
+  ui.sidebarName.textContent = displayName;
+  ui.sidebarEmail.textContent = email;
+  ui.welcomeName.textContent = displayName.split(' ')[0] || displayName;
+  ui.profileDisplayName.textContent = displayName;
+  ui.profileUsername.textContent = `@${state.user?.username || 'user'}`;
+  ui.profileEmail.textContent = email;
+  ui.profileFullName.textContent = state.user?.display_name || '—';
+  ui.profileCreatedAt.textContent = state.user?.created_at ? new Date(state.user.created_at).toLocaleDateString('fr-FR') : '—';
+  ui.sidebarAvatar.textContent = initial;
+  ui.profileAvatar.textContent = initial;
+
+  if (state.user) {
+    ui.statusBadge.textContent = 'En ligne';
+    ui.statusBadge.classList.remove('offline');
+    ui.logoutButton.classList.remove('hidden');
   } else {
-    profileName.textContent = 'Bienvenue';
-    profileEmail.textContent = 'Connectez-vous pour commencer';
-    authPanel.classList.remove('hidden');
-    composerPanel.classList.add('hidden');
-    logoutButton.classList.add('hidden');
-    statsFollowers.textContent = '0';
-    statsFollowing.textContent = '0';
-    statsPosts.textContent = '0';
+    ui.statusBadge.textContent = 'Connexion';
+    ui.statusBadge.classList.add('offline');
+    ui.logoutButton.classList.add('hidden');
   }
 }
 
-function parseBooleanFlag(value) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
-    if (['false', '0', 'no', 'n', ''].includes(normalized)) return false;
+function setActiveView(viewName) {
+  state.activeView = viewName;
+  document.querySelectorAll('.nav-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.view === viewName);
+  });
+  document.querySelectorAll('.view-panel').forEach((panel) => {
+    panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
+  });
+}
+
+function toggleAuthForm(formName) {
+  const isLogin = formName === 'login';
+  document.querySelectorAll('.tab-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.form === formName);
+  });
+  ui.loginForm.classList.toggle('hidden', !isLogin);
+  ui.registerForm.classList.toggle('hidden', isLogin);
+  setAuthError('');
+}
+
+function renderLoggedOut() {
+  setStoredSession('', null);
+  ui.authScreen.classList.remove('hidden');
+  ui.appScreen.classList.add('hidden');
+  updateUserSummary();
+  setActiveView('dashboard');
+  ui.sidebarName.textContent = 'Bonjour';
+  ui.sidebarEmail.textContent = 'Connectez-vous';
+  ui.miniClicks.textContent = '0';
+  ui.miniConversions.textContent = '0';
+  ui.miniEarnings.textContent = '0 €';
+}
+
+function renderLoggedIn() {
+  ui.authScreen.classList.add('hidden');
+  ui.appScreen.classList.remove('hidden');
+  updateUserSummary();
+  setActiveView(state.activeView || 'dashboard');
+}
+
+function renderDashboardStats(stats) {
+  const totalClicks = Number(stats?.total_clicks || 0);
+  const totalConversions = Number(stats?.total_conversions || 0);
+  const totalEarnings = Number(stats?.total_earnings || 0);
+  const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+
+  ui.metricClicks.textContent = totalClicks.toString();
+  ui.metricConversions.textContent = totalConversions.toString();
+  ui.metricEarnings.textContent = formatMoney(totalEarnings);
+  ui.metricRate.textContent = formatPercent(conversionRate);
+
+  ui.miniClicks.textContent = totalClicks.toString();
+  ui.miniConversions.textContent = totalConversions.toString();
+  ui.miniEarnings.textContent = formatMoney(totalEarnings);
+
+  ui.metricClicksDelta.textContent = 'Cumul enregistré';
+  ui.metricConversionsDelta.textContent = 'Conversions enregistrées';
+  ui.metricEarningsDelta.textContent = 'Gains cumulés';
+  ui.metricRateDelta.textContent = 'Conversions / clics';
+
+  ui.statsClicks.textContent = totalClicks.toString();
+  ui.statsConversions.textContent = totalConversions.toString();
+  ui.statsEarnings.textContent = formatMoney(totalEarnings);
+  ui.statsRate.textContent = formatPercent(conversionRate);
+}
+
+function renderOfferCards() {
+  const items = state.offers.slice(0, 3);
+  if (!items.length) {
+    ui.dashboardOffers.innerHTML = '<div class="panel-card">Aucune offre disponible pour le moment.</div>';
+    return;
   }
-  return Boolean(value);
-}
+  ui.dashboardOffers.innerHTML = items.map((offer) => {
+    const logo = (offer.name || 'H').charAt(0).toUpperCase();
+    return `
+      <article class="offer-card">
+        <div class="offer-logo">${logo}</div>
+        <div class="offer-body">
+          <div class="offer-header-line">
+            <h4>${offer.name}</h4>
+            <span class="pill">${offer.code || 'code'}</span>
+          </div>
+          <div class="offer-meta">
+            <span>${offer.description || 'Offre active'}</span>
+          </div>
+          <div class="offer-footer">
+            <strong>${offer.total_amount_cents ? formatMoney(offer.total_amount_cents) : 'Gains'}</strong>
+            <button class="offer-link-button" type="button" data-offer-id="${offer.id}">Obtenir mon lien</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
 
-function normalizePost(post) {
-  return {
-    ...post,
-    likes_count: Number(post.likes_count || 0),
-    comments_count: Number(post.comments_count || 0),
-    liked_by_me: parseBooleanFlag(post.liked_by_me),
-  };
-}
-
-function attachPostInteractions() {
-  document.querySelectorAll('.like-toggle').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const postId = Number(button.dataset.postId);
-      if (!state.token || !state.user) {
-        alert('Connectez-vous pour aimer une publication.');
-        return;
-      }
-
-      const isLiked = button.dataset.liked === 'true';
-      const method = isLiked ? 'DELETE' : 'POST';
-
-      try {
-        const response = await fetch(`/api/posts/${postId}/like`, {
-          method,
-          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-        });
-
-        if (!response.ok) {
-          const json = await response.json().catch(() => ({}));
-          alert(json.error?.message || 'Impossible de mettre à jour le like.');
-          return;
-        }
-
-        const target = state.posts.find((post) => Number(post.id) === postId);
-        if (target) {
-          const nextLiked = !isLiked;
-          target.liked_by_me = nextLiked;
-          target.likes_count = Math.max(0, target.likes_count + (nextLiked ? 1 : -1));
-        }
-
-        const nextCount = target ? target.likes_count : 0;
-        const nextLikedState = target ? target.liked_by_me : false;
-        const icon = button.querySelector('.icon');
-        const count = button.querySelector('.count');
-        if (icon) icon.textContent = nextLikedState ? '♥' : '♡';
-        if (count) count.textContent = String(nextCount);
-        button.dataset.liked = String(nextLikedState);
-        button.classList.toggle('liked', nextLikedState);
-      } catch (error) {
-        alert('Le like n’a pas pu être enregistré.');
-      }
-    });
-  });
-
-  document.querySelectorAll('.comment-toggle').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const postId = Number(button.dataset.postId);
-      const panel = document.querySelector(`.comments-panel[data-panel="${postId}"]`);
-      if (!panel) return;
-
-      const isHidden = panel.classList.contains('hidden');
-      panel.classList.toggle('hidden', !isHidden);
-
-      if (isHidden) {
-        await loadComments(postId);
-      }
-    });
-  });
-
-  document.querySelectorAll('.comment-form').forEach((form) => {
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const postId = Number(form.dataset.postId);
-
-      if (!state.token || !state.user) {
-        alert('Connectez-vous pour laisser un commentaire.');
-        return;
-      }
-
-      const textarea = form.querySelector('textarea');
-      const content = textarea.value.trim();
-      if (!content) {
-        alert('Rédigez un commentaire avant de l’envoyer.');
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/posts/${postId}/comments`, {
-          method: 'POST',
-          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ content }),
-        });
-
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          alert(json.error?.message || 'Le commentaire n’a pas pu être publié.');
-          return;
-        }
-
-        textarea.value = '';
-        const target = state.posts.find((post) => Number(post.id) === postId);
-        if (target) {
-          target.comments_count = Number(target.comments_count || 0) + 1;
-        }
-
-        const commentCount = document.querySelector(`.comment-toggle[data-post-id="${postId}"] .count`);
-        if (commentCount) {
-          commentCount.textContent = String(target ? target.comments_count : 0);
-        }
-
-        await loadComments(postId);
-      } catch (error) {
-        alert('Le commentaire n’a pas pu être enregistré.');
-      }
-    });
-  });
-
-  document.querySelectorAll('.comment-delete').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const commentId = Number(button.dataset.commentId);
-      const postId = Number(button.dataset.postId);
-
-      if (!state.token || !state.user) {
-        alert('Vous devez être connecté pour supprimer un commentaire.');
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/comments/${commentId}`, {
-          method: 'DELETE',
-          headers: getAuthHeaders(),
-        });
-
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          alert(json.error?.message || 'Suppression impossible.');
-          return;
-        }
-
-        const target = state.posts.find((post) => Number(post.id) === postId);
-        if (target && target.comments_count > 0) {
-          target.comments_count -= 1;
-        }
-
-        const commentCount = document.querySelector(`.comment-toggle[data-post-id="${postId}"] .count`);
-        if (commentCount) {
-          commentCount.textContent = String(target ? target.comments_count : 0);
-        }
-
-        await loadComments(postId);
-      } catch (error) {
-        alert('Le commentaire n’a pas pu être supprimé.');
-      }
-    });
+  ui.dashboardOffers.querySelectorAll('[data-offer-id]').forEach((button) => {
+    button.addEventListener('click', () => selectOfferFromId(Number(button.dataset.offerId)));
   });
 }
 
-function renderPosts(posts) {
-  state.posts = (posts || []).map(normalizePost);
-
-  if (!state.posts.length) {
-    feedEl.innerHTML = '<div class="card"><p>Aucune publication pour le moment.</p></div>';
+function renderOffersList() {
+  if (!state.offers.length) {
+    ui.offersList.innerHTML = '<div class="panel-card">Aucune offre n’est disponible pour le moment.</div>';
     return;
   }
 
-  feedEl.innerHTML = state.posts
-    .map((post) => {
-      const author = post.author || { username: 'inconnu', display_name: 'Utilisateur' };
-      const initials = (author.display_name || author.username || 'U')
-        .split(' ')
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
-
-      return `
-        <article class="post-card" data-post-id="${post.id}">
-          <div class="post-header">
-            <div class="post-user">
-              <div class="avatar">${escapeHTML(initials)}</div>
-              <div>
-                <strong>${escapeHTML(author.display_name || author.username)}</strong>
-                <span>@${escapeHTML(author.username)} · ${escapeHTML(formatRelativeTime(post.created_at))}</span>
-              </div>
-            </div>
+  ui.offersList.innerHTML = state.offers.map((offer) => {
+    const logo = (offer.name || 'H').charAt(0).toUpperCase();
+    return `
+      <article class="offer-card">
+        <div class="offer-logo">${logo}</div>
+        <div class="offer-body">
+          <div class="offer-header-line">
+            <h4>${offer.name}</h4>
+            <span class="pill">${offer.code || 'code'}</span>
           </div>
-          <div class="post-body">${escapeHTML(post.content)}</div>
-          <div class="post-actions">
-            <button
-              type="button"
-              class="action-button like-toggle ${post.liked_by_me ? 'liked' : ''}"
-              data-post-id="${post.id}"
-              data-liked="${String(parseBooleanFlag(post.liked_by_me))}"
-            >
-              <span class="icon">${parseBooleanFlag(post.liked_by_me) ? '♥' : '♡'}</span>
-              <span class="count">${Number(post.likes_count || 0)}</span>
-            </button>
-            <button type="button" class="action-button comment-toggle" data-post-id="${post.id}">
-              <span>💬</span>
-              <span class="count">${Number(post.comments_count || 0)}</span>
-            </button>
+          <p>${offer.description || 'Offre active'}</p>
+          <div class="offer-meta">
+            <span>Gains estimés</span>
+            <strong>${offer.total_amount_cents ? formatMoney(offer.total_amount_cents) : 'À confirmer'}</strong>
           </div>
-          <div class="comments-panel hidden" data-panel="${post.id}">
-            <div class="comment-list"></div>
-            <form class="comment-form" data-post-id="${post.id}">
-              <textarea
-                rows="2"
-                placeholder="${state.user ? 'Écrire un commentaire…' : 'Connectez-vous pour commenter'}"
-                ${state.user ? '' : 'disabled'}
-              ></textarea>
-              <button type="submit" ${state.user ? '' : 'disabled'}>Publier</button>
-            </form>
+          <div class="offer-footer">
+            <span>${offer.total_conversions || 0} conversions</span>
+            <button class="offer-link-button" type="button" data-offer-id="${offer.id}">Obtenir mon lien</button>
           </div>
-        </article>
-      `;
-    })
-    .join('');
+        </div>
+      </article>
+    `;
+  }).join('');
 
-  attachPostInteractions();
-}
-
-async function loadComments(postId) {
-  const panel = document.querySelector(`.comments-panel[data-panel="${postId}"]`);
-  if (!panel) return;
-
-  const list = panel.querySelector('.comment-list');
-  if (!list) return;
-
-  list.innerHTML = '<div class="comment-loading">Chargement…</div>';
-
-  try {
-    const response = await fetch(`/api/posts/${postId}/comments`, {
-      cache: 'no-store',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      list.innerHTML = '<div class="comment-empty">Impossible de charger les commentaires.</div>';
-      return;
-    }
-
-    const json = await response.json().catch(() => ({}));
-    const comments = Array.isArray(json?.data?.comments) ? json.data.comments : [];
-
-    if (!comments.length) {
-      list.innerHTML = '<div class="comment-empty">Aucun commentaire pour le moment.</div>';
-      return;
-    }
-
-    list.innerHTML = comments
-      .map((comment) => {
-        const isMine = String(comment.user_id) === String(state.user?.id || '');
-        return `
-          <div class="comment-item">
-            <div class="comment-header">
-              <strong>${escapeHTML(comment.author_display_name || comment.author_username || 'Utilisateur')}</strong>
-              <span>${escapeHTML(comment.author_username ? `@${comment.author_username}` : '')}</span>
-              ${isMine ? `<button type="button" class="comment-delete" data-comment-id="${comment.id}" data-post-id="${postId}">Supprimer</button>` : ''}
-            </div>
-            <div class="comment-body">${escapeHTML(comment.content)}</div>
-          </div>
-        `;
-      })
-      .join('');
-
-    attachPostInteractions();
-  } catch (error) {
-    list.innerHTML = '<div class="comment-empty">Impossible de charger les commentaires.</div>';
-  }
-}
-
-async function checkBackend() {
-  try {
-    const response = await fetch('/api/health', { cache: 'no-store' });
-    const data = await response.json();
-
-    if (response.ok && data.status === 'ok') {
-      backendStatusEl.textContent = 'Backend OK';
-      backendStatusEl.classList.remove('offline');
-      return true;
-    }
-
-    backendStatusEl.textContent = 'Backend lent';
-    backendStatusEl.classList.add('offline');
-    return false;
-  } catch (error) {
-    backendStatusEl.textContent = 'Backend OFF';
-    backendStatusEl.classList.add('offline');
-    return false;
-  }
-}
-
-function showEmptyState(message) {
-  feedEl.replaceChildren();
-  const card = document.createElement('div');
-  card.className = 'card';
-  const text = document.createElement('p');
-  text.textContent = message;
-  card.append(text);
-  feedEl.append(card);
-}
-
-async function loadPosts() {
-  try {
-    const response = await fetch('/api/posts', {
-      cache: 'no-store',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      showEmptyState('Impossible de charger le fil. Réessayez dans un instant.');
-      return;
-    }
-
-    const json = await response.json();
-    if (json && json.data && json.data.posts) {
-      renderPosts(json.data.posts);
-      return;
-    }
-
-    showEmptyState('Le serveur a renvoyé une réponse inattendue.');
-  } catch (error) {
-    showEmptyState('Connexion au serveur impossible.');
-  }
-}
-
-function bindTabs() {
-  document.querySelectorAll('.tab-button').forEach((button) => {
-    button.addEventListener('click', () => {
-      document.querySelectorAll('.tab-button').forEach((tab) => tab.classList.toggle('active', tab === button));
-      document.querySelectorAll('.auth-form').forEach((form) => form.classList.toggle('active', form.id === `${button.dataset.tab}-form`));
-      state.activeTab = button.dataset.tab;
-    });
+  ui.offersList.querySelectorAll('[data-offer-id]').forEach((button) => {
+    button.addEventListener('click', () => selectOfferFromId(Number(button.dataset.offerId)));
   });
 }
 
-async function handleLoginSubmit(event) {
-  event.preventDefault();
+function renderOfferSelector() {
+  if (!state.offers.length) {
+    ui.affiliateOfferSelect.innerHTML = '<option value="">Aucune offre</option>';
+    ui.affiliateLinkInput.value = '';
+    return;
+  }
 
-  const identifier = document.getElementById('login-identifier').value;
+  ui.affiliateOfferSelect.innerHTML = state.offers.map((offer) => `
+    <option value="${offer.id}">${offer.name}</option>
+  `).join('');
+
+  const firstOffer = state.offers[0];
+  ui.affiliateOfferSelect.value = String(firstOffer.id);
+  renderAffiliateLink(firstOffer.id);
+}
+
+function selectOfferFromId(offerId) {
+  state.activeView = 'link';
+  setActiveView('link');
+  ui.affiliateOfferSelect.value = String(offerId);
+  renderAffiliateLink(offerId);
+}
+
+function renderAffiliateLink(offerId) {
+  const offer = state.offers.find((entry) => Number(entry.id) === Number(offerId));
+  if (!offer) return;
+  const target = `${window.location.origin}/api/affiliate/${offer.code || ''}`.replace(/\/$/, '');
+  ui.affiliateLinkInput.value = target;
+}
+
+function renderStatsTable() {
+  const rows = state.stats?.codes || [];
+  if (!rows.length) {
+    ui.statsTableWrap.innerHTML = '<p>Aucune donnée statistique pour le moment.</p>';
+    return;
+  }
+
+  ui.statsTableWrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Offre</th>
+          <th>Code</th>
+          <th>Clics</th>
+          <th>Conversions</th>
+          <th>Gains</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            <td>${row.offer_name || 'Offre'}</td>
+            <td><span class='code-pill'>${row.code || 'N/A'}</span></td>
+            <td>${row.total_clicks || 0}</td>
+            <td>${row.total_conversions || 0}</td>
+            <td>${formatMoney(row.total_amount_cents || 0)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function loadDashboardData() {
+  try {
+    const [offersResponse, statsResponse] = await Promise.all([
+      fetchJson('/api/affiliate'),
+      fetchJson('/api/affiliate/stats'),
+    ]);
+
+    state.offers = offersResponse.data?.items || [];
+    state.stats = statsResponse.data || {};
+
+    renderDashboardStats(state.stats);
+    renderOfferCards();
+    renderOffersList();
+    renderOfferSelector();
+    renderStatsTable();
+  } catch (error) {
+    console.error('Error loading dashboard data', error);
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const identifier = document.getElementById('login-identifier').value.trim();
   const password = document.getElementById('login-password').value;
 
+  if (!identifier || !password) {
+    setAuthError('Remplissez tous les champs.');
+    return;
+  }
+
   try {
-    const response = await fetch('/api/auth/login', {
+    setAuthError('');
+    const response = await fetchJson('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password }),
     });
-
-    const json = await response.json();
-
-    if (!response.ok || !json.data || !json.data.token) {
-      alert(json.error?.message || 'Connexion impossible.');
-      return;
-    }
-
-    state.token = json.data.token;
-    localStorage.setItem('lycee_token', state.token);
-    setLoggedInState(json.data.user);
-    await loadPosts();
+    setStoredSession(response.data.token, response.data.user);
+    renderLoggedIn();
+    await loadDashboardData();
   } catch (error) {
-    alert('Le backend n’est pas disponible pour l’authentification.');
+    setAuthError(error.message);
   }
 }
 
-async function handleRegisterSubmit(event) {
+async function handleRegister(event) {
   event.preventDefault();
+  const payload = {
+    first_name: document.getElementById('register-first-name').value.trim(),
+    last_name: document.getElementById('register-last-name').value.trim(),
+    username: document.getElementById('register-username').value.trim(),
+    email: document.getElementById('register-email').value.trim(),
+    password: document.getElementById('register-password').value,
+    confirm_password: document.getElementById('register-confirm-password').value,
+  };
 
-  const username = document.getElementById('register-username').value;
-  const email = document.getElementById('register-email').value;
-  const password = document.getElementById('register-password').value;
-
-  try {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, email, password }),
-    });
-
-    const json = await response.json();
-
-    if (!response.ok || !json.data || !json.data.token) {
-      alert(json.error?.message || 'Inscription impossible.');
-      return;
-    }
-
-    state.token = json.data.token;
-    localStorage.setItem('lycee_token', state.token);
-    setLoggedInState(json.data.user);
-    await loadPosts();
-  } catch (error) {
-    alert('Le backend n’est pas disponible pour l’inscription.');
+  if (!payload.first_name || !payload.last_name || !payload.username || !payload.email || !payload.password || !payload.confirm_password) {
+    setAuthError('Tous les champs sont obligatoires.');
+    return;
   }
-}
-
-async function handlePublish() {
-  const content = document.getElementById('post-content').value.trim();
-  if (!content) {
-    alert('Rédigez un message avant de publier.');
+  if (payload.password.length < 8) {
+    setAuthError('Le mot de passe doit contenir au moins 8 caractères.');
+    return;
+  }
+  if (payload.password !== payload.confirm_password) {
+    setAuthError('La confirmation ne correspond pas.');
     return;
   }
 
   try {
-    const response = await fetch('/api/posts', {
+    setAuthError('');
+    const response = await fetchJson('/api/auth/register', {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(payload),
     });
-
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      alert(json.error?.message || 'Publication impossible. Vérifiez votre connexion.');
-      return;
-    }
-
-    document.getElementById('post-content').value = '';
-    await loadPosts();
+    setStoredSession(response.data.token, response.data.user);
+    renderLoggedIn();
+    await loadDashboardData();
   } catch (error) {
-    alert('Connexion au serveur impossible. Votre publication n’a pas été enregistrée.');
+    setAuthError(error.message);
   }
 }
 
-async function restoreSession() {
+async function handleLogout() {
+  try {
+    await fetchJson('/api/auth/logout', { method: 'POST' });
+  } catch (error) {
+    console.warn('Logout ignored:', error.message);
+  }
+  setStoredSession('', null);
+  renderLoggedOut();
+}
+
+async function copyAffiliateLink() {
+  try {
+    const value = ui.affiliateLinkInput.value;
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    ui.copyLinkButton.textContent = 'Lien copié';
+    setTimeout(() => { ui.copyLinkButton.textContent = 'Copier le lien'; }, 1200);
+  } catch (error) {
+    ui.affiliateLinkInput.focus();
+    ui.affiliateLinkInput.select();
+  }
+}
+
+async function hydrateSession() {
   if (!state.token) {
+    renderLoggedOut();
     return;
   }
-
   try {
-    const response = await fetch('/api/auth/me', {
-      headers: getAuthHeaders(),
-      cache: 'no-store',
-    });
-    const json = await response.json();
-
-    if (!response.ok || !json.data?.user) {
-      throw new Error('Stored session is no longer valid.');
-    }
-
-    setLoggedInState(json.data.user);
-  } catch {
-    state.token = '';
-    localStorage.removeItem('lycee_token');
-    localStorage.removeItem('lycee_user');
-    setLoggedInState(null);
+    const response = await fetchJson('/api/auth/me');
+    state.user = response.data.user;
+    setStoredSession(state.token, state.user);
+    renderLoggedIn();
+    await loadDashboardData();
+  } catch (error) {
+    console.error('Session invalid', error);
+    setStoredSession('', null);
+    renderLoggedOut();
   }
 }
 
-function bindForms() {
-  document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
-  document.getElementById('register-form').addEventListener('submit', handleRegisterSubmit);
-  document.getElementById('publish-button').addEventListener('click', handlePublish);
-  logoutButton.addEventListener('click', async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-    } catch {
-      alert('La session sera supprimée de cet appareil, mais sa révocation côté serveur a échoué.');
-    } finally {
-      state.token = '';
-      localStorage.removeItem('lycee_token');
-      localStorage.removeItem('lycee_user');
-      setLoggedInState(null);
-      showEmptyState('Connectez-vous pour voir le fil des publications.');
-    }
+document.addEventListener('DOMContentLoaded', () => {
+  ui.statusBadge = document.getElementById('status-badge');
+  ui.logoutButton = document.getElementById('logout-button');
+  ui.authScreen = document.getElementById('auth-screen');
+  ui.appScreen = document.getElementById('app-screen');
+  ui.authError = document.getElementById('auth-error');
+  ui.loginForm = document.getElementById('login-form');
+  ui.registerForm = document.getElementById('register-form');
+  ui.sidebarName = document.getElementById('sidebar-name');
+  ui.sidebarEmail = document.getElementById('sidebar-email');
+  ui.sidebarAvatar = document.getElementById('sidebar-avatar');
+  ui.welcomeName = document.getElementById('welcome-name');
+  ui.profileDisplayName = document.getElementById('profile-display-name');
+  ui.profileUsername = document.getElementById('profile-username');
+  ui.profileEmail = document.getElementById('profile-email');
+  ui.profileFullName = document.getElementById('profile-full-name');
+  ui.profileCreatedAt = document.getElementById('profile-created-at');
+  ui.profileAvatar = document.getElementById('profile-avatar');
+  ui.metricClicks = document.getElementById('metric-clicks');
+  ui.metricConversions = document.getElementById('metric-conversions');
+  ui.metricEarnings = document.getElementById('metric-earnings');
+  ui.metricRate = document.getElementById('metric-rate');
+  ui.metricClicksDelta = document.getElementById('metric-clicks-delta');
+  ui.metricConversionsDelta = document.getElementById('metric-conversions-delta');
+  ui.metricEarningsDelta = document.getElementById('metric-earnings-delta');
+  ui.metricRateDelta = document.getElementById('metric-rate-delta');
+  ui.dashboardOffers = document.getElementById('dashboard-offers');
+  ui.offersList = document.getElementById('offers-list');
+  ui.affiliateOfferSelect = document.getElementById('affiliate-offer-select');
+  ui.affiliateLinkInput = document.getElementById('affiliate-link-input');
+  ui.copyLinkButton = document.getElementById('copy-link-button');
+  ui.statsTableWrap = document.getElementById('stats-table-wrap');
+  ui.miniClicks = document.getElementById('mini-clicks');
+  ui.miniConversions = document.getElementById('mini-conversions');
+  ui.miniEarnings = document.getElementById('mini-earnings');
+  ui.statsClicks = document.getElementById('stats-clicks');
+  ui.statsConversions = document.getElementById('stats-conversions');
+  ui.statsEarnings = document.getElementById('stats-earnings');
+  ui.statsRate = document.getElementById('stats-rate');
+  ui.profileLogout = document.getElementById('profile-logout');
+
+  document.querySelectorAll('.tab-button').forEach((button) => {
+    button.addEventListener('click', () => toggleAuthForm(button.dataset.form));
   });
-}
 
-async function init() {
-  bindTabs();
-  bindForms();
-  await restoreSession();
+  document.querySelectorAll('.nav-button').forEach((button) => {
+    button.addEventListener('click', () => setActiveView(button.dataset.view));
+  });
 
-  const backendAvailable = await checkBackend();
-  if (!backendAvailable) {
-    showEmptyState('Le serveur est indisponible. Réessayez plus tard.');
-    return;
-  }
+  ui.loginForm.addEventListener('submit', handleLogin);
+  ui.registerForm.addEventListener('submit', handleRegister);
+  ui.logoutButton.addEventListener('click', handleLogout);
+  ui.profileLogout.addEventListener('click', handleLogout);
+  ui.copyLinkButton.addEventListener('click', copyAffiliateLink);
+  ui.affiliateOfferSelect.addEventListener('change', () => renderAffiliateLink(ui.affiliateOfferSelect.value));
 
-  notificationsList.replaceChildren();
-  const notificationsEmpty = document.createElement('li');
-  notificationsEmpty.textContent = 'Aucune notification chargée.';
-  notificationsList.append(notificationsEmpty);
-  await loadPosts();
-}
-
-init();
+  hydrateSession();
+});

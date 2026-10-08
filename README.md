@@ -87,3 +87,28 @@ La base PostgreSQL est initialisée au démarrage par le script `database/init.s
    ```
 
 L'application est conçue pour être déployée sur un petit serveur avec Docker et Docker Compose sans installation manuelle de Node.js ou PostgreSQL.
+
+## Promouvoir un autre mini-PC en admin
+
+Pour qu’un second mini-PC puisse administrer une autre instance du projet, il faut :
+
+1. créer un compte utilisateur sur cette instance,
+2. connecter la base PostgreSQL de cette instance,
+3. lancer la commande :
+
+```powershell
+node scripts/promote-admin.js --username alice
+# ou
+node scripts/promote-admin.js --email alice@lycee.fr
+# ou
+node scripts/promote-admin.js --user-id 42
+```
+
+Cette commande insère ou met à jour l’entrée dans la table `admins` avec le rôle `ADMIN`.
+
+Exemple de déploiement multi-serveurs :
+- serveur principal : http://10.32.126.75:3000
+- second serveur : http://10.32.126.76:3000
+- sur chaque instance, attribuez un utilisateur via `--username` ou `--email` puis ouvrez `/admin` avec ce compte.
+
+Le rôle `ADMIN` reste réservé au compte ciblé ; il ne s’ajoute pas automatiquement à tout le monde.

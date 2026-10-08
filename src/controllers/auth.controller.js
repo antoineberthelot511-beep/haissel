@@ -53,7 +53,15 @@ function validateEmail(email) {
 
 async function register(req, res, next) {
   try {
-    const { username, email, password, display_name } = req.body || {};
+    const {
+      username,
+      email,
+      password,
+      confirm_password,
+      display_name,
+      first_name,
+      last_name,
+    } = req.body || {};
 
     if (typeof username !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
       return res.status(400).json({
@@ -65,8 +73,19 @@ async function register(req, res, next) {
       });
     }
 
+    if (typeof confirm_password !== 'string' || password !== confirm_password) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'PASSWORD_MISMATCH',
+          message: 'Password confirmation does not match.',
+        },
+      });
+    }
+
     const normalizedUsername = username.trim().toLowerCase();
     const normalizedEmail = email.trim().toLowerCase();
+    const fullDisplayName = (display_name || `${(first_name || '').trim()} ${(last_name || '').trim()}`.trim() || normalizedUsername).trim();
 
     if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
       return res.status(400).json({
@@ -110,12 +129,12 @@ async function register(req, res, next) {
       });
     }
 
-    if (display_name !== undefined && (typeof display_name !== 'string' || display_name.trim().length > 100)) {
+    if (fullDisplayName.length > 100) {
       return res.status(400).json({
         success: false,
         error: {
           code: 'INVALID_DISPLAY_NAME',
-          message: 'Display name must be a string of at most 100 characters.',
+          message: 'Display name must be at most 100 characters long.',
         },
       });
     }
@@ -128,7 +147,7 @@ async function register(req, res, next) {
         VALUES ($1, $2, $3, $4, NOW(), NOW())
         RETURNING id, username, email, display_name, avatar_url, bio, created_at, updated_at, is_active, is_banned
       `,
-      [normalizedUsername, normalizedEmail, passwordHash, display_name?.trim() || normalizedUsername]
+      [normalizedUsername, normalizedEmail, passwordHash, fullDisplayName]
     );
 
     const user = insertResult.rows[0];

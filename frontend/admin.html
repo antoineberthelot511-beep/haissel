@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Haissel | Administration</title>
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <aside class="sidebar">
+        <div class="brand-wrap">
+          <div class="brand-mark">H</div>
+          <div>
+            <div class="brand-name">HAISSEL</div>
+            <div class="brand-tag">Admin</div>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a href="#overview">Dashboard</a>
+          <a href="#users">Utilisateurs</a>
+          <a href="#offers">Offres</a>
+          <a href="#stats">Statistiques</a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Panneau de contrôle</h1>
+          </div>
+          <button id="admin-logout" class="ghost-button" type="button">Déconnexion</button>
+        </header>
+
+        <section id="overview" class="cards-grid overview-grid">
+          <article class="metric-card blue">
+            <span>Utilisateurs</span>
+            <strong id="metric-users">0</strong>
+          </article>
+          <article class="metric-card violet">
+            <span>Actifs</span>
+            <strong id="metric-active-users">0</strong>
+          </article>
+          <article class="metric-card green">
+            <span>Clics totaux</span>
+            <strong id="metric-total-clicks">0</strong>
+          </article>
+          <article class="metric-card orange">
+            <span>Gains totaux</span>
+            <strong id="metric-total-earnings">0 €</strong>
+          </article>
+        </section>
+
+        <section class="panel" id="users">
+          <div class="panel-head">
+            <h2>Gestion des utilisateurs</h2>
+            <div class="inline-form">
+              <input id="user-search" type="text" placeholder="Rechercher un utilisateur" />
+              <button id="search-users" type="button">Rechercher</button>
+            </div>
+          </div>
+          <div id="users-table-wrap" class="table-wrap"></div>
+        </section>
+
+        <section class="panel" id="offers">
+          <div class="panel-head">
+            <h2>Offres affiliées</h2>
+          </div>
+          <form id="offer-form" class="offer-form">
+            <div class="grid-2">
+              <input id="offer-name" type="text" placeholder="Nom de l'offre" required />
+              <input id="offer-url" type="url" placeholder="https://..." required />
+            </div>
+            <textarea id="offer-description" rows="3" placeholder="Description de l'offre"></textarea>
+            <button type="submit">Créer une offre</button>
+          </form>
+          <div id="offers-table-wrap" class="table-wrap"></div>
+        </section>
+
+        <section class="panel" id="stats">
+          <div class="panel-head">
+            <h2>Statistiques globales</h2>
+          </div>
+          <div id="stats-summary" class="stats-summary"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>

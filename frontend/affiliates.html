@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Haissel | Mes affiliés</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(180deg, #f3f7ff 0%, #eef3ff 100%);
+        color: #17212f;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid #dfe5ee;
+        border-radius: 18px;
+        box-shadow: 0 16px 32px rgba(17, 32, 69, 0.08);
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+        gap: 16px;
+      }
+      .stat {
+        padding: 16px;
+        border: 1px solid #dfe5ee;
+        border-radius: 10px;
+        background: #edf3ff;
+      }
+      .muted { color: #66758a; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border-bottom: 1px solid #dfe5ee; padding: 10px; text-align: left; }
+      .code {
+        display: inline-block;
+        background: #eef9f5;
+        border: 1px solid #bce8d5;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-weight: bold;
+      }
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .link {
+        color: #3f66f7;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <h1>Mes affiliés</h1>
+        <a class="link" href="/">Retour au fil</a>
+      </div>
+
+      <section class="card">
+        <h2>Mes statistiques</h2>
+        <div id="stats-box" class="grid"></div>
+      </section>
+
+      <section class="card">
+        <h2>Offres disponibles</h2>
+        <div id="offers-box"></div>
+      </section>
+
+      <section class="card">
+        <h2>Mes codes</h2>
+        <div id="codes-box"></div>
+      </section>
+    </div>
+
+    <script src="/affiliates.js"></script>
+  </body>
+</html>

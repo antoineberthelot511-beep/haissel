@@ -11,7 +11,9 @@
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "test": "node --check src/app.js && node --check frontend/app.js && node --check src/controllers/auth.controller.js && node --check src/controllers/comments.controller.js && node --check src/controllers/messages.controller.js && node --check src/controllers/notifications.controller.js && node --check src/controllers/posts.controller.js && node --check src/controllers/reports.controller.js && node --check src/controllers/users.controller.js && node --check src/middleware/auth.middleware.js && node --check src/routes/auth.routes.js && node --check src/routes/comments.routes.js && node --check src/routes/messages.routes.js && node --check src/routes/notifications.routes.js && node --check src/routes/posts.routes.js && node --check src/routes/reports.routes.js && node --check src/routes/users.routes.js"
+    "test": "node --check src/app.js && node --check frontend/app.js && node --check src/controllers/auth.controller.js && node --check src/controllers/comments.controller.js && node --check src/controllers/messages.controller.js && node --check src/controllers/notifications.controller.js && node --check src/controllers/posts.controller.js && node --check src/controllers/reports.controller.js && node --check src/controllers/users.controller.js && node --check src/middleware/auth.middleware.js && node --check src/routes/auth.routes.js && node --check src/routes/comments.routes.js && node --check src/routes/messages.routes.js && node --check src/routes/notifications.routes.js && node --check src/routes/posts.routes.js && node --check src/routes/reports.routes.js && node --check src/routes/users.routes.js && node --check src/controllers/admin.controller.js && node --check src/controllers/affiliate.controller.js && node --check src/routes/admin.routes.js && node --check src/routes/affiliate.routes.js && node --check frontend/admin.js && node --check frontend/affiliates.js && node --check scripts/promote-admin.js",
+    "test:unit": "jest --runInBand tests/*.test.js",
+    "admin:promote": "node scripts/promote-admin.js"
   },
   "keywords": [
     "social-network",
@@ -32,5 +34,9 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
   }
 }

@@ -1,11 +1,23 @@
-node_modules/
+# Secrets
 .env
 .env.*
-!.env.example
-!.env.production.example
+
+# Dependencies
+node_modules/
+node_modules_old/
+
+# Installers
+*.exe
+*.msi
+*.crdownload
+
+# Local backups
+sauvegardes/
+
+# Logs / temporary files
+stdout
 *.log
-npm-debug.log*
-.DS_Store
+
+# OS
 Thumbs.db
-.vscode/
-.idea/
+.DS_Store
