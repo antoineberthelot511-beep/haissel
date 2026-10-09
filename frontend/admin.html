@@ -7,86 +7,251 @@
     <link rel="stylesheet" href="/admin.css" />
   </head>
   <body>
-    <div class="admin-shell">
+    <!-- ===================== CONNEXION ===================== -->
+    <main id="login-screen" class="login-screen" hidden>
+      <form id="login-form" class="login-card" novalidate>
+        <div class="brand-wrap">
+          <div class="brand-mark" aria-hidden="true">H</div>
+          <div>
+            <div class="brand-name">HAISSEL</div>
+            <div class="brand-tag">Console d'administration</div>
+          </div>
+        </div>
+        <h1>Connexion administrateur</h1>
+        <p class="muted">Accès réservé aux comptes administrateurs, depuis le serveur uniquement.</p>
+
+        <div id="login-error" class="alert error" role="alert" hidden></div>
+
+        <label class="field">
+          <span>Identifiant ou e-mail</span>
+          <input id="login-identifier" type="text" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>Mot de passe</span>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+        <button id="login-submit" class="btn primary block" type="submit">Se connecter</button>
+      </form>
+    </main>
+
+    <!-- ===================== CONSOLE ===================== -->
+    <div id="admin-shell" class="admin-shell" hidden>
       <aside class="sidebar">
         <div class="brand-wrap">
-          <div class="brand-mark">H</div>
+          <div class="brand-mark" aria-hidden="true">H</div>
           <div>
             <div class="brand-name">HAISSEL</div>
             <div class="brand-tag">Admin</div>
           </div>
         </div>
 
-        <nav class="nav">
-          <a href="#overview">Dashboard</a>
-          <a href="#users">Utilisateurs</a>
-          <a href="#offers">Offres</a>
-          <a href="#stats">Statistiques</a>
+        <nav class="nav" aria-label="Sections d'administration">
+          <a href="#dashboard" data-section="dashboard">Dashboard</a>
+          <a href="#users" data-section="users">Utilisateurs</a>
+          <a href="#offers" data-section="offers">Offres</a>
+          <a href="#conversions" data-section="conversions">Conversions</a>
+          <a href="#earnings" data-section="earnings">Gains</a>
+          <a href="#clicks" data-section="clicks">Clics</a>
+          <a href="#activity" data-section="activity">Journal</a>
         </nav>
+
+        <div class="sidebar-foot">
+          <div class="who">
+            <span class="muted">Connecté</span>
+            <strong id="admin-name">—</strong>
+          </div>
+          <button id="admin-logout" class="btn ghost block" type="button">Déconnexion</button>
+        </div>
       </aside>
 
       <main class="main-content">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Administration</p>
-            <h1>Panneau de contrôle</h1>
-          </div>
-          <button id="admin-logout" class="ghost-button" type="button">Déconnexion</button>
-        </header>
-
-        <section id="overview" class="cards-grid overview-grid">
-          <article class="metric-card blue">
-            <span>Utilisateurs</span>
-            <strong id="metric-users">0</strong>
-          </article>
-          <article class="metric-card violet">
-            <span>Actifs</span>
-            <strong id="metric-active-users">0</strong>
-          </article>
-          <article class="metric-card green">
-            <span>Clics totaux</span>
-            <strong id="metric-total-clicks">0</strong>
-          </article>
-          <article class="metric-card orange">
-            <span>Gains totaux</span>
-            <strong id="metric-total-earnings">0 €</strong>
-          </article>
+        <!-- DASHBOARD -->
+        <section id="section-dashboard" class="section" aria-labelledby="h-dashboard">
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Vue d'ensemble</p>
+              <h1 id="h-dashboard">Dashboard</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="dashboard">Actualiser</button>
+          </header>
+          <div id="overview-cards" class="cards-grid"></div>
         </section>
 
-        <section class="panel" id="users">
-          <div class="panel-head">
-            <h2>Gestion des utilisateurs</h2>
-            <div class="inline-form">
-              <input id="user-search" type="text" placeholder="Rechercher un utilisateur" />
-              <button id="search-users" type="button">Rechercher</button>
+        <!-- USERS -->
+        <section id="section-users" class="section" aria-labelledby="h-users" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Comptes</p>
+              <h1 id="h-users">Utilisateurs</h1>
             </div>
-          </div>
-          <div id="users-table-wrap" class="table-wrap"></div>
-        </section>
-
-        <section class="panel" id="offers">
-          <div class="panel-head">
-            <h2>Offres affiliées</h2>
-          </div>
-          <form id="offer-form" class="offer-form">
-            <div class="grid-2">
-              <input id="offer-name" type="text" placeholder="Nom de l'offre" required />
-              <input id="offer-url" type="url" placeholder="https://..." required />
-            </div>
-            <textarea id="offer-description" rows="3" placeholder="Description de l'offre"></textarea>
-            <button type="submit">Créer une offre</button>
+          </header>
+          <form id="users-filter" class="toolbar" role="search">
+            <label class="field inline">
+              <span class="sr-only">Rechercher</span>
+              <input id="user-search" type="search" placeholder="Nom, e-mail…" />
+            </label>
+            <label class="field inline">
+              <span class="sr-only">Statut</span>
+              <select id="user-status">
+                <option value="all">Tous les statuts</option>
+                <option value="active">Actifs</option>
+                <option value="suspended">Suspendus</option>
+                <option value="banned">Bannis</option>
+              </select>
+            </label>
+            <button class="btn primary" type="submit">Rechercher</button>
           </form>
-          <div id="offers-table-wrap" class="table-wrap"></div>
+          <div id="users-table" class="panel table-wrap"></div>
+          <div id="users-pager" class="pager"></div>
         </section>
 
-        <section class="panel" id="stats">
-          <div class="panel-head">
-            <h2>Statistiques globales</h2>
-          </div>
-          <div id="stats-summary" class="stats-summary"></div>
+        <!-- OFFERS -->
+        <section id="section-offers" class="section" aria-labelledby="h-offers" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Catalogue</p>
+              <h1 id="h-offers">Offres affiliées</h1>
+            </div>
+          </header>
+          <form id="offer-form" class="panel form-grid" novalidate>
+            <h2>Nouvelle offre</h2>
+            <label class="field">
+              <span>Nom</span>
+              <input id="offer-name" type="text" maxlength="120" required />
+            </label>
+            <label class="field">
+              <span>URL de destination (http/https)</span>
+              <input id="offer-url" type="url" maxlength="2000" placeholder="https://partenaire.example/offre?sub={click_id}" required />
+            </label>
+            <label class="field span-2">
+              <span>Description</span>
+              <textarea id="offer-description" rows="3" maxlength="1000"></textarea>
+            </label>
+            <p class="hint span-2">Marqueurs optionnels dans l'URL : <code>{click_id}</code> et <code>{code}</code>, remplacés lors de la redirection pour permettre au partenaire de confirmer la conversion.</p>
+            <div id="offer-error" class="alert error span-2" role="alert" hidden></div>
+            <div class="span-2"><button class="btn primary" type="submit">Créer l'offre</button></div>
+          </form>
+          <div id="offers-table" class="panel table-wrap"></div>
+        </section>
+
+        <!-- CONVERSIONS -->
+        <section id="section-conversions" class="section" aria-labelledby="h-conversions" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Suivi</p>
+              <h1 id="h-conversions">Conversions</h1>
+            </div>
+            <button id="toggle-manual" class="btn ghost" type="button" aria-expanded="false" aria-controls="manual-form">Saisie manuelle</button>
+          </header>
+
+          <form id="manual-form" class="panel form-grid" novalidate hidden>
+            <h2>Saisir une conversion confirmée par un partenaire</h2>
+            <label class="field"><span>Code affilié</span><input id="manual-code" type="text" placeholder="HAI-XXXXXXXX" required /></label>
+            <label class="field"><span>Référence externe (unique)</span><input id="manual-reference" type="text" maxlength="120" required /></label>
+            <label class="field"><span>Commission (€)</span><input id="manual-amount" type="number" min="0" step="0.01" required /></label>
+            <label class="field">
+              <span>Statut</span>
+              <select id="manual-status">
+                <option value="pending">En attente</option>
+                <option value="approved">Approuvée</option>
+              </select>
+            </label>
+            <div id="manual-error" class="alert error span-2" role="alert" hidden></div>
+            <div class="span-2"><button class="btn primary" type="submit">Enregistrer</button></div>
+          </form>
+
+          <form id="conversions-filter" class="toolbar">
+            <label class="field inline">
+              <span class="sr-only">Statut</span>
+              <select id="conv-status">
+                <option value="">Tous les statuts</option>
+                <option value="pending">En attente</option>
+                <option value="approved">Approuvées</option>
+                <option value="rejected">Rejetées</option>
+                <option value="cancelled">Annulées</option>
+              </select>
+            </label>
+            <label class="field inline">
+              <span class="sr-only">Offre</span>
+              <select id="conv-offer"><option value="">Toutes les offres</option></select>
+            </label>
+            <label class="field inline">
+              <span class="sr-only">Utilisateur</span>
+              <input id="conv-user" type="search" placeholder="Utilisateur ou e-mail exact" />
+            </label>
+            <label class="field inline"><span class="sr-only">Du</span><input id="conv-from" type="date" /></label>
+            <label class="field inline"><span class="sr-only">Au</span><input id="conv-to" type="date" /></label>
+            <button class="btn primary" type="submit">Filtrer</button>
+          </form>
+          <div id="conversions-table" class="panel table-wrap"></div>
+          <div id="conversions-pager" class="pager"></div>
+        </section>
+
+        <!-- EARNINGS -->
+        <section id="section-earnings" class="section" aria-labelledby="h-earnings" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Finances</p>
+              <h1 id="h-earnings">Gains</h1>
+            </div>
+          </header>
+          <div id="earnings-cards" class="cards-grid"></div>
+          <form id="earnings-filter" class="toolbar">
+            <label class="field inline">
+              <span class="sr-only">Statut</span>
+              <select id="earning-status">
+                <option value="">Tous les statuts</option>
+                <option value="pending">À payer</option>
+                <option value="paid">Payés</option>
+                <option value="cancelled">Annulés</option>
+              </select>
+            </label>
+            <button class="btn primary" type="submit">Filtrer</button>
+          </form>
+          <div id="earnings-table" class="panel table-wrap"></div>
+          <div id="earnings-pager" class="pager"></div>
+        </section>
+
+        <!-- CLICKS -->
+        <section id="section-clicks" class="section" aria-labelledby="h-clicks" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Trafic</p>
+              <h1 id="h-clicks">Clics récents</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="clicks">Actualiser</button>
+          </header>
+          <div id="clicks-table" class="panel table-wrap"></div>
+          <div id="clicks-pager" class="pager"></div>
+        </section>
+
+        <!-- ACTIVITY -->
+        <section id="section-activity" class="section" aria-labelledby="h-activity" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Surveillance</p>
+              <h1 id="h-activity">Journal des actions admin</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="activity">Actualiser</button>
+          </header>
+          <div id="activity-table" class="panel table-wrap"></div>
         </section>
       </main>
     </div>
+
+    <!-- Confirmation des actions sensibles -->
+    <dialog id="confirm-dialog" class="dialog" aria-labelledby="confirm-title">
+      <form method="dialog">
+        <h2 id="confirm-title">Confirmer</h2>
+        <p id="confirm-message"></p>
+        <div class="dialog-actions">
+          <button value="cancel" class="btn ghost" type="submit">Annuler</button>
+          <button value="confirm" id="confirm-ok" class="btn danger" type="submit">Oui</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="/admin.js"></script>
   </body>

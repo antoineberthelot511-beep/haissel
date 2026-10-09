@@ -4,28 +4,22 @@ const cors = require('cors');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
 
+dotenv.config({ path: path.resolve(__dirname, '../.env'), quiet: true });
+
 const { pool, testConnection } = require('./config/database');
+const { findMissingTables } = require('./db/migrator');
+const { logger } = require('./utils/logger');
+const { isLocalRequest } = require('./utils/network');
 
 const authRouter = require('./routes/auth.routes');
-const usersRouter = require('./routes/users.routes');
-const postsRouter = require('./routes/posts.routes');
-const commentsRouter = require('./routes/comments.routes');
-const notificationsRouter = require('./routes/notifications.routes');
-const messagesRouter = require('./routes/messages.routes');
-const reportsRouter = require('./routes/reports.routes');
 const affiliateRouter = require('./routes/affiliate.routes');
 const adminRouter = require('./routes/admin.routes');
+const webhookRouter = require('./routes/webhook.routes');
 
-const { generalRateLimiter } = require('./middleware/rate-limit.middleware');
+const { generalRateLimiter, redirectRateLimiter } = require('./middleware/rate-limit.middleware');
 const { errorMiddleware } = require('./middleware/error.middleware');
-const {
-  authenticateToken,
-  ensureAdmin,
-} = require('./middleware/auth.middleware');
-
-dotenv.config({
-  path: path.resolve(__dirname, '../.env'),
-});
+const { requireLocalAdmin } = require('./middleware/auth.middleware');
+const { getAffiliateRedirect } = require('./controllers/affiliate.controller');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -36,236 +30,166 @@ const adminPagePath = path.join(frontendPath, 'admin.html');
 
 /*
  * ============================================================
- * UTILITAIRES RESEAU
+ * SÉCURITÉ
  * ============================================================
  */
 
-/**
- * Vérifie si la requête vient du même ordinateur.
- *
- * Les navigateurs peuvent utiliser :
- * - 127.0.0.1
- * - ::1
- * - ::ffff:127.0.0.1
- */
-const isLocalRequest = (req) => {
-  const remoteAddress = req.socket.remoteAddress;
-
-  return (
-    remoteAddress === '127.0.0.1'
-    || remoteAddress === '::1'
-    || remoteAddress === '::ffff:127.0.0.1'
-  );
-};
-
-/**
- * Protège les interfaces et routes d'administration.
- *
- * L'administration doit rester accessible uniquement
- * depuis le mini-PC lui-même.
- */
-const requireLocalAdmin = (req, res, next) => {
-  if (!isLocalRequest(req)) {
-    return res.status(403).json({
-      success: false,
-      error: {
-        code: 'ADMIN_LOCAL_ONLY',
-        message: 'Administration accessible uniquement depuis le serveur.',
-      },
-    });
-  }
-
-  next();
-};
+app.disable('x-powered-by');
 
 /*
- * ============================================================
- * SECURITE / MIDDLEWARES
- * ============================================================
- */
-
-app.use(helmet());
-
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost',
-    credentials: true,
-  })
-);
-
-/*
- * Le serveur fonctionne actuellement directement sur le réseau,
- * sans reverse proxy.
- *
- * Si Nginx est ajouté plus tard devant Node, cette configuration
- * devra être adaptée.
+ * Le serveur est joint directement (npm start) : les en-têtes X-Forwarded-*
+ * ne sont jamais pris en compte. Derrière Nginx (Docker), l'IP réelle est
+ * transmise via un en-tête authentifié par PROXY_SHARED_SECRET
+ * (voir src/utils/network.js).
  */
 app.set('trust proxy', false);
 
-app.use(express.json({ limit: '16kb' }));
-
-app.use(generalRateLimiter);
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      // Le site est servi en HTTP sur le réseau local : forcer HTTPS
+      // empêcherait le chargement du CSS et du JS.
+      upgradeInsecureRequests: null,
+    },
+  },
+  // HSTS n'a de sens qu'en HTTPS.
+  strictTransportSecurity: false,
+}));
 
 /*
- * Désactivation du cache pour éviter de garder une ancienne
- * version de l'interface dans le navigateur.
+ * Le frontend est servi par ce même serveur (same-origin) : aucun en-tête
+ * CORS n'est nécessaire. CORS_ORIGINS (liste séparée par des virgules)
+ * permet d'autoriser explicitement d'autres origines si besoin.
  */
-app.use((req, res, next) => {
-  res.setHeader(
-    'Cache-Control',
-    'no-store, no-cache, must-revalidate, proxy-revalidate'
-  );
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+const corsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => /^https?:\/\/[^\s/]+$/.test(origin));
 
+if (corsOrigins.length > 0) {
+  app.use(cors({ origin: corsOrigins, credentials: false }));
+}
+
+/*
+ * Webhooks : montés AVANT express.json, car la signature HMAC porte sur le
+ * corps brut.
+ */
+app.use('/api/webhooks', webhookRouter);
+
+app.use(express.json({ limit: '16kb' }));
+app.use(generalRateLimiter);
+
+// Pas de cache : évite qu'un navigateur conserve une ancienne interface.
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
   next();
 });
 
 /*
  * ============================================================
- * INTERFACE ADMIN
+ * PAGES
  * ============================================================
  *
- * /admin.html est protégé AVANT express.static afin qu'un
- * appareil du Wi-Fi ne puisse pas simplement demander
- * directement ce fichier.
+ * localhost / 127.0.0.1  -> administration
+ * IP du réseau local     -> espace utilisateur
  */
 
-app.get('/admin.html', requireLocalAdmin, (req, res) => {
+// Les fichiers de l'interface admin ne sont jamais servis au réseau local.
+// Le chemin est décodé et comparé sans casse (le système de fichiers Windows
+// ne distingue pas /ADMIN.HTML de /admin.html).
+function isAdminPath(rawPath) {
+  try {
+    return /admin/i.test(decodeURIComponent(rawPath));
+  } catch (error) {
+    return true;
+  }
+}
+
+app.use((req, res, next) => {
+  if (isAdminPath(req.path) && !isLocalRequest(req)) {
+    return requireLocalAdmin(req, res, next);
+  }
+  return next();
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(isLocalRequest(req) ? adminPagePath : userPagePath);
+});
+
+app.get(['/admin', '/admin.html'], requireLocalAdmin, (req, res) => {
   res.sendFile(adminPagePath);
 });
 
-/*
- * ============================================================
- * FICHIERS STATIQUES
- * ============================================================
- *
- * index:false est important :
- * Express ne doit pas servir automatiquement index.html
- * avant notre logique personnalisée sur "/".
- */
-app.use(
-  express.static(frontendPath, {
-    index: false,
-    maxAge: 0,
-    etag: false,
-    lastModified: false,
-  })
-);
-
-/*
- * ============================================================
- * PAGE D'ACCUEIL
- * ============================================================
- *
- * localhost / 127.0.0.1
- *      -> ADMIN
- *
- * adresse LAN (192.168.1.36)
- *      -> SITE UTILISATEUR
- */
-
-app.get('/', (req, res) => {
-  if (isLocalRequest(req)) {
-    return res.sendFile(adminPagePath);
-  }
-
-  return res.sendFile(userPagePath);
+// Espace utilisateur accessible aussi depuis le serveur (tests, démonstration).
+app.get(['/app', '/mes-affilies'], (req, res) => {
+  res.sendFile(userPagePath);
 });
 
+app.use(express.static(frontendPath, {
+  index: false,
+  etag: false,
+  lastModified: false,
+}));
+
 /*
  * ============================================================
- * API HEALTH
+ * LIEN AFFILIÉ
+ * ============================================================
+ */
+
+app.get('/r/:code', redirectRateLimiter, getAffiliateRedirect);
+
+/*
+ * ============================================================
+ * API
  * ============================================================
  */
 
 app.get('/api/health', async (req, res) => {
   try {
     await testConnection();
+    const missingTables = await findMissingTables(pool);
 
-    res.status(200).json({
-      success: true,
-      status: 'ok',
+    res.status(missingTables.length ? 503 : 200).json({
+      success: missingTables.length === 0,
+      status: missingTables.length ? 'degraded' : 'ok',
       database: 'connected',
+      schema: missingTables.length ? 'migrations_required' : 'ok',
     });
   } catch (error) {
-    console.error('Health check failed:', error);
-
+    logger.error('Health check failed', { error: error.message });
     res.status(503).json({
       success: false,
       status: 'degraded',
       error: {
         code: 'DATABASE_UNAVAILABLE',
-        message: 'Database connection failed.',
+        message: 'Base de données indisponible.',
       },
     });
   }
 });
 
-/*
- * ============================================================
- * API UTILISATEURS
- * ============================================================
- */
-
 app.use('/api/auth', authRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/posts', postsRouter);
-app.use('/api', commentsRouter);
-app.use('/api/notifications', notificationsRouter);
-app.use('/api/conversations', messagesRouter);
-app.use('/api/reports', reportsRouter);
-
-/*
- * ============================================================
- * API AFFILIATION
- * ============================================================
- */
-
 app.use('/api/affiliate', affiliateRouter);
-app.use('/api/affiliates', affiliateRouter);
+app.use('/api/admin', adminRouter);
 
 /*
- * ============================================================
- * ADMINISTRATION
- * ============================================================
- *
- * Les API admin sont accessibles uniquement depuis localhost.
+ * Anciennes API du réseau social (publications, commentaires, messages…).
+ * Non utilisées par l'interface actuelle : désactivées par défaut pour
+ * réduire la surface d'attaque. Les tables restent intactes en base.
  */
-
-app.use('/api/admin', requireLocalAdmin, adminRouter);
-
-/*
- * ============================================================
- * PAGE ADMIN / ROUTES ADMIN
- * ============================================================
- */
-
-app.get(
-  '/admin',
-  requireLocalAdmin,
-  authenticateToken,
-  ensureAdmin,
-  (req, res) => {
-    res.sendFile(adminPagePath);
-  }
-);
-
-app.use('/admin', requireLocalAdmin, adminRouter);
+if (process.env.ENABLE_LEGACY_SOCIAL_API === 'true') {
+  app.use('/api/users', require('./routes/users.routes'));
+  app.use('/api/posts', require('./routes/posts.routes'));
+  app.use('/api', require('./routes/comments.routes'));
+  app.use('/api/notifications', require('./routes/notifications.routes'));
+  app.use('/api/conversations', require('./routes/messages.routes'));
+  app.use('/api/reports', require('./routes/reports.routes'));
+}
 
 /*
  * ============================================================
- * ESPACE AFFILIES
- * ============================================================
- */
-
-app.get('/mes-affilies', authenticateToken, (req, res) => {
-  res.sendFile(path.join(frontendPath, 'affiliates.html'));
-});
-
-/*
- * ============================================================
- * 404
+ * 404 / ERREURS
  * ============================================================
  */
 
@@ -274,62 +198,45 @@ app.use((req, res) => {
     success: false,
     error: {
       code: 'NOT_FOUND',
-      message: 'Route not found.',
+      message: 'Ressource introuvable.',
     },
   });
 });
-
-/*
- * ============================================================
- * GESTION DES ERREURS
- * ============================================================
- */
 
 app.use(errorMiddleware);
 
 /*
  * ============================================================
- * DEMARRAGE DU SERVEUR
+ * DÉMARRAGE
  * ============================================================
  */
 
-const startServer = async () => {
+function checkSecrets() {
   const jwtSecret = process.env.JWT_SECRET || '';
+  const isPlaceholder = /change_me|replace_with|local-development|remplacer/i.test(jwtSecret);
 
-  const isPlaceholderSecret =
-    /change_me|replace_with|local-development/i.test(jwtSecret);
-
-  if (
-    Buffer.byteLength(jwtSecret, 'utf8') < 32
-    || (
-      process.env.NODE_ENV === 'production'
-      && isPlaceholderSecret
-    )
-  ) {
-    console.error(
-      'JWT_SECRET must be a unique secret of at least 32 bytes; example values are not allowed in production.'
-    );
-
+  if (Buffer.byteLength(jwtSecret, 'utf8') < 32 || (process.env.NODE_ENV === 'production' && isPlaceholder)) {
+    logger.error('JWT_SECRET must be a unique secret of at least 32 bytes; example values are not allowed in production.');
     process.exit(1);
   }
+}
+
+const startServer = async () => {
+  checkSecrets();
 
   const server = app.listen(port, '0.0.0.0', () => {
-    console.log(
-      `Server running on http://0.0.0.0:${port}`
-    );
+    logger.info(`Server listening on http://0.0.0.0:${port} (admin: http://localhost:${port})`);
   });
 
   try {
     await testConnection();
-
-    console.log(
-      'PostgreSQL connection successful.'
-    );
+    logger.info('PostgreSQL connection successful.');
+    const missingTables = await findMissingTables(pool);
+    if (missingTables.length > 0) {
+      logger.error(`Database schema incomplete (missing: ${missingTables.join(', ')}). Run: npm run migrate`);
+    }
   } catch (error) {
-    console.error(
-      'PostgreSQL connection unavailable. The server is running in degraded mode.',
-      error.message
-    );
+    logger.error('PostgreSQL connection unavailable. The server is running in degraded mode.', { error: error.message });
   }
 
   const shutdown = () => {
@@ -338,11 +245,7 @@ const startServer = async () => {
         await pool.end();
         process.exit(0);
       } catch (error) {
-        console.error(
-          'Error while closing PostgreSQL connections:',
-          error.message
-        );
-
+        logger.error('Error while closing PostgreSQL connections', { error: error.message });
         process.exit(1);
       }
     });

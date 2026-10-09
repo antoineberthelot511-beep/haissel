@@ -1,17 +1,28 @@
 const express = require('express');
 const {
   listAffiliateOffers,
+  getMyAffiliateLink,
   getMyAffiliateStats,
+  listMyConversions,
   getAffiliateRedirect,
-  createConversion,
 } = require('../controllers/affiliate.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
+const { redirectRateLimiter } = require('../middleware/rate-limit.middleware');
 
 const router = express.Router();
 
-router.get('/', authenticateToken, listAffiliateOffers);
+/*
+ * Il n'existe volontairement AUCUNE route utilisateur de création de
+ * conversion : les conversions proviennent uniquement du webhook signé
+ * (/api/webhooks/affiliate/:provider) ou de l'administration locale.
+ */
+router.get('/offers', authenticateToken, listAffiliateOffers);
+router.post('/offers/:id/link', authenticateToken, getMyAffiliateLink);
 router.get('/stats', authenticateToken, getMyAffiliateStats);
-router.post('/conversion', authenticateToken, createConversion);
-router.get('/:code', getAffiliateRedirect);
+router.get('/conversions', authenticateToken, listMyConversions);
+
+// Alias historique des liens déjà partagés : /api/affiliate/HAI-XXXXXXXX.
+// Le format canonique est /r/HAI-XXXXXXXX.
+router.get('/:code', redirectRateLimiter, getAffiliateRedirect);
 
 module.exports = router;

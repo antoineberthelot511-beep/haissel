@@ -1,163 +1,159 @@
 const { pool } = require('../config/database');
+const { sendError, parsePagination, parseId } = require('../utils/http');
+const { getClientIp, anonymizeIp, hashIp } = require('../utils/network');
+const { logger } = require('../utils/logger');
+const {
+  normalizeCode,
+  isValidCode,
+  isSafeOfferUrl,
+  buildDestinationUrl,
+  ensureUserAffiliateCode,
+  findActiveCode,
+  recordClick,
+} = require('../services/affiliate.service');
 
-function normalizeCode(value) {
-  return String(value || '').trim().toUpperCase();
+/*
+ * Toutes les statistiques sont calculées depuis les tables sources
+ * (clicks, conversions, earnings) : elles ne peuvent pas diverger.
+ *
+ * - conversions = conversions au statut approved
+ * - gains       = earnings pending (dus) + paid (versés), jamais cancelled
+ */
+
+function conversionRate(clicks, conversions) {
+  return clicks > 0 ? Math.round((conversions / clicks) * 10000) / 100 : 0;
 }
 
-function isValidCode(value) {
-  return /^[A-Z0-9-]{6,80}$/.test(normalizeCode(value));
-}
-
-function parsePagination(req) {
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
-  return { page, limit, offset: (page - 1) * limit };
-}
-
-function generateAffiliateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = 'HAI-';
-  for (let index = 0; index < 8; index += 1) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
-
-async function ensureUserAffiliateCode(userId, affiliateLinkId) {
-  const existing = await pool.query(
-    'SELECT id, code FROM user_affiliate_codes WHERE user_id = $1 AND affiliate_link_id = $2 LIMIT 1',
-    [userId, affiliateLinkId]
-  );
-
-  if (existing.rows.length > 0) {
-    return existing.rows[0];
-  }
-
-  let code = generateAffiliateCode();
-  let attempts = 0;
-  while (attempts < 10) {
-    const inserted = await pool.query(
-      'INSERT INTO user_affiliate_codes (user_id, affiliate_link_id, code, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (code) DO NOTHING RETURNING id, code',
-      [userId, affiliateLinkId, code]
-    );
-
-    if (inserted.rows.length > 0) {
-      return inserted.rows[0];
-    }
-
-    code = generateAffiliateCode();
-    attempts += 1;
-  }
-
-  throw new Error('Could not generate a unique affiliate code.');
-}
-
+/**
+ * GET /api/affiliate/offers — offres actives + code et stats de l'utilisateur.
+ * Une seule requête SQL (pas de N+1), aucune écriture.
+ */
 async function listAffiliateOffers(req, res, next) {
   try {
-    const { page, limit, offset } = parsePagination(req);
-    const userId = req.user.id;
-
-    const activeOffers = await pool.query(
+    const { page, limit, offset } = parsePagination(req.query, 50);
+    const result = await pool.query(
       `
-        SELECT id, name, url, description, is_active, created_at
-        FROM affiliate_links
-        WHERE is_active = true
-        ORDER BY created_at DESC
-        LIMIT $1 OFFSET $2
+        SELECT a.id, a.name, a.description, a.created_at,
+               uac.id AS code_id, uac.code,
+               COALESCE(ck.total, 0)::int AS total_clicks,
+               COALESCE(cv.approved, 0)::int AS total_conversions,
+               COALESCE(cv.pending, 0)::int AS pending_conversions,
+               COALESCE(er.earned, 0)::bigint AS total_amount_cents
+        FROM affiliate_links a
+        LEFT JOIN user_affiliate_codes uac
+               ON uac.affiliate_link_id = a.id AND uac.user_id = $1
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) AS total FROM clicks WHERE user_affiliate_code_id = uac.id
+        ) ck ON true
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) FILTER (WHERE status = 'approved') AS approved,
+                 COUNT(*) FILTER (WHERE status = 'pending') AS pending
+          FROM conversions WHERE user_affiliate_code_id = uac.id
+        ) cv ON true
+        LEFT JOIN LATERAL (
+          SELECT SUM(amount_cents) FILTER (WHERE status IN ('pending', 'paid')) AS earned
+          FROM earnings WHERE user_affiliate_code_id = uac.id
+        ) er ON true
+        WHERE a.is_active = true
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT $2 OFFSET $3
       `,
-      [limit, offset]
+      [req.user.id, limit, offset]
     );
 
-    const items = await Promise.all(activeOffers.rows.map(async (offer) => {
-      const codeData = await ensureUserAffiliateCode(userId, offer.id);
-      const statRow = await pool.query(
-        `
-          SELECT COALESCE(s.total_clicks, 0)::int AS total_clicks,
-                 COALESCE(s.total_conversions, 0)::int AS total_conversions,
-                 COALESCE(s.total_amount_cents, 0)::int AS total_amount_cents
-          FROM stats s
-          WHERE s.user_id = $1 AND s.user_affiliate_code_id = $2
-          LIMIT 1
-        `,
-        [userId, codeData.id]
-      );
-
-      return {
-        id: offer.id,
-        name: offer.name,
-        url: offer.url,
-        description: offer.description,
-        is_active: offer.is_active,
-        created_at: offer.created_at,
-        code_id: codeData.id,
-        code: codeData.code,
-        total_clicks: Number(statRow.rows[0]?.total_clicks || 0),
-        total_conversions: Number(statRow.rows[0]?.total_conversions || 0),
-        total_amount_cents: Number(statRow.rows[0]?.total_amount_cents || 0),
-      };
+    const items = result.rows.map((row) => ({
+      ...row,
+      total_amount_cents: Number(row.total_amount_cents),
+      conversion_rate: conversionRate(row.total_clicks, row.total_conversions),
     }));
 
     return res.status(200).json({
       success: true,
-      data: {
-        items,
-        pagination: { page, limit, offset },
-      },
+      data: { items, pagination: { page, limit } },
     });
   } catch (error) {
     return next(error);
   }
 }
 
+/**
+ * POST /api/affiliate/offers/:id/link — obtient (ou crée) le code personnel.
+ */
+async function getMyAffiliateLink(req, res, next) {
+  try {
+    const offerId = parseId(req.params.id);
+    if (!offerId) return sendError(res, 400, 'INVALID_OFFER', 'Offre invalide.');
+
+    const code = await ensureUserAffiliateCode(req.user.id, offerId);
+    if (!code) {
+      return sendError(res, 404, 'OFFER_NOT_AVAILABLE', "Cette offre n'est plus disponible.");
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { offer_id: offerId, code_id: code.id, code: code.code, path: `/r/${code.code}` },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/**
+ * GET /api/affiliate/stats — totaux et détail par code de l'utilisateur.
+ */
 async function getMyAffiliateStats(req, res, next) {
   try {
-    const userId = req.user.id;
+    const result = await pool.query(
+      `
+        SELECT uac.id AS code_id, uac.code, a.id AS offer_id, a.name AS offer_name,
+               a.is_active AS offer_active,
+               COALESCE(ck.total, 0)::int AS total_clicks,
+               COALESCE(cv.approved, 0)::int AS total_conversions,
+               COALESCE(cv.pending, 0)::int AS pending_conversions,
+               COALESCE(er.earned, 0)::bigint AS total_amount_cents,
+               COALESCE(er.paid, 0)::bigint AS paid_amount_cents
+        FROM user_affiliate_codes uac
+        INNER JOIN affiliate_links a ON a.id = uac.affiliate_link_id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) AS total FROM clicks WHERE user_affiliate_code_id = uac.id
+        ) ck ON true
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) FILTER (WHERE status = 'approved') AS approved,
+                 COUNT(*) FILTER (WHERE status = 'pending') AS pending
+          FROM conversions WHERE user_affiliate_code_id = uac.id
+        ) cv ON true
+        LEFT JOIN LATERAL (
+          SELECT SUM(amount_cents) FILTER (WHERE status IN ('pending', 'paid')) AS earned,
+                 SUM(amount_cents) FILTER (WHERE status = 'paid') AS paid
+          FROM earnings WHERE user_affiliate_code_id = uac.id
+        ) er ON true
+        WHERE uac.user_id = $1
+        ORDER BY uac.created_at DESC
+      `,
+      [req.user.id]
+    );
 
-    const [codesResult, statsResult, earningsResult] = await Promise.all([
-      pool.query(
-        `
-          SELECT uac.id AS code_id, uac.code, a.name AS offer_name, a.url,
-                 COALESCE(s.total_clicks, 0)::int AS total_clicks,
-                 COALESCE(s.total_conversions, 0)::int AS total_conversions,
-                 COALESCE(s.total_amount_cents, 0)::int AS total_amount_cents
-          FROM user_affiliate_codes uac
-          INNER JOIN affiliate_links a ON a.id = uac.affiliate_link_id
-          LEFT JOIN stats s ON s.user_affiliate_code_id = uac.id AND s.user_id = $1
-          WHERE uac.user_id = $1
-          ORDER BY uac.created_at DESC
-        `,
-        [userId]
-      ),
-      pool.query(
-        `
-          SELECT COALESCE(SUM(total_clicks), 0)::int AS total_clicks,
-                 COALESCE(SUM(total_conversions), 0)::int AS total_conversions
-          FROM stats
-          WHERE user_id = $1
-        `,
-        [userId]
-      ),
-      pool.query(
-        `
-          SELECT COALESCE(SUM(amount_cents), 0)::int AS total_earnings
-          FROM earnings
-          WHERE user_id = $1
-        `,
-        [userId]
-      )
-    ]);
+    const codes = result.rows.map((row) => ({
+      ...row,
+      total_amount_cents: Number(row.total_amount_cents),
+      paid_amount_cents: Number(row.paid_amount_cents),
+      conversion_rate: conversionRate(row.total_clicks, row.total_conversions),
+    }));
 
-    const totalClicks = Number(statsResult.rows[0]?.total_clicks || 0);
-    const totalConversions = Number(statsResult.rows[0]?.total_conversions || 0);
-    const totalEarnings = Number(earningsResult.rows[0]?.total_earnings || 0);
+    const sum = (key) => codes.reduce((total, row) => total + Number(row[key] || 0), 0);
+    const totalClicks = sum('total_clicks');
+    const totalConversions = sum('total_conversions');
 
     return res.status(200).json({
       success: true,
       data: {
-        codes: codesResult.rows,
+        codes,
         total_clicks: totalClicks,
         total_conversions: totalConversions,
-        total_earnings: totalEarnings,
+        pending_conversions: sum('pending_conversions'),
+        total_earnings: sum('total_amount_cents'),
+        paid_earnings: sum('paid_amount_cents'),
+        conversion_rate: conversionRate(totalClicks, totalConversions),
       },
     });
   } catch (error) {
@@ -165,170 +161,77 @@ async function getMyAffiliateStats(req, res, next) {
   }
 }
 
+/**
+ * GET /api/affiliate/conversions — historique des conversions de l'utilisateur.
+ */
+async function listMyConversions(req, res, next) {
+  try {
+    const { page, limit, offset } = parsePagination(req.query, 50);
+    const result = await pool.query(
+      `
+        SELECT c.id, a.name AS offer_name, uac.code, c.status, c.amount_cents, c.currency,
+               c.created_at, c.processed_at, e.status AS earning_status
+        FROM conversions c
+        INNER JOIN affiliate_links a ON a.id = c.affiliate_link_id
+        LEFT JOIN user_affiliate_codes uac ON uac.id = c.user_affiliate_code_id
+        LEFT JOIN earnings e ON e.conversion_id = c.id
+        WHERE c.user_id = $1
+        ORDER BY c.created_at DESC, c.id DESC
+        LIMIT $2 OFFSET $3
+      `,
+      [req.user.id, limit, offset]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { items: result.rows, pagination: { page, limit } },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+const UNAVAILABLE_PAGE = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Offre indisponible | Haissel</title></head>
+<body style="font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:90vh;color:#1e2235">
+<main style="text-align:center;max-width:28rem;padding:1.5rem"><h1 style="font-size:1.4rem">Cette offre n'est plus disponible.</h1>
+<p>Le lien que vous avez suivi est invalide ou l'offre a été désactivée.</p></main></body></html>`;
+
+function sendUnavailable(res) {
+  return res.status(404).type('html').send(UNAVAILABLE_PAGE);
+}
+
+/**
+ * GET /r/:code (et alias historique GET /api/affiliate/:code)
+ * Enregistre le clic côté serveur puis redirige vers l'URL de l'offre,
+ * qui provient exclusivement de la base (pas d'open redirect).
+ */
 async function getAffiliateRedirect(req, res, next) {
   try {
     const code = normalizeCode(req.params.code);
-    if (!isValidCode(code)) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'AFFILIATE_CODE_NOT_FOUND',
-          message: 'Affiliate code was not found.',
-        },
-      });
+    if (!isValidCode(code)) return sendUnavailable(res);
+
+    const codeRow = await findActiveCode(code);
+    if (!codeRow) return sendUnavailable(res);
+
+    if (!isSafeOfferUrl(codeRow.url)) {
+      logger.error('Offer has an unsafe destination URL', { offerId: codeRow.affiliate_link_id });
+      return sendUnavailable(res);
     }
 
-    const result = await pool.query(
-      `
-        SELECT uac.id AS user_affiliate_code_id, uac.user_id, uac.affiliate_link_id, a.url
-        FROM user_affiliate_codes uac
-        INNER JOIN affiliate_links a ON a.id = uac.affiliate_link_id
-        WHERE uac.code = $1 AND a.is_active = true
-        LIMIT 1
-      `,
-      [code]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'AFFILIATE_CODE_NOT_FOUND',
-          message: 'Affiliate code was not found.',
-        },
-      });
-    }
-
-    const row = result.rows[0];
-    const clickResult = await pool.query(
-      `
-        INSERT INTO clicks (user_id, affiliate_link_id, user_affiliate_code_id, ip_address, user_agent, referrer, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-        RETURNING id
-      `,
-      [row.user_id, row.affiliate_link_id, row.user_affiliate_code_id, req.ip || null, req.get('user-agent') || null, req.get('referer') || null]
-    );
-
-    await pool.query(
-      `
-        INSERT INTO stats (user_id, affiliate_link_id, user_affiliate_code_id, total_clicks, total_conversions, total_amount_cents, updated_at)
-        VALUES ($1, $2, $3, 1, 0, 0, NOW())
-        ON CONFLICT (user_id, affiliate_link_id, user_affiliate_code_id)
-        DO UPDATE SET
-          total_clicks = stats.total_clicks + 1,
-          updated_at = NOW()
-      `,
-      [row.user_id, row.affiliate_link_id, row.user_affiliate_code_id]
-    );
-
-    if (clickResult.rows[0]?.id) {
-      // keep the click reference in a lightweight way for downstream conversion tracking
-    }
-
-    return res.redirect(302, row.url);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-async function createConversion(req, res, next) {
-  try {
-    const { code, click_id, amount_cents, currency, external_reference } = req.body || {};
-    const userId = req.user.id;
-
-    if (!code || !isValidCode(code)) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'INVALID_CODE',
-          message: 'Affiliate code is required.',
-        },
-      });
-    }
-
-    const normalizedAmount = Number(amount_cents);
-    if (!Number.isInteger(normalizedAmount) || normalizedAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'INVALID_AMOUNT',
-          message: 'amount_cents must be a positive integer.',
-        },
-      });
-    }
-
-    const normalizedCode = normalizeCode(code);
-    const codeResult = await pool.query(
-      `
-        SELECT uac.id AS user_affiliate_code_id, uac.user_id, uac.affiliate_link_id
-        FROM user_affiliate_codes uac
-        WHERE uac.code = $1 AND uac.user_id = $2
-        LIMIT 1
-      `,
-      [normalizedCode, userId]
-    );
-
-    if (codeResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: {
-          code: 'AFFILIATE_CODE_NOT_FOUND',
-          message: 'Affiliate code was not found for this user.',
-        },
-      });
-    }
-
-    const affiliateMeta = codeResult.rows[0];
-    const clickRef = Number(click_id || 0);
-    const conversionResult = await pool.query(
-      `
-        INSERT INTO conversions (
-          user_id,
-          affiliate_link_id,
-          user_affiliate_code_id,
-          click_id,
-          external_reference,
-          status,
-          amount_cents,
-          currency,
-          created_at,
-          processed_at
-        )
-        VALUES ($1, $2, $3, $4, $5, 'approved', $6, $7, NOW(), NOW())
-        RETURNING id, user_id, affiliate_link_id, user_affiliate_code_id, amount_cents, currency, status
-      `,
-      [userId, affiliateMeta.affiliate_link_id, affiliateMeta.user_affiliate_code_id, clickRef > 0 ? clickRef : null, external_reference || null, normalizedAmount, (currency || 'EUR').toUpperCase()]
-    );
-
-    const conversion = conversionResult.rows[0];
-
-    await pool.query(
-      `
-        INSERT INTO earnings (user_id, affiliate_link_id, user_affiliate_code_id, conversion_id, amount_cents, currency, status, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
-      `,
-      [userId, affiliateMeta.affiliate_link_id, affiliateMeta.user_affiliate_code_id, conversion.id, normalizedAmount, (currency || 'EUR').toUpperCase()]
-    );
-
-    await pool.query(
-      `
-        INSERT INTO stats (user_id, affiliate_link_id, user_affiliate_code_id, total_clicks, total_conversions, total_amount_cents, updated_at)
-        VALUES ($1, $2, $3, 0, 1, $4, NOW())
-        ON CONFLICT (user_id, affiliate_link_id, user_affiliate_code_id)
-        DO UPDATE SET
-          total_conversions = stats.total_conversions + 1,
-          total_amount_cents = stats.total_amount_cents + EXCLUDED.total_amount_cents,
-          updated_at = NOW()
-      `,
-      [userId, affiliateMeta.affiliate_link_id, affiliateMeta.user_affiliate_code_id, normalizedAmount]
-    );
-
-    return res.status(201).json({
-      success: true,
-      data: {
-        conversion: conversion,
-      },
+    const clientIp = getClientIp(req);
+    const { clickId } = await recordClick({
+      codeRow,
+      ipHash: hashIp(clientIp),
+      ipAddress: anonymizeIp(clientIp),
+      userAgent: (req.get('user-agent') || '').slice(0, 500) || null,
+      referrer: (req.get('referer') || '').slice(0, 1000) || null,
     });
+
+    const destination = buildDestinationUrl(codeRow.url, { clickId, code });
+    if (!isSafeOfferUrl(destination)) return sendUnavailable(res);
+
+    return res.redirect(302, destination);
   } catch (error) {
     return next(error);
   }
@@ -336,7 +239,8 @@ async function createConversion(req, res, next) {
 
 module.exports = {
   listAffiliateOffers,
+  getMyAffiliateLink,
   getMyAffiliateStats,
+  listMyConversions,
   getAffiliateRedirect,
-  createConversion,
 };

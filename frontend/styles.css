@@ -330,3 +330,19 @@ body:has(#auth-screen:not(.hidden)) .content-panel { gap: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* ---------- Affiliation : compléments ---------- */
+.link-feedback { min-height: 1.2em; margin: .5rem 0 0; color: #4e6f32; font-size: .85rem; font-weight: 600; }
+.hint-text { margin: 1rem 0 0; color: var(--muted); font-size: .85rem; }
+.empty-text { margin: 0; padding: 1.25rem 0; color: var(--muted); }
+.offer-footer .secondary-button { min-height: 34px; padding: .35rem .8rem; font-size: .8rem; }
+.status-tag { display: inline-block; padding: .2rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700; background: #eef0ee; color: var(--muted); }
+.status-tag.approved { background: #e3f6e9; color: #1d6b3a; }
+.status-tag.pending { background: #fff3dc; color: #8a5300; }
+.status-tag.rejected { background: #fde8eb; color: #a3202f; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.nav-button:focus-visible, .tab-button:focus-visible, .offer-link-button:focus-visible,
+.primary-button:focus-visible, .secondary-button:focus-visible, .ghost-button:focus-visible {
+  outline: 3px solid rgba(112, 170, 55, .45);
+  outline-offset: 2px;
+}

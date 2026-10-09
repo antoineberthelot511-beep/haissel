@@ -7,24 +7,25 @@ services:
       - .env
     environment:
       NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3000}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
-      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-lycee.fr}
+      PORT: 3000
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (minimum 32 bytes)}
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (host db)}
+      PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:?Set PROXY_SHARED_SECRET in .env (minimum 32 bytes)}
+    # Aucun port publié : l'application n'est joignable que via Nginx.
     depends_on:
       db:
         condition: service_healthy
     networks:
-      - lycee-social-network
+      - haissel-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 20s
 
   db:
     image: postgres:16-alpine
@@ -32,35 +33,41 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    # Le schéma est créé et mis à jour par "node scripts/migrate.js"
+    # (lancé automatiquement au démarrage du conteneur app).
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
     networks:
-      - lycee-social-network
+      - haissel-network
     restart: unless-stopped
 
   nginx:
     image: nginx:1.27-alpine
+    environment:
+      PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:?Set PROXY_SHARED_SECRET in .env (minimum 32 bytes)}
     ports:
-      - "80:80"
+      # Espace utilisateur, accessible depuis le réseau local.
+      - "${PUBLIC_PORT:-3000}:80"
+      # Administration : publiée uniquement sur la machine serveur.
+      - "127.0.0.1:${ADMIN_PORT:-3001}:8080"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
     depends_on:
       app:
         condition: service_healthy
     networks:
-      - lycee-social-network
+      - haissel-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
 
 networks:
-  lycee-social-network:
+  haissel-network:
     driver: bridge

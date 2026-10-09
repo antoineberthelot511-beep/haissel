@@ -1,0 +1,55 @@
+# Modèle Nginx (image officielle : ${VAR} est remplacé au démarrage par envsubst).
+#
+# Deux points d'entrée vers la même application :
+#  - port 80   : public (réseau local) -> espace utilisateur
+#  - port 8080 : administration, publié par docker-compose UNIQUEMENT sur
+#                127.0.0.1 de la machine hôte
+#
+# Nginx prouve à l'application qu'il est bien le proxy grâce à
+# PROXY_SHARED_SECRET. Les en-têtes envoyés par le client sont écrasés.
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    client_max_body_size 32k;
+    server_tokens off;
+
+    location / {
+        proxy_pass http://app:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For "";
+        proxy_set_header X-Haissel-Proxy-Secret "${PROXY_SHARED_SECRET}";
+        # Jamais d'accès admin par le port public, même si le client forge l'en-tête.
+        proxy_set_header X-Haissel-Admin-Gate "";
+        proxy_read_timeout 30s;
+    }
+}
+
+server {
+    listen 8080;
+    server_name _;
+
+    client_max_body_size 32k;
+    server_tokens off;
+
+    location / {
+        proxy_pass http://app:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For "";
+        proxy_set_header X-Haissel-Proxy-Secret "${PROXY_SHARED_SECRET}";
+        proxy_set_header X-Haissel-Admin-Gate "1";
+        proxy_read_timeout 30s;
+    }
+}

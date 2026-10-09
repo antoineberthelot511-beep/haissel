@@ -1,10 +1,17 @@
 node_modules
+node_modules_old
 npm-debug.log
+*.log
 *.exe
 *.msi
 *.dll
+*.crdownload
 .git
 .gitignore
 .env
 .env.*
+sauvegardes
+tests
+stdout
 README.md
+MODE_D_EMPLOI_SERVEUR.txt

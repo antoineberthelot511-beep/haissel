@@ -87,7 +87,7 @@
                 <button class="tab-button" type="button" data-form="register">Créer un compte</button>
               </div>
 
-              <div id="auth-error" class="auth-error hidden" aria-live="polite"></div>
+              <div id="auth-error" class="auth-error hidden" role="alert" aria-live="polite"></div>
 
               <form id="login-form" class="auth-form active" novalidate>
                 <label class="field">
@@ -206,12 +206,15 @@
                 </label>
 
                 <div class="link-box">
-                  <span class="small-label">Lien d'affiliation</span>
+                  <label class="small-label" for="affiliate-link-input">Lien d'affiliation</label>
                   <div class="link-row">
-                    <input id="affiliate-link-input" type="text" readonly value="" />
-                    <button id="copy-link-button" class="primary-button" type="button">Copier le lien</button>
+                    <input id="affiliate-link-input" type="text" readonly value="" placeholder="Cliquez sur « Obtenir mon lien »" />
+                    <button id="generate-link-button" class="secondary-button" type="button">Obtenir mon lien</button>
+                    <button id="copy-link-button" class="primary-button" type="button" disabled>Copier le lien</button>
                   </div>
+                  <p id="link-feedback" class="link-feedback" role="status" aria-live="polite"></p>
                 </div>
+                <p class="hint-text">Partagez ce lien : chaque visite est comptée par Haissel puis redirigée vers l'offre. Les conversions sont confirmées par le partenaire avant d'apparaître dans vos gains.</p>
               </div>
             </section>
 
@@ -247,6 +250,13 @@
                   <h3>Détail par code</h3>
                 </div>
                 <div id="stats-table-wrap" class="table-wrap"></div>
+              </div>
+
+              <div class="panel-card">
+                <div class="panel-head">
+                  <h3>Mes conversions</h3>
+                </div>
+                <div id="conversions-table-wrap" class="table-wrap"></div>
               </div>
             </section>
 
