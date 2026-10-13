@@ -11,8 +11,36 @@ if (schema && !/^[a-z_][a-z0-9_]{0,62}$/.test(schema)) {
   throw new Error('DATABASE_SCHEMA must be a simple lowercase identifier.');
 }
 
+/*
+ * Adresse de la base.
+ * Sur Vercel, une base Neon/Postgres reliée au projet publie son adresse
+ * sous « <PRÉFIXE>_DATABASE_URL » (préfixe choisi à la création). Si
+ * DATABASE_URL est absente ou pointe vers localhost (copie d'un .env local,
+ * inutilisable sur Vercel), cette adresse est utilisée à la place.
+ * Option { unpooled } : connexion directe (migrations, verrou consultatif).
+ */
+function isLocalhostUrl(url) {
+  try {
+    return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(new URL(url).hostname);
+  } catch (error) {
+    return false;
+  }
+}
+
+function resolveDatabaseUrl({ unpooled = false } = {}) {
+  const explicit = process.env.DATABASE_URL || '';
+  if (explicit && !(process.env.VERCEL === '1' && isLocalhostUrl(explicit))) return explicit;
+
+  const suffix = unpooled ? '_DATABASE_URL_UNPOOLED' : '_DATABASE_URL';
+  const candidates = Object.keys(process.env)
+    .filter((key) => key.endsWith(suffix) && process.env[key])
+    .sort();
+  if (candidates.length) return process.env[candidates[0]];
+  return unpooled ? resolveDatabaseUrl() : explicit;
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: resolveDatabaseUrl(),
   max: Number(process.env.DATABASE_POOL_MAX || 10),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -50,6 +78,7 @@ async function withTransaction(fn) {
 
 module.exports = {
   pool,
+  resolveDatabaseUrl,
   testConnection,
   withTransaction,
 };
