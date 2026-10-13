@@ -1,5 +1,5 @@
 const { sendError } = require('../utils/http');
-const { isLocalRequest } = require('../utils/network');
+const { isAdminAccessAllowed } = require('../utils/network');
 const { logger } = require('../utils/logger');
 const { isAdminMfaRequired } = require('../config/security');
 const { loadSession, isValidCsrfToken } = require('../services/session.service');
@@ -13,7 +13,9 @@ const { loadSession, isValidCsrfToken } = require('../services/session.service')
  *  2. pour toute méthode qui modifie l'état, le jeton CSRF lié à la session
  *     (en-tête X-CSRF-Token) est exigé ;
  *  3. le rôle provient de la table admins, jamais du client ;
- *  4. un compte privilégié n'est accepté que depuis la machine serveur.
+ *  4. un compte privilégié n'est accepté que depuis la machine serveur
+ *     (en ligne sur Vercel : rôle ADMIN + double authentification, et
+ *     ADMIN_IP_ALLOWLIST si définie).
  */
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -39,8 +41,8 @@ function authenticate({ allowMfaPending = false } = {}) {
       req.userRole = String(session.user.role).toUpperCase();
       req.session = { id: session.sessionId, tokenHash: session.tokenHash, mfaPending: session.mfaPending };
 
-      // Un compte privilégié n'est jamais utilisable depuis le réseau local.
-      if (req.userRole !== 'USER' && !isLocalRequest(req)) {
+      // Un compte privilégié n'est utilisable que là où l'administration est autorisée.
+      if (req.userRole !== 'USER' && !isAdminAccessAllowed(req)) {
         return sendError(res, 403, 'ADMIN_LOCAL_ONLY', 'Ce compte ne peut être utilisé que depuis le serveur.');
       }
 
@@ -81,8 +83,8 @@ function ensureAdmin(req, res, next) {
 }
 
 function requireLocalAdmin(req, res, next) {
-  if (!isLocalRequest(req)) {
-    logger.warn('Admin access attempt from non-local address', { path: req.originalUrl });
+  if (!isAdminAccessAllowed(req)) {
+    logger.warn('Admin access attempt from non-allowed address', { path: req.originalUrl });
     return sendError(res, 403, 'ADMIN_LOCAL_ONLY', 'Administration accessible uniquement depuis le serveur.');
   }
   return next();

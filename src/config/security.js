@@ -51,6 +51,9 @@ function isEmailVerificationRequired() {
 }
 
 function isAdminMfaRequired() {
+  // En ligne (Vercel), l'administration n'est protégée que par le mot de
+  // passe et la double authentification : celle-ci n'est pas désactivable.
+  if (process.env.VERCEL === '1') return true;
   return process.env.ADMIN_REQUIRE_MFA !== 'false';
 }
 

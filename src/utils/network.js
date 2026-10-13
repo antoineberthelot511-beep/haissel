@@ -59,6 +59,23 @@ function isLocalRequest(req) {
 }
 
 /**
+ * Accès aux comptes et pages d'administration.
+ *  - Serveur local / Docker : uniquement depuis la machine serveur (inchangé).
+ *  - Vercel : accessible en ligne ; la protection repose sur le rôle ADMIN et
+ *    la double authentification obligatoire (voir security.js). Option :
+ *    ADMIN_IP_ALLOWLIST (IP séparées par des virgules) restreint en plus
+ *    l'accès à ces adresses.
+ */
+function isAdminAccessAllowed(req) {
+  if (process.env.VERCEL !== '1') return isLocalRequest(req);
+  const allowlist = (process.env.ADMIN_IP_ALLOWLIST || '')
+    .split(',')
+    .map((ip) => normalizeIp(ip))
+    .filter(Boolean);
+  return allowlist.length === 0 || allowlist.includes(getClientIp(req));
+}
+
+/**
  * IP tronquée pour le stockage (minimisation des données) :
  * IPv4 -> /24, IPv6 -> /48.
  */
@@ -91,6 +108,7 @@ function hashIp(ip) {
 module.exports = {
   getClientIp,
   isLocalRequest,
+  isAdminAccessAllowed,
   isTrustedProxyRequest,
   anonymizeIp,
   hashIp,

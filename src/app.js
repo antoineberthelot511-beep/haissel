@@ -13,7 +13,7 @@ const { findMissingTables } = require('./db/migrator');
 const { logger } = require('./utils/logger');
 const { validateSecurityConfig } = require('./config/security');
 const { csrfOriginCheck } = require('./middleware/csrf.middleware');
-const { isLocalRequest } = require('./utils/network');
+const { isLocalRequest, isAdminAccessAllowed } = require('./utils/network');
 
 const authRouter = require('./routes/auth.routes');
 const affiliateRouter = require('./routes/affiliate.routes');
@@ -153,7 +153,7 @@ function isAdminPath(rawPath) {
 }
 
 app.use((req, res, next) => {
-  if (isAdminPath(req.path) && !isLocalRequest(req)) {
+  if (isAdminPath(req.path) && !isAdminAccessAllowed(req)) {
     return requireLocalAdmin(req, res, next);
   }
   return next();

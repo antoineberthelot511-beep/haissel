@@ -5,7 +5,7 @@ const {
   isAdminMfaRequired,
 } = require('../config/security');
 const { sendError } = require('../utils/http');
-const { isLocalRequest } = require('../utils/network');
+const { isAdminAccessAllowed } = require('../utils/network');
 const throttle = require('../utils/login-throttle');
 const {
   hashPassword,
@@ -224,7 +224,7 @@ async function login(req, res, next) {
     }
 
     const role = await getRole(user.id);
-    if (role !== 'USER' && !isLocalRequest(req)) {
+    if (role !== 'USER' && !isAdminAccessAllowed(req)) {
       await logSecurityEvent('admin_login_refused_remote', { req, userId: user.id });
       return sendError(res, 403, 'ADMIN_LOCAL_ONLY', 'Ce compte ne peut se connecter que depuis le serveur.');
     }
