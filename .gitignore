@@ -6,6 +6,14 @@
 node_modules/
 node_modules_old/
 
+# Certificats et clés TLS (ne jamais versionner)
+certs/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
 # Installers
 *.exe
 *.msi

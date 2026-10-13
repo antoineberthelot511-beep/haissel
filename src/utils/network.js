@@ -78,7 +78,7 @@ function hashIp(ip) {
   const value = normalizeIp(ip);
   if (!value) return null;
   return crypto
-    .createHmac('sha256', process.env.JWT_SECRET || 'haissel')
+    .createHmac('sha256', require('../config/security').deriveKey('ip-hash'))
     .update(value)
     .digest('hex');
 }

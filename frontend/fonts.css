@@ -1,0 +1,14 @@
+/*
+ * Polices hébergées sur le serveur (paquets @fontsource, servis sous /vendor/fonts).
+ * Aucune requête vers Google Fonts : l'adresse IP des visiteurs n'est pas
+ * transmise à un tiers (RGPD, cf. décisions CNIL / LG München 2022).
+ */
+@import url('/vendor/fonts/anton/400.css');
+@import url('/vendor/fonts/archivo/400.css');
+@import url('/vendor/fonts/archivo/500.css');
+@import url('/vendor/fonts/archivo/700.css');
+@import url('/vendor/fonts/archivo/800.css');
+@import url('/vendor/fonts/fraunces/full.css');
+@import url('/vendor/fonts/fraunces/full-italic.css');
+@import url('/vendor/fonts/ibm-plex-mono/400.css');
+@import url('/vendor/fonts/ibm-plex-mono/600.css');

@@ -1,0 +1,304 @@
+HAISSEL - MODE D'EMPLOI DU SERVEUR
+==================================
+
+Ce guide explique comment démarrer Haissel sur un ordinateur et comment
+permettre aux autres appareils du même réseau de s'y connecter.
+
+Important : l'ordinateur qui héberge Haissel est le serveur. Il doit rester
+allumé et connecté au réseau pour que le site soit disponible.
+
+
+1. CHOISIR COMMENT HÉBERGER HAISSEL
+-----------------------------------
+
+MÉTHODE RECOMMANDÉE : Docker Compose
+
+Docker démarre ensemble le site, PostgreSQL et le serveur web Nginx. C'est la
+méthode la plus simple pour un nouvel ordinateur. Avec la configuration actuelle,
+les navigateurs accèdent au site sur le port 80 :
+
+    http://localhost/
+    http://ADRESSE-IP-DU-SERVEUR/
+
+Le port 3000 est utilisé à l'intérieur de Docker par le serveur Node.js. Il
+n'est pas publié directement sur le réseau par la configuration Docker actuelle.
+
+MÉTHODE MANUELLE : Node.js
+
+Node.js démarre l'application directement sur le port 3000, mais PostgreSQL doit
+être installé, démarré et configuré séparément. Les navigateurs utilisent alors :
+
+    http://localhost:3000/
+    http://ADRESSE-IP-DU-SERVEUR:3000/
+
+Les étapes principales de la méthode Docker sont détaillées ci-dessous.
+
+
+2. PRÉPARER UN NOUVEL ORDINATEUR WINDOWS
+----------------------------------------
+
+Sur l'ordinateur qui servira de serveur :
+
+1. Installer Docker Desktop pour Windows.
+2. Si l'installateur le demande, activer WSL 2 et redémarrer l'ordinateur.
+3. Démarrer Docker Desktop et attendre que Docker indique qu'il fonctionne.
+4. Installer Git si la commande "git" n'est pas disponible dans PowerShell.
+5. Récupérer l'adresse HTTPS du dépôt GitHub Haissel auprès de la personne qui
+   gère le projet. Remplacer ADRESSE_DU_DEPOT ci-dessous par cette adresse.
+
+Ouvrir PowerShell et exécuter :
+
+    git clone ADRESSE_DU_DEPOT haissel
+    Set-Location haissel
+    Copy-Item .env.example .env
+    notepad .env
+
+Ne pas saisir littéralement "ADRESSE_DU_DEPOT" : utiliser l'adresse réelle du
+dépôt, par exemple son adresse HTTPS GitHub.
+
+
+3. CONFIGURER LES SECRETS ET LA BASE DE DONNÉES
+-----------------------------------------------
+
+Le fichier .env contient la configuration locale et les mots de passe. Il ne
+doit jamais être envoyé dans une conversation, publié sur GitHub ou partagé
+avec les utilisateurs du site.
+
+Dans PowerShell, générer une clé aléatoire pour JWT_SECRET avec :
+
+    $bytes = New-Object byte[] 48
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    [Convert]::ToBase64String($bytes)
+    $rng.Dispose()
+
+Copier le texte généré, puis ouvrir .env :
+
+    notepad .env
+
+Dans .env, remplacer au minimum les valeurs d'exemple :
+
+    JWT_SECRET=REMPLACER_PAR_LA_CLE_ALEATOIRE_GENEREE
+    POSTGRES_PASSWORD=CHOISIR_UN_MOT_DE_PASSE_LONG_ET_UNIQUE
+    DATABASE_URL=postgresql://lycee_user:CHOISIR_UN_MOT_DE_PASSE_LONG_ET_UNIQUE@db:5432/lycee_social
+
+La partie mot de passe de DATABASE_URL doit être identique à
+POSTGRES_PASSWORD. Si le mot de passe contient des caractères spéciaux tels que
+@, :, /, # ou %, ils doivent être encodés pour une URL ; pour débuter, choisir
+un mot de passe long composé de lettres et de chiffres évite ce problème.
+
+Utiliser des valeurs uniques sur chaque serveur. Ne pas conserver les mots de
+passe ou le JWT_SECRET d'exemple. Enregistrer .env et fermer le Bloc-notes.
+
+
+4. DÉMARRER LE SITE
+-------------------
+
+Depuis PowerShell, dans le dossier du projet :
+
+    docker compose up --build -d
+
+Le premier démarrage télécharge et construit les composants et peut prendre
+quelques minutes. Pour vérifier l'état :
+
+    docker compose ps
+    docker compose logs --tail 100 app
+
+Vérifier le service et la connexion PostgreSQL dans le navigateur :
+
+    http://localhost/api/health
+
+Quand tout fonctionne, la réponse de santé doit indiquer le statut "ok" et la
+base de données "connected".
+
+Pour ouvrir le site sur l'ordinateur serveur :
+
+    http://localhost/
+
+La base PostgreSQL est initialisée avec database/init.sql lors de sa première
+création. Elle est conservée dans le volume Docker postgres_data.
+
+
+5. AUTORISER LES AUTRES APPAREILS DU MÊME RÉSEAU
+------------------------------------------------
+
+Le serveur écoute sur toutes ses interfaces réseau. Les autres appareils
+(téléphones, tablettes, ordinateurs) doivent être connectés au même réseau
+local, par exemple au même Wi-Fi.
+
+Sur l'ordinateur serveur, ouvrir PowerShell et exécuter :
+
+    ipconfig
+
+Repérer "Adresse IPv4" de l'adaptateur Wi-Fi ou Ethernet réellement utilisé.
+Une adresse de réseau local ressemble par exemple à 192.168.1.25 ou
+10.32.126.75. Ne pas utiliser l'adresse de l'adaptateur virtuel Docker.
+
+Sur les autres appareils, ouvrir un navigateur et saisir :
+
+    http://ADRESSE-IP-DU-SERVEUR/
+
+Exemple, si l'adresse IPv4 du serveur est 10.32.126.75 :
+
+    http://10.32.126.75/
+
+Avec Docker Compose, ne pas ajouter :3000 à cette adresse : Nginx écoute le
+port 80, qui est le port utilisé ici.
+
+Si la page ne s'ouvre pas :
+
+- vérifier que Docker Desktop fonctionne et que "docker compose ps" montre les
+  services en cours d'exécution ;
+- vérifier que les appareils sont sur le même réseau et pas sur un réseau
+  Wi-Fi invité isolé ;
+- autoriser Docker Desktop / le serveur web sur le réseau privé dans le
+  pare-feu Windows ;
+- vérifier l'adresse IPv4 avec ipconfig ;
+- consulter les messages avec "docker compose logs --tail 100 nginx" et
+  "docker compose logs --tail 100 app".
+
+L'adresse IP peut changer après un redémarrage du routeur. Pour une adresse
+stable, demander à la personne qui gère le réseau de réserver une adresse DHCP
+pour cet ordinateur.
+
+
+6. CRÉER LE PREMIER COMPTE ADMINISTRATEUR
+-----------------------------------------
+
+1. Depuis un navigateur, ouvrir l'adresse du site.
+2. Créer un compte utilisateur normal avec la page d'inscription.
+3. Dans PowerShell, se placer dans le dossier du projet et lancer la commande
+   suivante en remplaçant IDENTIFIANT par le nom d'utilisateur exact :
+
+       docker compose exec app node scripts/promote-admin.js --username IDENTIFIANT
+
+   On peut aussi cibler le compte par son adresse e-mail :
+
+       docker compose exec app node scripts/promote-admin.js --email personne@exemple.fr
+
+4. Se déconnecter puis se reconnecter avec ce compte.
+5. Ouvrir :
+
+       http://ADRESSE-IP-DU-SERVEUR/admin
+
+La page /admin vérifie l'authentification et le rôle administrateur côté
+serveur. Connaître l'adresse du site ou du chemin /admin ne donne pas les droits
+d'administration.
+
+Créer et promouvoir un compte admin uniquement pour les personnes de confiance.
+
+
+7. UN AUTRE ORDINATEUR PEUT-IL DEVENIR LE SERVEUR ?
+---------------------------------------------------
+
+OUI - POUR HÉBERGER LA MÊME INSTANCE :
+
+Laisser un seul ordinateur exécuter Haissel et donner son adresse aux
+utilisateurs. Si un ordinateur différent reprend le rôle de serveur, il faut y
+installer Docker, récupérer le dépôt, configurer son propre .env et démarrer
+Docker Compose en suivant ce guide.
+
+Attention : chaque installation Docker possède sa propre base PostgreSQL et
+ses propres comptes et données. La nouvelle installation n'est pas une copie
+magique de l'ancienne. Pour transférer une instance existante, il faut prévoir
+une sauvegarde et une restauration PostgreSQL ; ne pas simplement effacer ou
+remplacer les données.
+
+OUI - POUR ÊTRE ADMINISTRATEUR DE L'INSTANCE EXISTANTE :
+
+Il n'est pas nécessaire de transformer son PC en serveur. Créer son compte sur
+l'instance existante, puis demander à un administrateur actuel de promouvoir
+ce compte sur le serveur qui héberge réellement la base de données. Un compte
+admin créé sur une autre installation ne donne aucun accès à l'instance
+existante.
+
+Les rôles admin sont propres à chaque base de données Haissel.
+
+
+8. ARRÊTER, REDÉMARRER ET METTRE À JOUR
+---------------------------------------
+
+Arrêter les services sans supprimer les données :
+
+    docker compose down
+
+Redémarrer les services déjà construits :
+
+    docker compose up -d
+
+Suivre les journaux :
+
+    docker compose logs -f
+
+Quitter l'affichage des journaux avec Ctrl+C ; cela ne supprime pas les données.
+
+Pour récupérer une mise à jour du dépôt puis reconstruire l'application :
+
+    git pull
+    docker compose up --build -d
+
+Avant une mise à jour importante, faire une sauvegarde de la base de données.
+Les changements apportés ultérieurement au schéma nécessitent leurs migrations
+prévues ; relancer Docker ne modifie pas automatiquement les volumes existants.
+
+NE PAS utiliser "docker compose down -v" pour arrêter le serveur : l'option -v
+supprime aussi le volume PostgreSQL et peut effacer les comptes et données.
+Ne jamais supprimer le volume postgres_data pour tenter de réparer une panne.
+
+
+9. LANCEMENT MANUEL AVEC NODE.JS (AVANCÉ)
+-----------------------------------------
+
+Cette méthode est utile pour le développement. Elle nécessite Node.js 22 ou une
+version compatible et un serveur PostgreSQL installé et démarré séparément.
+Elle n'utilise pas le service Nginx de Docker.
+
+Configurer DATABASE_URL dans .env avec l'adresse PostgreSQL accessible depuis
+cet ordinateur, ainsi que les autres secrets et paramètres. La base doit déjà
+être créée et le schéma initial database/init.sql appliqué. Ne pas réinitialiser
+une base existante pour démarrer le serveur.
+
+Dans PowerShell, depuis le dossier du projet :
+
+    npm install
+    npm start
+
+Le site est alors servi par défaut à l'adresse :
+
+    http://localhost:3000/
+
+Pour les appareils du même réseau :
+
+    http://ADRESSE-IP-DU-SERVEUR:3000/
+
+Le processus Node doit rester ouvert. L'arrêter avec Ctrl+C. Cette méthode
+n'offre pas à elle seule la sauvegarde, la supervision et le redémarrage
+automatique configurés dans l'installation Docker.
+
+
+10. IMPORTANT POUR UN SERVEUR ACCESSIBLE DEPUIS INTERNET
+--------------------------------------------------------
+
+Ce guide configure un accès sur le réseau local uniquement. Ne pas ouvrir ou
+rediriger les ports du routeur vers Internet pour rendre ce serveur public.
+Un accès Internet demande une configuration supplémentaire : HTTPS avec un
+certificat, un nom de domaine, des règles de pare-feu, des sauvegardes et une
+maintenance de sécurité.
+
+Ne jamais publier .env, ses mots de passe, les sauvegardes de base ou des
+journaux contenant des informations privées.
+
+
+RÉSUMÉ RAPIDE - NOUVEAU SERVEUR WINDOWS AVEC DOCKER
+---------------------------------------------------
+
+1. Installer et démarrer Docker Desktop et Git.
+2. Cloner le dépôt Haissel.
+3. Copier .env.example vers .env.
+4. Remplacer les secrets d'exemple dans .env.
+5. Lancer "docker compose up --build -d".
+6. Vérifier "http://localhost/api/health".
+7. Lire l'adresse IPv4 du PC avec "ipconfig".
+8. Ouvrir "http://ADRESSE-IP/" depuis les appareils du même réseau.
+9. Créer un compte Haissel puis le promouvoir admin si nécessaire.
+

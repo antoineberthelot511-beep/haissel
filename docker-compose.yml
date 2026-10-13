@@ -10,7 +10,10 @@ services:
       PORT: 3000
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-}
       DATABASE_SSL: ${DATABASE_SSL:-false}
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (minimum 32 bytes)}
+      # Secret maître (JWT_SECRET accepté pour les installations existantes).
+      APP_SECRET: ${APP_SECRET:-${JWT_SECRET:?Set APP_SECRET in .env (minimum 32 bytes)}}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+      ADMIN_REQUIRE_MFA: ${ADMIN_REQUIRE_MFA:-true}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env (host db)}
       PROXY_SHARED_SECRET: ${PROXY_SHARED_SECRET:?Set PROXY_SHARED_SECRET in .env (minimum 32 bytes)}
     # Aucun port publié : l'application n'est joignable que via Nginx.

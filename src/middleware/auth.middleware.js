@@ -1,84 +1,58 @@
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const { pool } = require('../config/database');
 const { sendError } = require('../utils/http');
 const { isLocalRequest } = require('../utils/network');
 const { logger } = require('../utils/logger');
+const { isAdminMfaRequired } = require('../config/security');
+const { loadSession, isValidCsrfToken } = require('../services/session.service');
 
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || Buffer.byteLength(secret, 'utf8') < 32) {
-    throw new Error('JWT_SECRET must be configured with at least 32 bytes.');
-  }
-  return secret;
-}
-
-function hashToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-/**
- * Vérifie le JWT (signature + expiration) PUIS la session en base :
- * session non révoquée, non expirée, compte actif et non banni.
+/*
+ * Authentification par session serveur (cookie HttpOnly).
+ *
+ * À chaque requête protégée :
+ *  1. la session est relue en base (non révoquée, non expirée, compte actif
+ *     et non banni) ;
+ *  2. pour toute méthode qui modifie l'état, le jeton CSRF lié à la session
+ *     (en-tête X-CSRF-Token) est exigé ;
+ *  3. le rôle provient de la table admins, jamais du client ;
+ *  4. un compte privilégié n'est accepté que depuis la machine serveur.
  */
-async function authenticateToken(req, res, next) {
-  const authHeader = req.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
-  if (!token) {
-    return sendError(res, 401, 'UNAUTHORIZED', 'Authentification requise.');
-  }
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-  let decoded;
-  try {
-    decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
-  } catch (error) {
-    return sendError(res, 401, 'INVALID_TOKEN', 'Session invalide ou expirée. Veuillez vous reconnecter.');
-  }
+function authenticate({ allowMfaPending = false } = {}) {
+  return async function authenticateRequest(req, res, next) {
+    try {
+      const session = await loadSession(req);
+      if (!session) {
+        return sendError(res, 401, 'UNAUTHORIZED', 'Authentification requise.');
+      }
 
-  const userId = Number(decoded.sub);
-  if (!Number.isSafeInteger(userId) || userId <= 0) {
-    return sendError(res, 401, 'INVALID_TOKEN', 'Session invalide ou expirée. Veuillez vous reconnecter.');
-  }
+      if (!SAFE_METHODS.has(req.method) && !isValidCsrfToken(session.tokenHash, req.get('x-csrf-token'))) {
+        logger.warn('CSRF token rejected', { path: req.originalUrl, userId: session.user.id });
+        return sendError(res, 403, 'CSRF_REJECTED', 'Requête refusée. Rechargez la page puis réessayez.');
+      }
 
-  try {
-    const tokenHash = hashToken(token);
-    const result = await pool.query(
-      `
-        SELECT u.id, u.username, u.email, u.display_name, u.avatar_url, u.bio,
-               u.created_at, u.updated_at, u.is_active, u.is_banned,
-               COALESCE(a.role, 'USER') AS role
-        FROM sessions s
-        INNER JOIN users u ON u.id = s.user_id
-        LEFT JOIN admins a ON a.user_id = u.id
-        WHERE s.token_hash = $1
-          AND s.user_id = $2
-          AND s.revoked_at IS NULL
-          AND s.expires_at > NOW()
-          AND u.is_active = true
-          AND u.is_banned = false
-        LIMIT 1
-      `,
-      [tokenHash, userId]
-    );
+      if (session.mfaPending && !allowMfaPending) {
+        return sendError(res, 401, 'MFA_REQUIRED', 'Code de double authentification requis.');
+      }
 
-    if (result.rows.length === 0) {
-      return sendError(res, 401, 'SESSION_EXPIRED', 'Session invalide ou expirée. Veuillez vous reconnecter.');
+      req.user = session.user;
+      req.userRole = String(session.user.role).toUpperCase();
+      req.session = { id: session.sessionId, tokenHash: session.tokenHash, mfaPending: session.mfaPending };
+
+      // Un compte privilégié n'est jamais utilisable depuis le réseau local.
+      if (req.userRole !== 'USER' && !isLocalRequest(req)) {
+        return sendError(res, 403, 'ADMIN_LOCAL_ONLY', 'Ce compte ne peut être utilisé que depuis le serveur.');
+      }
+
+      return next();
+    } catch (error) {
+      return next(error);
     }
-
-    req.user = result.rows[0];
-    req.userRole = String(req.user.role).toUpperCase();
-    req.tokenHash = tokenHash;
-    return next();
-  } catch (error) {
-    return next(error);
-  }
+  };
 }
 
-/**
- * Le rôle provient de la table admins (lue par authenticateToken à chaque
- * requête) ; il n'est jamais lu depuis le JWT ni depuis le client.
- */
+const authenticateToken = authenticate();
+
 function requireRole(...allowedRoles) {
   const allowed = allowedRoles.map((role) => role.toUpperCase());
 
@@ -86,21 +60,26 @@ function requireRole(...allowedRoles) {
     if (!req.user) {
       return sendError(res, 401, 'UNAUTHORIZED', 'Authentification requise.');
     }
-
     if (!allowed.includes(req.userRole)) {
       logger.warn('Forbidden role access', { userId: req.user.id, path: req.originalUrl });
       return sendError(res, 403, 'FORBIDDEN', 'Accès administrateur refusé.');
     }
-
     return next();
   };
 }
 
-const ensureAdmin = requireRole('ADMIN');
+const requireAdminRole = requireRole('ADMIN');
 
-/**
- * L'administration n'est accessible que depuis la machine serveur.
- */
+/** Rôle ADMIN + double authentification active (sauf ADMIN_REQUIRE_MFA=false). */
+function ensureAdmin(req, res, next) {
+  return requireAdminRole(req, res, () => {
+    if (isAdminMfaRequired() && !req.user.mfa_enabled) {
+      return sendError(res, 403, 'MFA_SETUP_REQUIRED', 'Activez la double authentification pour accéder à l’administration.');
+    }
+    return next();
+  });
+}
+
 function requireLocalAdmin(req, res, next) {
   if (!isLocalRequest(req)) {
     logger.warn('Admin access attempt from non-local address', { path: req.originalUrl });
@@ -110,10 +89,9 @@ function requireLocalAdmin(req, res, next) {
 }
 
 module.exports = {
+  authenticate,
   authenticateToken,
   requireRole,
   ensureAdmin,
   requireLocalAdmin,
-  hashToken,
-  getJwtSecret,
 };

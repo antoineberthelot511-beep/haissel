@@ -1,0 +1,27 @@
+/* ==========================================================================
+   HAISSEL — thème de la console d'administration
+   Chargé après admin.css : aligne les couleurs sur l'espace membre
+   (vert HAISSEL, fond neutre, police système). Apparence uniquement.
+   ========================================================================== */
+
+:root {
+  --bg: #eef1f3;
+  --ink: #1c2529;
+  --muted: #55626a;
+  --line: #d8dee2;
+  --primary: #006b5c;
+  --primary-soft: #e3f3f0;
+  --violet: #008673;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+:focus-visible { outline: 3px solid #f2a900; outline-offset: 2px; }
+
+.brand-mark { background: #008673; }
+.btn.primary:hover:not(:disabled) { background: #00513f; }
+.field input:focus, .field select:focus, .field textarea:focus { box-shadow: 0 0 0 3px #b8ded7; }
+.login-screen { background: #eef1f3; }
+.login-card { border-top: 4px solid #008673; }
+.sidebar { border-right: 1px solid var(--line); }
+.nav a[aria-current="page"] { box-shadow: inset 3px 0 0 #008673; }
+.badge.violet { background: #e3f3f0; color: #00513f; }

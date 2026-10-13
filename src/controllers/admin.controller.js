@@ -1,6 +1,7 @@
 const { pool, withTransaction } = require('../config/database');
 const { sendError, parsePagination, parseId } = require('../utils/http');
 const { logger } = require('../utils/logger');
+const { getLanAddresses } = require('../utils/lan-address');
 const { isSafeOfferUrl } = require('../services/affiliate.service');
 const {
   recordConversion,
@@ -51,6 +52,7 @@ async function getAdminOverview(req, res, next) {
         (SELECT COUNT(*) FROM affiliate_links)::int AS total_offers,
         (SELECT COUNT(*) FROM affiliate_links WHERE is_active)::int AS active_offers,
         (SELECT COUNT(*) FROM clicks)::int AS total_clicks,
+        (SELECT COUNT(*) FROM clicks WHERE created_at >= date_trunc('day', NOW()))::int AS clicks_today,
         (SELECT COUNT(*) FROM conversions WHERE status = 'approved')::int AS total_conversions,
         (SELECT COUNT(*) FROM conversions WHERE status = 'pending')::int AS pending_conversions,
         (SELECT COUNT(*) FROM conversions WHERE status IN ('rejected', 'cancelled'))::int AS rejected_conversions,
@@ -145,6 +147,18 @@ async function updateUserStatus(req, res, next) {
       return sendError(res, 409, 'CANNOT_DISABLE_SELF', 'Vous ne pouvez pas suspendre ou bannir votre propre compte.');
     }
 
+    if (restricts) {
+      // Le dernier administrateur actif ne peut pas être suspendu ni banni.
+      const admins = await pool.query(`
+        SELECT a.user_id FROM admins a INNER JOIN users u ON u.id = a.user_id
+        WHERE a.role = 'ADMIN' AND u.is_active AND NOT u.is_banned
+      `);
+      const adminIds = admins.rows.map((row) => row.user_id);
+      if (adminIds.includes(userId) && adminIds.length <= 1) {
+        return sendError(res, 409, 'LAST_ADMIN', 'Impossible : c’est le dernier administrateur actif.');
+      }
+    }
+
     const user = await withTransaction(async (client) => {
       const updated = await client.query(
         `
@@ -230,6 +244,8 @@ async function listAffiliateLinks(req, res, next) {
         SELECT a.id, a.name, a.url, a.description, a.is_active, a.created_at, a.updated_at,
                (SELECT COUNT(*) FROM user_affiliate_codes WHERE affiliate_link_id = a.id)::int AS total_affiliates,
                (SELECT COUNT(*) FROM clicks WHERE affiliate_link_id = a.id)::int AS total_clicks,
+               (SELECT COUNT(DISTINCT user_id) FROM clicks WHERE affiliate_link_id = a.id)::int AS unique_clickers,
+               (SELECT MAX(created_at) FROM clicks WHERE affiliate_link_id = a.id) AS last_click_at,
                (SELECT COUNT(*) FROM conversions WHERE affiliate_link_id = a.id AND status = 'approved')::int AS total_conversions,
                (SELECT COALESCE(SUM(amount_cents), 0) FROM earnings
                  WHERE affiliate_link_id = a.id AND status IN ('pending', 'paid'))::bigint AS total_earnings_cents,
@@ -543,7 +559,24 @@ async function listAdminActions(req, res, next) {
   }
 }
 
+/**
+ * Adresse(s) à donner aux utilisateurs du réseau local, recalculées à chaque
+ * appel (le serveur peut changer de Wi-Fi sans redémarrer).
+ */
+function getNetworkInfo(req, res) {
+  const port = Number(process.env.PUBLIC_PORT || process.env.PORT || 3000);
+  // Même protocole que le serveur : un lien http:// vers un serveur HTTPS ne répond pas.
+  const scheme = req.secure ? 'https' : 'http';
+  const defaultPort = scheme === 'https' ? 443 : 80;
+  const addresses = getLanAddresses().map((entry) => ({
+    ...entry,
+    url: `${scheme}://${entry.address}${port === defaultPort ? '' : `:${port}`}`,
+  }));
+  return res.status(200).json({ success: true, data: { port, addresses } });
+}
+
 module.exports = {
+  getNetworkInfo,
   getAdminOverview,
   listUsers,
   updateUserStatus,

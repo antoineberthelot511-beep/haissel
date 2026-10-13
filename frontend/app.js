@@ -3,56 +3,38 @@
 /*
  * Espace utilisateur HAISSEL.
  *
- * Toutes les données venant du serveur sont insérées via textContent
- * (fonction h) : aucune n'est interprétée comme du HTML.
- * Les statistiques affichées proviennent exclusivement de l'API.
+ * Sessions : cookie HttpOnly posé par le serveur. Ce script ne voit et ne
+ * stocke AUCUN identifiant de session (rien dans localStorage /
+ * sessionStorage). Il garde seulement en mémoire le jeton CSRF lié à la
+ * session, envoyé dans l'en-tête X-CSRF-Token des requêtes qui modifient
+ * des données.
+ *
+ * Toutes les données venant du serveur sont insérées via textContent (h()).
  */
 
-const STORAGE_TOKEN_KEY = 'haissel_token';
-const STORAGE_USER_KEY = 'haissel_user';
-const LEGACY_TOKEN_KEY = 'lycee_token';
+const LEGACY_STORAGE_KEYS = ['haissel_token', 'haissel_user', 'lycee_token'];
 
 const state = {
-  token: storageGet(STORAGE_TOKEN_KEY) || '',
-  user: readStoredUser(),
-  offers: [],
-  stats: null,
-  conversions: [],
-  activeView: 'dashboard',
+  csrf: '',
+  user: null,
+  config: { email_enabled: false, email_verification_required: false, password_min_length: 10 },
+  links: [],
+  loadedAt: 0,
+  resetToken: '',
 };
 
 const ui = {};
+let notificationCenter = null;
 
 // ---------------------------------------------------------------------------
 // Utilitaires
 // ---------------------------------------------------------------------------
 
-function storageGet(key) {
-  try { return localStorage.getItem(key); } catch (error) { return null; }
-}
-
-function storageSet(key, value) {
+/** Supprime les jetons laissés par les anciennes versions du site. */
+function purgeLegacyStorage() {
   try {
-    if (value) localStorage.setItem(key, value);
-    else localStorage.removeItem(key);
+    for (const key of LEGACY_STORAGE_KEYS) localStorage.removeItem(key);
   } catch (error) { /* stockage indisponible */ }
-}
-
-function readStoredUser() {
-  try {
-    return JSON.parse(storageGet(STORAGE_USER_KEY) || 'null');
-  } catch (error) {
-    storageSet(STORAGE_USER_KEY, '');
-    return null;
-  }
-}
-
-function setStoredSession(token, user) {
-  state.token = token || '';
-  state.user = user || null;
-  storageSet(STORAGE_TOKEN_KEY, state.token);
-  storageSet(STORAGE_USER_KEY, state.user ? JSON.stringify(state.user) : '');
-  storageSet(LEGACY_TOKEN_KEY, '');
 }
 
 /** Création d'élément sûre : les chaînes deviennent des nœuds texte. */
@@ -69,16 +51,6 @@ function h(tag, attrs, ...children) {
     element.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
   return element;
-}
-
-const moneyFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
-
-function formatMoney(cents) {
-  return moneyFormatter.format(Number(cents || 0) / 100);
-}
-
-function formatPercent(value) {
-  return `${Number(value || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
 }
 
 function formatDate(value) {
@@ -98,15 +70,17 @@ class ApiError extends Error {
   }
 }
 
-async function fetchJson(url, options = {}) {
+async function api(url, { method = 'GET', body } = {}) {
   let response;
   try {
     response = await fetch(url, {
-      ...options,
+      method,
+      credentials: 'same-origin',
       headers: {
-        'Content-Type': 'application/json',
-        ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(method !== 'GET' && state.csrf ? { 'X-CSRF-Token': state.csrf } : {}),
       },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (error) {
     throw new ApiError(0, 'NETWORK', 'Serveur injoignable. Vérifiez votre connexion.');
@@ -116,28 +90,53 @@ async function fetchJson(url, options = {}) {
   if (!response.ok) {
     const message = typeof payload.error?.message === 'string' ? payload.error.message : 'Une erreur est survenue.';
     const error = new ApiError(response.status, payload.error?.code || 'ERROR', message);
-    // Session expirée ou révoquée (compte suspendu, déconnexion ailleurs…)
-    if (response.status === 401 && state.user && !url.startsWith('/api/auth/')) {
-      renderLoggedOut();
-      setAuthError('Votre session a expiré. Veuillez vous reconnecter.');
+    const sessionLost = response.status === 401 && state.user && !url.startsWith('/api/auth/');
+    if (sessionLost || (response.status === 403 && error.code === 'ADMIN_LOCAL_ONLY' && state.user)) {
+      showLoggedOut();
+      setMessage('error', response.status === 401 ? 'Votre session a expiré. Veuillez vous reconnecter.' : message);
     }
     throw error;
   }
-  return payload.data;
+  if (payload.data?.csrf_token) state.csrf = payload.data.csrf_token;
+  return payload.data || {};
 }
 
-function setAuthError(message) {
-  ui.authError.textContent = message || '';
-  ui.authError.classList.toggle('hidden', !message);
+function setMessage(kind, message) {
+  const error = kind === 'error' ? message : '';
+  const info = kind === 'info' ? message : '';
+  ui.authError.textContent = error;
+  ui.authError.classList.toggle('hidden', !error);
+  ui.authInfo.textContent = info;
+  ui.authInfo.classList.toggle('hidden', !info);
 }
 
-function setLinkFeedback(message) {
-  ui.linkFeedback.textContent = message || '';
+function setBusy(form, busy) {
+  form.querySelectorAll('button[type="submit"]').forEach((button) => {
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Rendu
+// Écrans
 // ---------------------------------------------------------------------------
+
+const AUTH_FORMS = ['login-form', 'register-form', 'mfa-form', 'forgot-form', 'reset-form'];
+
+function showAuthForm(id, { keepMessage = false } = {}) {
+  for (const formId of AUTH_FORMS) document.getElementById(formId).classList.toggle('hidden', formId !== id);
+  const tabbed = id === 'login-form' || id === 'register-form';
+  ui.authTabs.classList.toggle('hidden', !tabbed);
+  document.querySelectorAll('.tab-button').forEach((button) => {
+    const active = `${button.dataset.form}-form` === id;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  ui.forgotLink.classList.toggle('hidden', !state.config.email_enabled);
+  if (!keepMessage) setMessage('', '');
+  const firstInput = document.getElementById(id).querySelector('input');
+  if (firstInput && id !== 'login-form') firstInput.focus();
+}
 
 function updateUserSummary() {
   const displayName = state.user?.display_name || state.user?.username || 'Utilisateur';
@@ -145,7 +144,7 @@ function updateUserSummary() {
 
   ui.sidebarName.textContent = state.user ? displayName : 'Bonjour';
   ui.sidebarEmail.textContent = state.user?.email || 'Connectez-vous';
-  ui.welcomeName.textContent = displayName.split(' ')[0];
+  ui.welcomeName.textContent = state.user?.first_name || displayName.split(' ')[0];
   ui.profileDisplayName.textContent = displayName;
   ui.profileUsername.textContent = `@${state.user?.username || ''}`;
   ui.profileEmail.textContent = state.user?.email || '—';
@@ -160,8 +159,8 @@ function updateUserSummary() {
 }
 
 function setActiveView(viewName) {
-  state.activeView = viewName;
-  document.querySelectorAll('.nav-button').forEach((button) => {
+  // Barre principale et raccourcis de la colonne latérale.
+  document.querySelectorAll('[data-view]').forEach((button) => {
     const active = button.dataset.view === viewName;
     button.classList.toggle('active', active);
     if (active) button.setAttribute('aria-current', 'page');
@@ -172,315 +171,348 @@ function setActiveView(viewName) {
   });
 }
 
-function toggleAuthForm(formName) {
-  const isLogin = formName === 'login';
-  document.querySelectorAll('.tab-button').forEach((button) => {
-    const active = button.dataset.form === formName;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-selected', String(active));
-  });
-  ui.loginForm.classList.toggle('hidden', !isLogin);
-  ui.registerForm.classList.toggle('hidden', isLogin);
-  setAuthError('');
-}
-
-function renderLoggedOut() {
-  setStoredSession('', null);
-  state.offers = [];
-  state.stats = null;
-  state.conversions = [];
+function showLoggedOut() {
+  if (notificationCenter) notificationCenter.stop();
+  state.user = null;
+  state.links = [];
   ui.authScreen.classList.remove('hidden');
   ui.appScreen.classList.add('hidden');
   updateUserSummary();
-  setActiveView('dashboard');
-  renderStats();
+  setActiveView('links');
 }
 
-function renderLoggedIn() {
+function showLoggedIn(user) {
+  state.user = user;
   ui.authScreen.classList.add('hidden');
   ui.appScreen.classList.remove('hidden');
   updateUserSummary();
-  setActiveView(state.activeView || 'dashboard');
+  setActiveView('links');
+  loadLinks();
+  if (notificationCenter) notificationCenter.start();
 }
 
-function renderStats() {
-  const stats = state.stats || {};
-  const clicks = Number(stats.total_clicks || 0);
-  const conversions = Number(stats.total_conversions || 0);
-  const earnings = Number(stats.total_earnings || 0);
-  const rate = Number(stats.conversion_rate || 0);
-
-  for (const node of [ui.metricClicks, ui.statsClicks, ui.miniClicks]) node.textContent = clicks.toLocaleString('fr-FR');
-  for (const node of [ui.metricConversions, ui.statsConversions, ui.miniConversions]) node.textContent = conversions.toLocaleString('fr-FR');
-  for (const node of [ui.metricEarnings, ui.statsEarnings, ui.miniEarnings]) node.textContent = formatMoney(earnings);
-  for (const node of [ui.metricRate, ui.statsRate]) node.textContent = formatPercent(rate);
-
-  ui.metricClicksDelta.textContent = 'Visites de vos liens';
-  ui.metricConversionsDelta.textContent = stats.pending_conversions
-    ? `${stats.pending_conversions} en attente de confirmation`
-    : 'Confirmées par les partenaires';
-  ui.metricEarningsDelta.textContent = `dont ${formatMoney(stats.paid_earnings || 0)} versés`;
-  ui.metricRateDelta.textContent = 'Conversions / clics';
-}
-
-function offerCard(offer, { compact = false } = {}) {
-  const hasCode = Boolean(offer.code);
+function linkCard(link) {
   return h('article', { className: 'offer-card' },
-    h('div', { className: 'offer-logo', 'aria-hidden': 'true' }, (offer.name || 'H').charAt(0).toUpperCase()),
+    h('div', { className: 'offer-logo', 'aria-hidden': 'true' }, (link.name || 'H').charAt(0).toUpperCase()),
     h('div', { className: 'offer-body' },
       h('div', { className: 'offer-header-line' },
-        h('h4', null, offer.name),
-        h('span', { className: 'pill' }, hasCode ? offer.code : 'Active')),
-      compact ? null : h('p', null, offer.description || 'Aucune description.'),
-      h('div', { className: 'offer-meta' },
-        h('span', null, `${offer.total_clicks} clic${offer.total_clicks > 1 ? 's' : ''}`),
-        h('span', null, `${offer.total_conversions} conversion${offer.total_conversions > 1 ? 's' : ''}`),
-        h('strong', null, formatMoney(offer.total_amount_cents))),
+        h('h3', null, link.name),
+        // Transparence commerciale (Code de la consommation L. 121-1, loi du 9 juin 2023).
+        h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut percevoir une commission si vous utilisez ce lien.' }, 'Publicité')),
+      link.description ? h('p', null, link.description) : null,
       h('div', { className: 'offer-footer' },
-        h('button', {
+        h('span', { className: 'offer-domain' }, link.domain ? `Site partenaire : ${link.domain}` : 'Site partenaire'),
+        h('a', {
           className: 'offer-link-button',
-          type: 'button',
-          onclick: () => selectOffer(offer.id, { generate: true }),
-        }, hasCode ? 'Voir mon lien' : 'Obtenir mon lien'),
-        hasCode ? h('button', {
-          className: 'secondary-button',
-          type: 'button',
-          onclick: () => copyText(buildAffiliateLink(offer.code)),
-        }, 'Copier le lien') : null)));
+          href: link.go_url,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          'aria-label': `Ouvrir « ${link.name} » sur le site partenaire (nouvel onglet)`,
+        }, 'Ouvrir ↗'))));
 }
 
-function renderOffers() {
-  const emptyMessage = 'Aucune offre n’est disponible pour le moment.';
-
-  ui.dashboardOffers.replaceChildren(...(state.offers.length
-    ? state.offers.slice(0, 3).map((offer) => offerCard(offer, { compact: true }))
-    : [h('div', { className: 'panel-card' }, emptyMessage)]));
-
-  ui.offersList.replaceChildren(...(state.offers.length
-    ? state.offers.map((offer) => offerCard(offer))
-    : [h('div', { className: 'panel-card' }, emptyMessage)]));
-
-  const previous = ui.affiliateOfferSelect.value;
-  ui.affiliateOfferSelect.replaceChildren(...(state.offers.length
-    ? state.offers.map((offer) => h('option', { value: offer.id }, offer.name))
-    : [h('option', { value: '' }, 'Aucune offre')]));
-  if (state.offers.some((offer) => String(offer.id) === previous)) {
-    ui.affiliateOfferSelect.value = previous;
-  }
-  renderAffiliateLink();
+function renderLinks() {
+  ui.linksList.setAttribute('aria-busy', 'false');
+  ui.linksList.replaceChildren(...(state.links.length
+    ? state.links.map(linkCard)
+    : [h('div', { className: 'panel-card' }, 'Aucun lien publié pour le moment. Revenez plus tard !')]));
 }
 
-function buildAffiliateLink(code) {
-  // L'origine courante est utilisée : le lien fonctionne quel que soit
-  // le réseau / l'adresse IP du serveur.
-  return `${window.location.origin}/r/${encodeURIComponent(code)}`;
-}
-
-function currentOffer() {
-  return state.offers.find((offer) => String(offer.id) === ui.affiliateOfferSelect.value) || null;
-}
-
-function renderAffiliateLink() {
-  const offer = currentOffer();
-  const hasCode = Boolean(offer?.code);
-  ui.affiliateLinkInput.value = hasCode ? buildAffiliateLink(offer.code) : '';
-  ui.copyLinkButton.disabled = !hasCode;
-  ui.generateLinkButton.classList.toggle('hidden', !offer || hasCode);
-  setLinkFeedback('');
-}
-
-function renderTable(container, columns, rows, emptyMessage) {
-  if (!rows.length) {
-    container.replaceChildren(h('p', { className: 'empty-text' }, emptyMessage));
-    return;
-  }
-  container.replaceChildren(h('table', null,
-    h('thead', null, h('tr', null, columns.map((col) => h('th', { scope: 'col' }, col.label)))),
-    h('tbody', null, rows.map((row) => h('tr', null, columns.map((col) => h('td', { 'data-label': col.label }, col.render(row))))))));
-}
-
-const CONVERSION_LABELS = {
-  pending: 'En attente',
-  approved: 'Confirmée',
-  rejected: 'Refusée',
-  cancelled: 'Annulée',
-};
-
-function renderStatsTables() {
-  renderTable(ui.statsTableWrap, [
-    { label: 'Offre', render: (row) => (row.offer_active ? row.offer_name : `${row.offer_name} (inactive)`) },
-    { label: 'Code', render: (row) => h('span', { className: 'code-pill' }, row.code) },
-    { label: 'Clics', render: (row) => row.total_clicks },
-    { label: 'Conversions', render: (row) => row.total_conversions },
-    { label: 'Taux', render: (row) => formatPercent(row.conversion_rate) },
-    { label: 'Gains', render: (row) => formatMoney(row.total_amount_cents) },
-  ], state.stats?.codes || [], 'Aucune donnée pour le moment. Obtenez un lien depuis la page Offres.');
-
-  renderTable(ui.conversionsTableWrap, [
-    { label: 'Date', render: (row) => formatDate(row.created_at) },
-    { label: 'Offre', render: (row) => row.offer_name },
-    { label: 'Montant', render: (row) => formatMoney(row.amount_cents) },
-    { label: 'Statut', render: (row) => h('span', { className: `status-tag ${row.status}` }, CONVERSION_LABELS[row.status] || row.status) },
-  ], state.conversions, 'Aucune conversion pour le moment.');
+function renderLinksLoading() {
+  ui.linksList.setAttribute('aria-busy', 'true');
+  if (state.links.length) return; // on garde la liste affichée pendant l'actualisation
+  ui.linksList.replaceChildren(
+    h('div', { className: 'panel-card' }, 'Chargement des liens…'),
+    h('div', { className: 'offer-card skeleton', 'aria-hidden': 'true' }),
+    h('div', { className: 'offer-card skeleton', 'aria-hidden': 'true' }));
 }
 
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 
-async function loadDashboardData() {
+async function loadLinks() {
+  renderLinksLoading();
   try {
-    const [offers, stats, conversions] = await Promise.all([
-      fetchJson('/api/affiliate/offers?limit=50'),
-      fetchJson('/api/affiliate/stats'),
-      fetchJson('/api/affiliate/conversions?limit=20'),
-    ]);
-    state.offers = offers.items || [];
-    state.stats = stats || {};
-    state.conversions = conversions.items || [];
-    renderStats();
-    renderOffers();
-    renderStatsTables();
+    const data = await api('/api/links');
+    state.links = data.items || [];
+    state.loadedAt = Date.now();
+    renderLinks();
   } catch (error) {
-    if (error.status !== 401) {
-      ui.offersList.replaceChildren(h('div', { className: 'panel-card' }, `Impossible de charger vos données : ${error.message}`));
-    }
-  }
-}
-
-async function selectOffer(offerId, { generate = false } = {}) {
-  setActiveView('link');
-  ui.affiliateOfferSelect.value = String(offerId);
-  renderAffiliateLink();
-  if (generate && !currentOffer()?.code) await generateLink();
-}
-
-async function generateLink() {
-  const offer = currentOffer();
-  if (!offer) return;
-  ui.generateLinkButton.disabled = true;
-  try {
-    const data = await fetchJson(`/api/affiliate/offers/${encodeURIComponent(offer.id)}/link`, { method: 'POST' });
-    offer.code = data.code;
-    offer.code_id = data.code_id;
-    renderOffers();
-    ui.affiliateOfferSelect.value = String(offer.id);
-    renderAffiliateLink();
-    setLinkFeedback('Votre lien personnel est prêt.');
-  } catch (error) {
-    setLinkFeedback(error.message);
-    if (error.code === 'OFFER_NOT_AVAILABLE') await loadDashboardData();
-  } finally {
-    ui.generateLinkButton.disabled = false;
-  }
-}
-
-async function copyText(value) {
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-    setLinkFeedback('Lien copié dans le presse-papiers.');
-  } catch (error) {
-    // navigator.clipboard est indisponible en HTTP hors localhost : sélection manuelle.
-    ui.affiliateLinkInput.value = value;
-    setActiveView('link');
-    ui.affiliateLinkInput.focus();
-    ui.affiliateLinkInput.select();
-    try {
-      document.execCommand('copy');
-      setLinkFeedback('Lien copié dans le presse-papiers.');
-    } catch (fallbackError) {
-      setLinkFeedback('Copie automatique impossible : le lien est sélectionné, utilisez Ctrl+C.');
+    if (error.status !== 401 && error.status !== 403) {
+      ui.linksList.setAttribute('aria-busy', 'false');
+      ui.linksList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+        h('p', null, `Impossible de charger les liens : ${error.message}`),
+        h('button', { className: 'secondary-button', type: 'button', onclick: loadLinks }, 'Réessayer')));
     }
   }
 }
 
 async function handleLogin(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   const identifier = ui.loginIdentifier.value.trim();
   const password = ui.loginPassword.value;
   if (!identifier || !password) {
-    setAuthError('Remplissez tous les champs.');
+    setMessage('error', 'Remplissez tous les champs.');
     return;
   }
 
+  setBusy(form, true);
   try {
-    setAuthError('');
-    const data = await fetchJson('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ identifier, password }),
-    });
+    setMessage('', '');
+    const data = await api('/api/auth/login', { method: 'POST', body: { identifier, password } });
     ui.loginPassword.value = '';
-    setStoredSession(data.token, data.user);
-    renderLoggedIn();
-    await loadDashboardData();
+    if (data.mfa_required) {
+      showAuthForm('mfa-form');
+      return;
+    }
+    showLoggedIn(data.user);
   } catch (error) {
-    setAuthError(error.message);
+    setMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function handleMfa(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const useRecovery = !ui.mfaRecoveryField.classList.contains('hidden');
+  const body = useRecovery ? { recovery_code: ui.mfaRecovery.value.trim() } : { code: ui.mfaCode.value.trim() };
+
+  setBusy(form, true);
+  try {
+    const data = await api('/api/auth/mfa/verify', { method: 'POST', body });
+    ui.mfaCode.value = '';
+    ui.mfaRecovery.value = '';
+    showLoggedIn(data.user);
+  } catch (error) {
+    if (error.code === 'MFA_LOCKED' || error.code === 'UNAUTHORIZED') {
+      showAuthForm('login-form', { keepMessage: true });
+    }
+    setMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
   }
 }
 
 async function handleRegister(event) {
   event.preventDefault();
+  const form = event.currentTarget;
   const value = (id) => document.getElementById(id).value;
-  const payload = {
+  const body = {
     first_name: value('register-first-name').trim(),
     last_name: value('register-last-name').trim(),
-    username: value('register-username').trim(),
+    username: value('register-username').trim().toLowerCase(),
     email: value('register-email').trim(),
     password: value('register-password'),
     confirm_password: value('register-confirm-password'),
   };
 
-  if (Object.values(payload).some((field) => !field)) {
-    setAuthError('Tous les champs sont obligatoires.');
+  // Contrôles de confort uniquement : le serveur revérifie tout.
+  if (Object.values(body).some((field) => !field)) {
+    setMessage('error', 'Tous les champs sont obligatoires.');
     return;
   }
-  if (payload.password.length < 8) {
-    setAuthError('Le mot de passe doit contenir au moins 8 caractères.');
+  if ([...body.password].length < state.config.password_min_length) {
+    setMessage('error', `Le mot de passe doit contenir au moins ${state.config.password_min_length} caractères.`);
     return;
   }
-  if (payload.password !== payload.confirm_password) {
-    setAuthError('La confirmation ne correspond pas.');
+  if (body.password !== body.confirm_password) {
+    setMessage('error', 'La confirmation ne correspond pas.');
     return;
   }
 
+  setBusy(form, true);
   try {
-    setAuthError('');
-    const data = await fetchJson('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    ui.registerForm.reset();
-    setStoredSession(data.token, data.user);
-    renderLoggedIn();
-    await loadDashboardData();
+    const data = await api('/api/auth/register', { method: 'POST', body });
+    form.reset();
+    if (data.verification_required) {
+      showAuthForm('login-form');
+      setMessage('info', 'Compte presque prêt : ouvrez le lien envoyé à votre adresse e-mail pour l’activer, puis connectez-vous.');
+      return;
+    }
+    showLoggedIn(data.user);
   } catch (error) {
-    setAuthError(error.message);
+    setMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function handleForgot(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const email = ui.forgotEmail.value.trim();
+  if (!email) {
+    setMessage('error', 'Indiquez votre adresse e-mail.');
+    return;
+  }
+  setBusy(form, true);
+  try {
+    const data = await api('/api/auth/password/forgot', { method: 'POST', body: { email } });
+    form.reset();
+    showAuthForm('login-form');
+    setMessage('info', data.message);
+  } catch (error) {
+    setMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function handleReset(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const password = ui.resetPassword.value;
+  const confirm = ui.resetConfirmPassword.value;
+  if (password !== confirm) {
+    setMessage('error', 'La confirmation ne correspond pas.');
+    return;
+  }
+  setBusy(form, true);
+  try {
+    const data = await api('/api/auth/password/reset', {
+      method: 'POST',
+      body: { token: state.resetToken, password, confirm_password: confirm },
+    });
+    state.resetToken = '';
+    form.reset();
+    showAuthForm('login-form');
+    setMessage('info', data.message);
+  } catch (error) {
+    setMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function handlePasswordChange(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const feedback = (kind, message) => {
+    ui.passwordFeedback.textContent = kind === 'info' ? message : '';
+    ui.passwordFeedback.classList.toggle('hidden', kind !== 'info');
+    ui.passwordError.textContent = kind === 'error' ? message : '';
+    ui.passwordError.classList.toggle('hidden', kind !== 'error');
+  };
+  setBusy(form, true);
+  try {
+    await api('/api/auth/password/change', {
+      method: 'POST',
+      body: {
+        current_password: document.getElementById('current-password').value,
+        new_password: document.getElementById('new-password').value,
+        confirm_password: document.getElementById('new-confirm-password').value,
+      },
+    });
+    form.reset();
+    feedback('info', 'Mot de passe modifié. Vos autres sessions ont été fermées.');
+  } catch (error) {
+    feedback('error', error.message);
+  } finally {
+    setBusy(form, false);
   }
 }
 
 async function handleLogout() {
   try {
-    await fetchJson('/api/auth/logout', { method: 'POST' });
+    await api('/api/auth/logout', { method: 'POST' });
   } catch (error) {
-    // Session déjà invalide côté serveur : on nettoie quand même.
+    // Session déjà invalide côté serveur.
   }
-  renderLoggedOut();
+  state.csrf = '';
+  showLoggedOut();
+  showAuthForm('login-form');
 }
 
-async function hydrateSession() {
-  if (!state.token) {
-    renderLoggedOut();
+async function handleLogoutAll() {
+  try {
+    await api('/api/auth/logout-all', { method: 'POST' });
+  } catch (error) {
+    // Session déjà invalide côté serveur.
+  }
+  state.csrf = '';
+  showLoggedOut();
+  showAuthForm('login-form');
+  setMessage('info', 'Toutes vos sessions ont été fermées.');
+}
+
+async function handleDeleteAccount(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const errorBox = document.getElementById('delete-account-error');
+  const password = document.getElementById('delete-account-password').value;
+  const confirm = document.getElementById('delete-account-confirm').value.trim();
+  errorBox.classList.add('hidden');
+  if (confirm !== 'SUPPRIMER') {
+    errorBox.textContent = 'Tapez SUPPRIMER pour confirmer.';
+    errorBox.classList.remove('hidden');
     return;
   }
+  setBusy(form, true);
   try {
-    const data = await fetchJson('/api/auth/me');
-    setStoredSession(state.token, data.user);
-    renderLoggedIn();
-    await loadDashboardData();
+    await api('/api/auth/me/delete', { method: 'POST', body: { password, confirm } });
+    form.reset();
+    state.csrf = '';
+    showLoggedOut();
+    showAuthForm('login-form');
+    setMessage('info', 'Votre compte et vos données ont été supprimés.');
   } catch (error) {
-    renderLoggedOut();
-    if (error.status !== 401) setAuthError(error.message);
+    errorBox.textContent = error.message;
+    errorBox.classList.remove('hidden');
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+/** Liens reçus par e-mail : le jeton est dans le fragment (#), jamais envoyé en GET. */
+async function handleEmailLinks() {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  const verifyToken = params.get('verify');
+  const resetToken = params.get('reset');
+  if (!verifyToken && !resetToken) return false;
+
+  // Retire immédiatement le jeton de la barre d'adresse et de l'historique.
+  history.replaceState(null, '', window.location.pathname);
+
+  if (verifyToken) {
+    try {
+      const data = await api('/api/auth/email/verify', { method: 'POST', body: { token: verifyToken } });
+      showAuthForm('login-form');
+      setMessage('info', data.message);
+    } catch (error) {
+      showAuthForm('login-form');
+      setMessage('error', error.message);
+    }
+    return true;
+  }
+
+  state.resetToken = resetToken;
+  showAuthForm('reset-form');
+  return true;
+}
+
+async function init() {
+  purgeLegacyStorage();
+  try {
+    state.config = await api('/api/auth/config');
+  } catch (error) { /* valeurs par défaut */ }
+
+  showLoggedOut();
+  showAuthForm('login-form');
+  if (await handleEmailLinks()) return;
+
+  try {
+    const data = await api('/api/auth/me');
+    if (data.mfa_pending) {
+      showAuthForm('mfa-form');
+      return;
+    }
+    showLoggedIn(data.user);
+  } catch (error) {
+    if (error.status !== 401) setMessage('error', error.message);
   }
 }
 
@@ -491,38 +523,84 @@ async function hydrateSession() {
 document.addEventListener('DOMContentLoaded', () => {
   const ids = {
     statusBadge: 'status-badge', logoutButton: 'logout-button', authScreen: 'auth-screen',
-    appScreen: 'app-screen', authError: 'auth-error', loginForm: 'login-form',
+    appScreen: 'app-screen', authError: 'auth-error', authInfo: 'auth-info', loginForm: 'login-form',
     registerForm: 'register-form', loginIdentifier: 'login-identifier', loginPassword: 'login-password',
     sidebarName: 'sidebar-name', sidebarEmail: 'sidebar-email', sidebarAvatar: 'sidebar-avatar',
     welcomeName: 'welcome-name', profileDisplayName: 'profile-display-name', profileUsername: 'profile-username',
     profileEmail: 'profile-email', profileFullName: 'profile-full-name', profileCreatedAt: 'profile-created-at',
-    profileAvatar: 'profile-avatar', metricClicks: 'metric-clicks', metricConversions: 'metric-conversions',
-    metricEarnings: 'metric-earnings', metricRate: 'metric-rate', metricClicksDelta: 'metric-clicks-delta',
-    metricConversionsDelta: 'metric-conversions-delta', metricEarningsDelta: 'metric-earnings-delta',
-    metricRateDelta: 'metric-rate-delta', dashboardOffers: 'dashboard-offers', offersList: 'offers-list',
-    affiliateOfferSelect: 'affiliate-offer-select', affiliateLinkInput: 'affiliate-link-input',
-    copyLinkButton: 'copy-link-button', generateLinkButton: 'generate-link-button', linkFeedback: 'link-feedback',
-    statsTableWrap: 'stats-table-wrap', conversionsTableWrap: 'conversions-table-wrap',
-    miniClicks: 'mini-clicks', miniConversions: 'mini-conversions', miniEarnings: 'mini-earnings',
-    statsClicks: 'stats-clicks', statsConversions: 'stats-conversions', statsEarnings: 'stats-earnings',
-    statsRate: 'stats-rate', profileLogout: 'profile-logout',
+    profileAvatar: 'profile-avatar', linksList: 'links-list', refreshLinks: 'refresh-links',
+    profileLogout: 'profile-logout', forgotLink: 'forgot-link', forgotEmail: 'forgot-email',
+    resetPassword: 'reset-password', resetConfirmPassword: 'reset-confirm-password',
+    mfaCode: 'mfa-code', mfaRecovery: 'mfa-recovery', mfaRecoveryField: 'mfa-recovery-field',
+    mfaCodeField: 'mfa-code-field', mfaToggleRecovery: 'mfa-toggle-recovery',
+    passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
+  ui.authTabs = document.querySelector('.auth-tabs');
+
+  notificationCenter = window.createNotificationCenter({
+    post: (url, body) => api(url, { method: 'POST', body }),
+    // false = session invalide ; null = serveur injoignable (on réessaiera).
+    checkSession: async () => {
+      try {
+        await api('/api/auth/me');
+        return true;
+      } catch (error) {
+        return error.status === 401 ? false : null;
+      }
+    },
+    // Session révoquée / expirée : retour à l'écran de connexion.
+    onSessionEnded: () => {
+      if (!state.user) return;
+      state.csrf = '';
+      showLoggedOut();
+      showAuthForm('login-form');
+      setMessage('error', 'Votre session a pris fin. Veuillez vous reconnecter.');
+    },
+  });
 
   document.querySelectorAll('.tab-button').forEach((button) => {
-    button.addEventListener('click', () => toggleAuthForm(button.dataset.form));
+    button.addEventListener('click', () => showAuthForm(`${button.dataset.form}-form`));
   });
   document.querySelectorAll('[data-view]').forEach((button) => {
     button.addEventListener('click', () => setActiveView(button.dataset.view));
   });
+  document.querySelectorAll('[data-back-to-login]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (!document.getElementById('mfa-form').classList.contains('hidden')) await handleLogout();
+      showAuthForm('login-form');
+    });
+  });
 
   ui.loginForm.addEventListener('submit', handleLogin);
   ui.registerForm.addEventListener('submit', handleRegister);
+  document.getElementById('mfa-form').addEventListener('submit', handleMfa);
+  document.getElementById('forgot-form').addEventListener('submit', handleForgot);
+  document.getElementById('reset-form').addEventListener('submit', handleReset);
+  document.getElementById('password-form').addEventListener('submit', handlePasswordChange);
+  document.getElementById('delete-account-form').addEventListener('submit', handleDeleteAccount);
+  ui.forgotLink.addEventListener('click', () => showAuthForm('forgot-form'));
   ui.logoutButton.addEventListener('click', handleLogout);
   ui.profileLogout.addEventListener('click', handleLogout);
-  ui.generateLinkButton.addEventListener('click', generateLink);
-  ui.copyLinkButton.addEventListener('click', () => copyText(ui.affiliateLinkInput.value));
-  ui.affiliateOfferSelect.addEventListener('change', renderAffiliateLink);
+  ui.logoutAllButton.addEventListener('click', handleLogoutAll);
+  ui.refreshLinks.addEventListener('click', loadLinks);
+  ui.mfaToggleRecovery.addEventListener('click', () => {
+    const recovery = ui.mfaRecoveryField.classList.toggle('hidden') === false;
+    ui.mfaCodeField.classList.toggle('hidden', recovery);
+    ui.mfaToggleRecovery.textContent = recovery ? 'Utiliser le code de l’application' : 'Utiliser un code de récupération';
+  });
 
-  hydrateSession();
+  document.getElementById('register-show-password').addEventListener('change', (event) => {
+    const type = event.target.checked ? 'text' : 'password';
+    document.getElementById('register-password').type = type;
+    document.getElementById('register-confirm-password').type = type;
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.user && Date.now() - state.loadedAt > 60 * 60 * 1000) {
+      loadLinks();
+    }
+  });
+
+  init();
 });

@@ -80,6 +80,7 @@ async function runMigrations(pool, { log = console.log } = {}) {
 const REQUIRED_TABLES = [
   'users', 'sessions', 'admins', 'affiliate_links', 'user_affiliate_codes',
   'clicks', 'conversions', 'earnings', 'admin_actions',
+  'notification_broadcasts', 'notification_recipients',
 ];
 
 async function findMissingTables(pool) {

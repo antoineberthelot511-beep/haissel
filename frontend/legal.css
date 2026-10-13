@@ -1,0 +1,19 @@
+/* Pages légales : texte long, lisible, sans dépendance externe. */
+.legal-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+  color: var(--text-on-paper);
+  background: var(--paper);
+  min-height: 100vh;
+  font-family: var(--f-ui);
+  line-height: 1.6;
+}
+.legal-page h1 { font-family: var(--f-display); font-size: 2.2rem; margin: 0 0 8px; }
+.legal-page h2 { font-size: 1.25rem; margin: 32px 0 8px; border-bottom: 2px solid var(--line); }
+.legal-page table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .95rem; }
+.legal-page th, .legal-page td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+.legal-page .todo { background: var(--sun); padding: 0 4px; font-weight: 700; }
+.legal-page .updated { font-family: var(--f-mono); color: var(--muted-on-paper); }
+.legal-page nav a { margin-right: 16px; }
+.legal-page a { color: var(--sky-deep); }

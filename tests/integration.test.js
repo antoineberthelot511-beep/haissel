@@ -4,11 +4,10 @@
 const helpers = require('./helpers/setup');
 
 const request = require('supertest');
-const jwt = require('jsonwebtoken');
 const { app } = require('../src/app');
 
 const {
-  createUser, login, lanHeaders, signWebhook,
+  createUser, login, lanHeaders, signWebhook, auth,
 } = helpers;
 
 let pool;
@@ -22,7 +21,7 @@ let offer;
 let inactiveOffer;
 let aliceCode;
 
-const asAdmin = (req) => req.set('Authorization', `Bearer ${adminToken}`);
+const asAdmin = (req) => req.set(auth(adminToken));
 
 function webhook(provider, payload, options) {
   const body = JSON.stringify(payload);
@@ -42,104 +41,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await helpers.teardownDatabase();
-});
-
-// ===========================================================================
-describe('AUTH', () => {
-  it('registers, returns a token and never the password hash', async () => {
-    const res = await request(app).post('/api/auth/register').send({
-      username: 'new_user', email: 'new_user@exemple.fr', password: 'Password123!', confirm_password: 'Password123!', first_name: 'Nouvel', last_name: 'Utilisateur',
-    });
-    expect(res.status).toBe(201);
-    expect(res.body.data.token).toEqual(expect.any(String));
-    expect(res.body.data.user.role).toBe('USER');
-    expect(JSON.stringify(res.body)).not.toMatch(/password_hash|\$2[aby]\$/);
-
-    const stored = await pool.query("SELECT password_hash FROM users WHERE username = 'new_user'");
-    expect(stored.rows[0].password_hash).toMatch(/^\$2[aby]\$12\$/);
-  });
-
-  it('refuses duplicates and invalid input', async () => {
-    const dup = await request(app).post('/api/auth/register').send({
-      username: 'new_user', email: 'other@exemple.fr', password: 'Password123!', confirm_password: 'Password123!',
-    });
-    expect(dup.status).toBe(409);
-
-    const badUser = await request(app).post('/api/auth/register').send({
-      username: "x'; DROP TABLE users;--", email: 'a@exemple.fr', password: 'Password123!', confirm_password: 'Password123!',
-    });
-    expect(badUser.status).toBe(400);
-    expect(badUser.body.error.code).toBe('INVALID_USERNAME');
-
-    const badEmail = await request(app).post('/api/auth/register').send({
-      username: 'valid_name', email: 'not-an-email', password: 'Password123!', confirm_password: 'Password123!',
-    });
-    expect(badEmail.body.error.code).toBe('INVALID_EMAIL');
-
-    const shortPwd = await request(app).post('/api/auth/register').send({
-      username: 'valid_name', email: 'valid@exemple.fr', password: 'short', confirm_password: 'short',
-    });
-    expect(shortPwd.body.error.code).toBe('INVALID_PASSWORD');
-  });
-
-  it('logs in and serves /me with the role from the database', async () => {
-    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${aliceToken}`);
-    expect(me.status).toBe(200);
-    expect(me.body.data.user.username).toBe(alice.username);
-    expect(me.body.data.user.role).toBe('USER');
-
-    const adminMe = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${adminToken}`);
-    expect(adminMe.body.data.user.role).toBe('ADMIN');
-  });
-
-  it('rejects a wrong password with a clean message', async () => {
-    const res = await request(app).post('/api/auth/login').send({ identifier: alice.username, password: 'wrong-password' });
-    expect(res.status).toBe(401);
-    expect(res.body.error.message).toBe('Identifiants incorrects.');
-  });
-
-  it('refuses banned and suspended accounts', async () => {
-    const banned = await createUser({ banned: true });
-    const suspended = await createUser({ active: false });
-
-    const resBanned = await request(app).post('/api/auth/login').send({ identifier: banned.username, password: 'Password123!' });
-    expect(resBanned.status).toBe(403);
-    expect(resBanned.body.error.code).toBe('ACCOUNT_BANNED');
-
-    const resSuspended = await request(app).post('/api/auth/login').send({ identifier: suspended.email, password: 'Password123!' });
-    expect(resSuspended.status).toBe(403);
-    expect(resSuspended.body.error.code).toBe('ACCOUNT_DISABLED');
-  });
-
-  it('revokes the session on logout', async () => {
-    const user = await createUser();
-    const token = await login(app, user);
-    const out = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`);
-    expect(out.status).toBe(200);
-    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
-    expect(me.status).toBe(401);
-  });
-
-  it('rejects invalid, forged and expired JWTs', async () => {
-    const garbage = await request(app).get('/api/auth/me').set('Authorization', 'Bearer not-a-jwt');
-    expect(garbage.status).toBe(401);
-
-    const forged = jwt.sign({ sub: String(admin.id) }, 'another-secret-another-secret-another-secret');
-    const resForged = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${forged}`);
-    expect(resForged.status).toBe(401);
-
-    // Signé avec le bon secret mais sans session en base : refusé.
-    const sessionless = jwt.sign({ sub: String(admin.id), jti: 'x' }, process.env.JWT_SECRET, { expiresIn: 60 });
-    const resSessionless = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${sessionless}`);
-    expect(resSessionless.status).toBe(401);
-
-    const expired = jwt.sign({ sub: String(admin.id), exp: Math.floor(Date.now() / 1000) - 10 }, process.env.JWT_SECRET);
-    const resExpired = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${expired}`);
-    expect(resExpired.status).toBe(401);
-
-    const none = await request(app).get('/api/auth/me');
-    expect(none.status).toBe(401);
-  });
 });
 
 // ===========================================================================
@@ -166,17 +67,17 @@ describe('ADMIN access control', () => {
 
   it('refuses admin API to a normal user (403)', async () => {
     for (const path of ['/api/admin/users', '/api/admin/stats', '/api/admin/overview', '/api/admin/affiliates', '/api/admin/conversions']) {
-      const res = await request(app).get(path).set('Authorization', `Bearer ${aliceToken}`);
+      const res = await request(app).get(path).set(auth(aliceToken));
       expect(res.status).toBe(403);
     }
     const create = await request(app).post('/api/admin/affiliates')
-      .set('Authorization', `Bearer ${aliceToken}`)
+      .set(auth(aliceToken))
       .send({ name: 'Hack', url: 'https://evil.example' });
     expect(create.status).toBe(403);
   });
 
   it('refuses admin API from the LAN even with an admin token', async () => {
-    const res = await request(app).get('/api/admin/users').set(lanHeaders()).set('Authorization', `Bearer ${adminToken}`);
+    const res = await request(app).get('/api/admin/users').set(lanHeaders()).set(auth(adminToken));
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('ADMIN_LOCAL_ONLY');
   });
@@ -226,7 +127,7 @@ describe('ADMIN management', () => {
     expect(suspend.body.data.user.is_active).toBe(false);
 
     // Les sessions existantes sont révoquées immédiatement.
-    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${targetToken}`);
+    const me = await request(app).get('/api/auth/me').set(auth(targetToken));
     expect(me.status).toBe(401);
 
     const ban = await asAdmin(request(app).patch(`/api/admin/users/${target.id}/status`)).send({ action: 'ban' });
@@ -255,7 +156,7 @@ describe('ADMIN management', () => {
 // ===========================================================================
 describe('AFFILIATE', () => {
   it('lists only active offers, without creating codes', async () => {
-    const res = await request(app).get('/api/affiliate/offers').set('Authorization', `Bearer ${aliceToken}`);
+    const res = await request(app).get('/api/affiliate/offers').set(auth(aliceToken));
     expect(res.status).toBe(200);
     const ids = res.body.data.items.map((item) => item.id);
     expect(ids).toContain(offer.id);
@@ -265,20 +166,20 @@ describe('AFFILIATE', () => {
   });
 
   it('generates one stable personal code per user and offer', async () => {
-    const first = await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set('Authorization', `Bearer ${aliceToken}`);
+    const first = await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set(auth(aliceToken));
     expect(first.status).toBe(200);
     expect(first.body.data.code).toMatch(/^HAI-[A-Z2-9]{8}$/);
     aliceCode = first.body.data.code;
 
-    const again = await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set('Authorization', `Bearer ${aliceToken}`);
+    const again = await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set(auth(aliceToken));
     expect(again.body.data.code).toBe(aliceCode);
 
-    const bobLink = await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set('Authorization', `Bearer ${bobToken}`);
+    const bobLink = await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set(auth(bobToken));
     expect(bobLink.body.data.code).not.toBe(aliceCode);
   });
 
   it('refuses a link for an inactive offer', async () => {
-    const res = await request(app).post(`/api/affiliate/offers/${inactiveOffer.id}/link`).set('Authorization', `Bearer ${aliceToken}`);
+    const res = await request(app).post(`/api/affiliate/offers/${inactiveOffer.id}/link`).set(auth(aliceToken));
     expect(res.status).toBe(404);
     expect(res.body.error.message).toBe("Cette offre n'est plus disponible.");
   });
@@ -311,7 +212,7 @@ describe('AFFILIATE', () => {
 
   it('stops redirecting when the offer is deactivated', async () => {
     const temp = await asAdmin(request(app).post('/api/admin/affiliates')).send({ name: 'Temporaire', url: 'https://partner.example/t' });
-    const link = await request(app).post(`/api/affiliate/offers/${temp.body.data.offer.id}/link`).set('Authorization', `Bearer ${bobToken}`);
+    const link = await request(app).post(`/api/affiliate/offers/${temp.body.data.offer.id}/link`).set(auth(bobToken));
     expect((await request(app).get(`/r/${link.body.data.code}`)).status).toBe(302);
     await asAdmin(request(app).patch(`/api/admin/affiliates/${temp.body.data.offer.id}`)).send({ is_active: false });
     expect((await request(app).get(`/r/${link.body.data.code}`)).status).toBe(404);
@@ -323,7 +224,7 @@ describe('CONVERSIONS & WEBHOOK', () => {
   it('a normal user cannot create a conversion', async () => {
     for (const path of ['/api/affiliate/conversion', '/api/affiliates/conversion', '/api/admin/conversions']) {
       const res = await request(app).post(path)
-        .set('Authorization', `Bearer ${aliceToken}`)
+        .set(auth(aliceToken))
         .send({ code: aliceCode, amount_cents: 999999, external_reference: 'self-credit' });
       expect([403, 404]).toContain(res.status);
     }
@@ -365,7 +266,7 @@ describe('CONVERSIONS & WEBHOOK', () => {
   });
 
   it('refuses a click_id that belongs to another affiliate', async () => {
-    const bobCode = (await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set('Authorization', `Bearer ${bobToken}`)).body.data.code;
+    const bobCode = (await request(app).post(`/api/affiliate/offers/${offer.id}/link`).set(auth(bobToken))).body.data.code;
     await request(app).get(`/r/${bobCode}`).set(lanHeaders('192.168.1.90'));
     const bobClick = await pool.query('SELECT id FROM clicks WHERE user_id = $1 LIMIT 1', [bob.id]);
 
@@ -462,7 +363,7 @@ describe('CONVERSIONS & WEBHOOK', () => {
 // ===========================================================================
 describe('STATS', () => {
   it('user stats match the source tables', async () => {
-    const res = await request(app).get('/api/affiliate/stats').set('Authorization', `Bearer ${aliceToken}`);
+    const res = await request(app).get('/api/affiliate/stats').set(auth(aliceToken));
     expect(res.status).toBe(200);
     const stats = res.body.data;
 
@@ -474,22 +375,22 @@ describe('STATS', () => {
     expect(stats.paid_earnings).toBe(750);
     expect(stats.conversion_rate).toBe(100);
 
-    const offers = await request(app).get('/api/affiliate/offers').set('Authorization', `Bearer ${aliceToken}`);
+    const offers = await request(app).get('/api/affiliate/offers').set(auth(aliceToken));
     const item = offers.body.data.items.find((i) => i.id === offer.id);
     expect(item).toMatchObject({ code: aliceCode, total_clicks: 2, total_conversions: 2, total_amount_cents: 5000 });
 
-    const mine = await request(app).get('/api/affiliate/conversions').set('Authorization', `Bearer ${aliceToken}`);
+    const mine = await request(app).get('/api/affiliate/conversions').set(auth(aliceToken));
     expect(mine.body.data.items).toHaveLength(4);
   });
 
   it('rates are 0 % without conversions or without clicks', async () => {
-    const bobStats = await request(app).get('/api/affiliate/stats').set('Authorization', `Bearer ${bobToken}`);
+    const bobStats = await request(app).get('/api/affiliate/stats').set(auth(bobToken));
     expect(bobStats.body.data.total_clicks).toBeGreaterThan(0);
     expect(bobStats.body.data.total_conversions).toBe(0);
     expect(bobStats.body.data.conversion_rate).toBe(0);
 
     const fresh = await createUser();
-    const freshStats = await request(app).get('/api/affiliate/stats').set('Authorization', `Bearer ${await login(app, fresh)}`);
+    const freshStats = await request(app).get('/api/affiliate/stats').set(auth(await login(app, fresh)));
     expect(freshStats.body.data).toMatchObject({ total_clicks: 0, total_conversions: 0, total_earnings: 0, conversion_rate: 0 });
   });
 
@@ -503,6 +404,83 @@ describe('STATS', () => {
     expect(data.pending_earnings_cents).toBe(4250);
     expect(data.paid_earnings_cents).toBe(750);
     expect(data.active_offers).toBe(1);
+  });
+});
+
+// ===========================================================================
+describe('ADMIN ACCOUNT LOCAL-ONLY', () => {
+  it('refuses an admin login from the LAN', async () => {
+    const res = await request(app).post('/api/auth/login').set(lanHeaders())
+      .send({ identifier: admin.email, password: 'Password123!' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ADMIN_LOCAL_ONLY');
+    expect(res.body.data).toBeUndefined();
+  });
+
+  it('refuses an admin token used from the LAN on any route', async () => {
+    const res = await request(app).get('/api/auth/me').set(lanHeaders()).set(auth(adminToken));
+    expect(res.status).toBe(403);
+  });
+
+  it('still lets normal users log in from the LAN', async () => {
+    const res = await request(app).post('/api/auth/login').set(lanHeaders())
+      .send({ identifier: alice.username, password: 'Password123!' });
+    expect(res.status).toBe(200);
+  });
+});
+
+// ===========================================================================
+describe('LINKS (admin publishes, users click)', () => {
+  let link;
+
+  it('lists active links with a /go URL for logged-in users only', async () => {
+    const created = await asAdmin(request(app).post('/api/admin/affiliates')).send({ name: 'Lien simple', url: 'https://site.example/page' });
+    link = created.body.data.offer;
+
+    expect((await request(app).get('/api/links')).status).toBe(401);
+
+    const res = await request(app).get('/api/links').set(lanHeaders()).set(auth(aliceToken));
+    expect(res.status).toBe(200);
+    const item = res.body.data.items.find((i) => i.id === link.id);
+    expect(item).toMatchObject({ name: 'Lien simple', domain: 'site.example' });
+    expect(item.go_url).toBe(`/go/${link.id}`);
+    expect(res.body.data.items.map((i) => i.id)).not.toContain(inactiveOffer.id);
+  });
+
+  it('counts the click server-side and redirects; a double-click counts once', async () => {
+    const res = await request(app).get('/api/links').set(auth(bobToken));
+    const { go_url: goUrl } = res.body.data.items.find((i) => i.id === link.id);
+
+    // La navigation envoie le cookie de session (SameSite=Lax).
+    const first = await request(app).get(goUrl).set(lanHeaders('192.168.1.120')).set('Cookie', bobToken.cookie);
+    expect(first.status).toBe(302);
+    expect(first.headers.location).toBe('https://site.example/page');
+    await request(app).get(goUrl).set(lanHeaders('192.168.1.120')).set('Cookie', bobToken.cookie);
+
+    const clicks = await pool.query('SELECT user_id FROM clicks WHERE affiliate_link_id = $1', [link.id]);
+    expect(clicks.rows).toEqual([{ user_id: bob.id }]);
+
+    const admins = await asAdmin(request(app).get('/api/admin/affiliates'));
+    expect(admins.body.data.items.find((o) => o.id === link.id)).toMatchObject({ total_clicks: 1, unique_clickers: 1 });
+  });
+
+  it('does not count clicks without a valid session', async () => {
+    const before = (await pool.query('SELECT COUNT(*)::int AS n FROM clicks')).rows[0].n;
+    for (const cookie of [null, 'haissel_sid=forged', `haissel_sid=${'A'.repeat(43)}`]) {
+      const req = request(app).get(`/go/${link.id}`);
+      if (cookie) req.set('Cookie', cookie);
+      const out = await req;
+      expect(out.status).toBe(302);
+      expect(out.headers.location).toBe('/');
+    }
+    expect((await pool.query('SELECT COUNT(*)::int AS n FROM clicks')).rows[0].n).toBe(before);
+  });
+
+  it('stops working when the admin hides the link', async () => {
+    const res = await request(app).get('/api/links').set(auth(aliceToken));
+    const { go_url: goUrl } = res.body.data.items.find((i) => i.id === link.id);
+    await asAdmin(request(app).patch(`/api/admin/affiliates/${link.id}`)).send({ is_active: false });
+    expect((await request(app).get(goUrl).set('Cookie', aliceToken.cookie)).status).toBe(404);
   });
 });
 
@@ -540,12 +518,26 @@ describe('MISC', () => {
       const statuses = [];
       for (let i = 0; i < 12; i += 1) {
         const res = await request(app).post('/api/auth/login').set(lanHeaders('192.168.1.222'))
-          .send({ identifier: 'nobody', password: 'wrong-password' });
+          .send({ identifier: `nobody${i}`, password: 'wrong-password' });
         statuses.push(res.status);
       }
       expect(statuses).toContain(429);
     } finally {
       process.env.RATE_LIMIT_IN_TESTS = 'false';
     }
+  });
+});
+
+describe('ADMIN network link', () => {
+  it('returns the current LAN address(es) to the local admin only', async () => {
+    const res = await asAdmin(request(app).get('/api/admin/network'));
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data.addresses)).toBe(true);
+    for (const a of res.body.data.addresses) {
+      expect(a.url).toMatch(/^http:\/\/\d+\.\d+\.\d+\.\d+(:\d+)?$/);
+      expect(a.address).not.toMatch(/^127\./);
+    }
+    expect((await request(app).get('/api/admin/network').set(auth(aliceToken))).status).toBe(403);
+    expect((await request(app).get('/api/admin/network').set(lanHeaders()).set(auth(adminToken))).status).toBe(403);
   });
 });

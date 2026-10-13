@@ -1,5 +1,7 @@
 const express = require('express');
 const admin = require('../controllers/admin.controller');
+const broadcast = require('../controllers/broadcast.controller');
+const { broadcastBurstLimiter, broadcastHourlyLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
   authenticateToken,
@@ -13,6 +15,7 @@ const router = express.Router();
 router.use(requireLocalAdmin, authenticateToken, ensureAdmin);
 
 router.get('/overview', admin.getAdminOverview);
+router.get('/network', admin.getNetworkInfo);
 router.get('/stats', admin.getAdminOverview);
 
 router.get('/users', admin.listUsers);
@@ -32,5 +35,10 @@ router.get('/earnings', admin.listEarnings);
 router.patch('/earnings/:id/pay', admin.markEarningPaid);
 
 router.get('/actions', admin.listAdminActions);
+
+// Centre de notifications (diffusion aux utilisateurs connectés au flux SSE).
+router.get('/notifications', broadcast.listBroadcasts);
+router.get('/notifications/presence', broadcast.getPresence);
+router.post('/notifications', broadcastBurstLimiter, broadcastHourlyLimiter, broadcast.sendBroadcast);
 
 module.exports = router;

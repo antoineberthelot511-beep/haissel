@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Haissel | Administration</title>
     <link rel="stylesheet" href="/admin.css" />
+    <link rel="stylesheet" href="/admin-theme.css" />
   </head>
   <body>
     <!-- ===================== CONNEXION ===================== -->
@@ -23,7 +24,7 @@
         <div id="login-error" class="alert error" role="alert" hidden></div>
 
         <label class="field">
-          <span>Identifiant ou e-mail</span>
+          <span>Adresse e-mail ou pseudo</span>
           <input id="login-identifier" type="text" autocomplete="username" required />
         </label>
         <label class="field">
@@ -32,6 +33,55 @@
         </label>
         <button id="login-submit" class="btn primary block" type="submit">Se connecter</button>
       </form>
+
+      <!-- Étape 2 : code de double authentification -->
+      <form id="mfa-form" class="login-card" novalidate hidden>
+        <h1>Double authentification</h1>
+        <p class="muted">Saisissez le code à 6 chiffres de votre application, ou un code de récupération.</p>
+        <div id="mfa-error" class="alert error" role="alert" hidden></div>
+        <label class="field">
+          <span>Code à 6 chiffres ou code de récupération</span>
+          <input id="mfa-code" type="text" autocomplete="one-time-code" maxlength="20" required />
+        </label>
+        <button class="btn primary block" type="submit">Valider</button>
+        <button id="mfa-cancel" class="btn ghost block" type="button">Annuler</button>
+      </form>
+    </main>
+
+    <!-- ===================== ACTIVATION MFA (obligatoire pour l'admin) ===================== -->
+    <main id="mfa-setup-screen" class="login-screen" hidden>
+      <div class="login-card mfa-setup">
+        <h1>Activez la double authentification</h1>
+        <p class="muted">Obligatoire pour accéder à l'administration. Installez une application d'authentification (Google Authenticator, Microsoft Authenticator, Aegis…).</p>
+        <div id="setup-error" class="alert error" role="alert" hidden></div>
+
+        <form id="setup-start-form" novalidate>
+          <label class="field">
+            <span>Confirmez votre mot de passe</span>
+            <input id="setup-password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="btn primary block" type="submit">Générer ma clé</button>
+        </form>
+
+        <form id="setup-confirm-form" novalidate hidden>
+          <p>1. Dans l'application, choisissez « Saisir une clé de configuration » et entrez :</p>
+          <code id="setup-secret" class="secret-key"></code>
+          <p class="muted">Compte : HAISSEL · type : basé sur le temps. <a id="setup-uri" href="#">Ouvrir dans l'application</a></p>
+          <label class="field">
+            <span>2. Code à 6 chiffres affiché par l'application</span>
+            <input id="setup-code" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required />
+          </label>
+          <button class="btn primary block" type="submit">Activer</button>
+        </form>
+
+        <div id="setup-done" hidden>
+          <p><strong>Double authentification activée.</strong> Conservez ces codes de récupération en lieu sûr : chacun ne fonctionne qu'une fois et ils ne seront plus jamais affichés.</p>
+          <ol id="recovery-codes" class="recovery-codes"></ol>
+          <button id="setup-continue" class="btn primary block" type="button">J'ai noté mes codes — continuer</button>
+        </div>
+
+        <button id="setup-logout" class="btn ghost block" type="button">Déconnexion</button>
+      </div>
     </main>
 
     <!-- ===================== CONSOLE ===================== -->
@@ -46,13 +96,10 @@
         </div>
 
         <nav class="nav" aria-label="Sections d'administration">
-          <a href="#dashboard" data-section="dashboard">Dashboard</a>
-          <a href="#users" data-section="users">Utilisateurs</a>
-          <a href="#offers" data-section="offers">Offres</a>
-          <a href="#conversions" data-section="conversions">Conversions</a>
-          <a href="#earnings" data-section="earnings">Gains</a>
+          <a href="#dashboard" data-section="dashboard">Tableau de bord</a>
+          <a href="#links" data-section="links">Liens</a>
           <a href="#clicks" data-section="clicks">Clics</a>
-          <a href="#activity" data-section="activity">Journal</a>
+          <a href="#notifications" data-section="notifications">Notifications</a>
         </nav>
 
         <div class="sidebar-foot">
@@ -65,159 +112,55 @@
       </aside>
 
       <main class="main-content">
-        <!-- DASHBOARD -->
+        <!-- TABLEAU DE BORD -->
         <section id="section-dashboard" class="section" aria-labelledby="h-dashboard">
           <header class="section-head">
             <div>
               <p class="eyebrow">Vue d'ensemble</p>
-              <h1 id="h-dashboard">Dashboard</h1>
+              <h1 id="h-dashboard">Tableau de bord</h1>
             </div>
             <button class="btn ghost" type="button" data-refresh="dashboard">Actualiser</button>
           </header>
+          <div id="share-box" class="panel share-box" aria-live="polite"></div>
           <div id="overview-cards" class="cards-grid"></div>
+          <h2>Clics par lien</h2>
+          <div id="dashboard-links" class="panel table-wrap"></div>
         </section>
 
-        <!-- USERS -->
-        <section id="section-users" class="section" aria-labelledby="h-users" hidden>
+        <!-- LIENS -->
+        <section id="section-links" class="section" aria-labelledby="h-links" hidden>
           <header class="section-head">
             <div>
-              <p class="eyebrow">Comptes</p>
-              <h1 id="h-users">Utilisateurs</h1>
+              <p class="eyebrow">Publication</p>
+              <h1 id="h-links">Liens</h1>
             </div>
           </header>
-          <form id="users-filter" class="toolbar" role="search">
-            <label class="field inline">
-              <span class="sr-only">Rechercher</span>
-              <input id="user-search" type="search" placeholder="Nom, e-mail…" />
-            </label>
-            <label class="field inline">
-              <span class="sr-only">Statut</span>
-              <select id="user-status">
-                <option value="all">Tous les statuts</option>
-                <option value="active">Actifs</option>
-                <option value="suspended">Suspendus</option>
-                <option value="banned">Bannis</option>
-              </select>
-            </label>
-            <button class="btn primary" type="submit">Rechercher</button>
-          </form>
-          <div id="users-table" class="panel table-wrap"></div>
-          <div id="users-pager" class="pager"></div>
-        </section>
-
-        <!-- OFFERS -->
-        <section id="section-offers" class="section" aria-labelledby="h-offers" hidden>
-          <header class="section-head">
-            <div>
-              <p class="eyebrow">Catalogue</p>
-              <h1 id="h-offers">Offres affiliées</h1>
-            </div>
-          </header>
-          <form id="offer-form" class="panel form-grid" novalidate>
-            <h2>Nouvelle offre</h2>
+          <form id="link-form" class="panel form-grid" novalidate>
+            <h2>Ajouter un lien</h2>
             <label class="field">
-              <span>Nom</span>
-              <input id="offer-name" type="text" maxlength="120" required />
+              <span>Titre affiché aux utilisateurs</span>
+              <input id="link-name" type="text" maxlength="120" required />
             </label>
             <label class="field">
-              <span>URL de destination (http/https)</span>
-              <input id="offer-url" type="url" maxlength="2000" placeholder="https://partenaire.example/offre?sub={click_id}" required />
+              <span>Adresse du lien (http:// ou https://)</span>
+              <input id="link-url" type="url" maxlength="2000" placeholder="https://..." required />
             </label>
             <label class="field span-2">
-              <span>Description</span>
-              <textarea id="offer-description" rows="3" maxlength="1000"></textarea>
+              <span>Description (optionnelle)</span>
+              <textarea id="link-description" rows="2" maxlength="1000"></textarea>
             </label>
-            <p class="hint span-2">Marqueurs optionnels dans l'URL : <code>{click_id}</code> et <code>{code}</code>, remplacés lors de la redirection pour permettre au partenaire de confirmer la conversion.</p>
-            <div id="offer-error" class="alert error span-2" role="alert" hidden></div>
-            <div class="span-2"><button class="btn primary" type="submit">Créer l'offre</button></div>
+            <div id="link-error" class="alert error span-2" role="alert" hidden></div>
+            <div class="span-2"><button class="btn primary" type="submit">Publier le lien</button></div>
           </form>
-          <div id="offers-table" class="panel table-wrap"></div>
+          <div id="links-table" class="panel table-wrap"></div>
         </section>
 
-        <!-- CONVERSIONS -->
-        <section id="section-conversions" class="section" aria-labelledby="h-conversions" hidden>
-          <header class="section-head">
-            <div>
-              <p class="eyebrow">Suivi</p>
-              <h1 id="h-conversions">Conversions</h1>
-            </div>
-            <button id="toggle-manual" class="btn ghost" type="button" aria-expanded="false" aria-controls="manual-form">Saisie manuelle</button>
-          </header>
-
-          <form id="manual-form" class="panel form-grid" novalidate hidden>
-            <h2>Saisir une conversion confirmée par un partenaire</h2>
-            <label class="field"><span>Code affilié</span><input id="manual-code" type="text" placeholder="HAI-XXXXXXXX" required /></label>
-            <label class="field"><span>Référence externe (unique)</span><input id="manual-reference" type="text" maxlength="120" required /></label>
-            <label class="field"><span>Commission (€)</span><input id="manual-amount" type="number" min="0" step="0.01" required /></label>
-            <label class="field">
-              <span>Statut</span>
-              <select id="manual-status">
-                <option value="pending">En attente</option>
-                <option value="approved">Approuvée</option>
-              </select>
-            </label>
-            <div id="manual-error" class="alert error span-2" role="alert" hidden></div>
-            <div class="span-2"><button class="btn primary" type="submit">Enregistrer</button></div>
-          </form>
-
-          <form id="conversions-filter" class="toolbar">
-            <label class="field inline">
-              <span class="sr-only">Statut</span>
-              <select id="conv-status">
-                <option value="">Tous les statuts</option>
-                <option value="pending">En attente</option>
-                <option value="approved">Approuvées</option>
-                <option value="rejected">Rejetées</option>
-                <option value="cancelled">Annulées</option>
-              </select>
-            </label>
-            <label class="field inline">
-              <span class="sr-only">Offre</span>
-              <select id="conv-offer"><option value="">Toutes les offres</option></select>
-            </label>
-            <label class="field inline">
-              <span class="sr-only">Utilisateur</span>
-              <input id="conv-user" type="search" placeholder="Utilisateur ou e-mail exact" />
-            </label>
-            <label class="field inline"><span class="sr-only">Du</span><input id="conv-from" type="date" /></label>
-            <label class="field inline"><span class="sr-only">Au</span><input id="conv-to" type="date" /></label>
-            <button class="btn primary" type="submit">Filtrer</button>
-          </form>
-          <div id="conversions-table" class="panel table-wrap"></div>
-          <div id="conversions-pager" class="pager"></div>
-        </section>
-
-        <!-- EARNINGS -->
-        <section id="section-earnings" class="section" aria-labelledby="h-earnings" hidden>
-          <header class="section-head">
-            <div>
-              <p class="eyebrow">Finances</p>
-              <h1 id="h-earnings">Gains</h1>
-            </div>
-          </header>
-          <div id="earnings-cards" class="cards-grid"></div>
-          <form id="earnings-filter" class="toolbar">
-            <label class="field inline">
-              <span class="sr-only">Statut</span>
-              <select id="earning-status">
-                <option value="">Tous les statuts</option>
-                <option value="pending">À payer</option>
-                <option value="paid">Payés</option>
-                <option value="cancelled">Annulés</option>
-              </select>
-            </label>
-            <button class="btn primary" type="submit">Filtrer</button>
-          </form>
-          <div id="earnings-table" class="panel table-wrap"></div>
-          <div id="earnings-pager" class="pager"></div>
-        </section>
-
-        <!-- CLICKS -->
+        <!-- CLICS -->
         <section id="section-clicks" class="section" aria-labelledby="h-clicks" hidden>
           <header class="section-head">
             <div>
-              <p class="eyebrow">Trafic</p>
-              <h1 id="h-clicks">Clics récents</h1>
+              <p class="eyebrow">Activité</p>
+              <h1 id="h-clicks">Derniers clics</h1>
             </div>
             <button class="btn ghost" type="button" data-refresh="clicks">Actualiser</button>
           </header>
@@ -225,16 +168,65 @@
           <div id="clicks-pager" class="pager"></div>
         </section>
 
-        <!-- ACTIVITY -->
-        <section id="section-activity" class="section" aria-labelledby="h-activity" hidden>
+        <!-- NOTIFICATIONS -->
+        <section id="section-notifications" class="section" aria-labelledby="h-notifications" hidden>
           <header class="section-head">
             <div>
-              <p class="eyebrow">Surveillance</p>
-              <h1 id="h-activity">Journal des actions admin</h1>
+              <p class="eyebrow">Communication</p>
+              <h1 id="h-notifications">Notifications</h1>
             </div>
-            <button class="btn ghost" type="button" data-refresh="activity">Actualiser</button>
+            <button class="btn ghost" type="button" data-refresh="notifications">Actualiser</button>
           </header>
-          <div id="activity-table" class="panel table-wrap"></div>
+
+          <div id="notif-presence" class="panel presence" aria-live="polite"></div>
+
+          <div class="notif-grid">
+            <form id="notif-form" class="panel form-grid" novalidate>
+              <h2 class="span-2">Nouvelle notification</h2>
+              <label class="field span-2">
+                <span>Titre <small id="notif-title-count" class="counter muted">0 / 80</small></span>
+                <input id="notif-title" type="text" maxlength="80" placeholder="Je personnalise" required />
+              </label>
+              <label class="field span-2">
+                <span>Message <small id="notif-message-count" class="counter muted">0 / 500</small></span>
+                <textarea id="notif-message" rows="4" maxlength="500" placeholder="Je personnalise" required></textarea>
+              </label>
+              <label class="field">
+                <span>Cible</span>
+                <select id="notif-target">
+                  <option value="connected_users">Utilisateurs actuellement connectés</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Destination interne (optionnelle)</span>
+                <select id="notif-url">
+                  <option value="">Aucune</option>
+                  <option value="/app">Espace utilisateur (/app)</option>
+                  <option value="/mes-affilies">Mes liens (/mes-affilies)</option>
+                </select>
+              </label>
+              <div id="notif-error" class="alert error span-2" role="alert" hidden></div>
+              <div class="span-2 notif-actions">
+                <button id="notif-send" class="btn primary" type="submit">Envoyer</button>
+                <span id="notif-loading" class="muted" hidden>Envoi en cours…</span>
+              </div>
+              <div id="notif-result" class="span-2" aria-live="polite"></div>
+            </form>
+
+            <div class="panel notif-preview-wrap">
+              <h2>Aperçu</h2>
+              <p class="muted">Rendu côté utilisateur (texte brut, sans mise en forme).</p>
+              <div class="notif-preview" aria-label="Aperçu de la notification">
+                <strong id="notif-preview-title" class="notif-preview-title">Titre</strong>
+                <p id="notif-preview-message" class="notif-preview-message">Message</p>
+                <span id="notif-preview-url" class="muted"></span>
+              </div>
+            </div>
+          </div>
+
+          <h2>Historique</h2>
+          <p class="muted">« Distribuées » = reçues par le navigateur de l'utilisateur. « Affichées » = le navigateur a confirmé l'affichage (ce n'est pas une preuve de lecture).</p>
+          <div id="notif-history" class="panel table-wrap"></div>
         </section>
       </main>
     </div>

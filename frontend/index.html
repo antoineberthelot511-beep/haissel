@@ -3,294 +3,350 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Haissel</title>
+    <title>HAISSEL — Espace membre</title>
+    <meta name="description" content="HAISSEL : créez votre compte et retrouvez les liens et offres partenaires publiés par l'équipe." />
+    <meta name="theme-color" content="#008673" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Aller au contenu</a>
+
+    <!-- Icônes (référencées par <use>), décoratives. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5M5.5 9.8V20h4.8v-5.5h3.4V20h4.8V9.8" /></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" /></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8" /><path d="M4.5 20c.8-3.6 3.8-5.6 7.5-5.6s6.7 2 7.5 5.6" /></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4.5H6.5v15H14M10.5 12H20m-3.2-3.4L20 12l-3.2 3.4" /></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="1.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></symbol>
+    </svg>
+
     <div class="app-shell">
+      <!-- ====================== EN-TÊTE ====================== -->
       <header class="topbar">
-        <div class="brand-wrap">
-          <div class="brand-mark">H</div>
-          <div>
-            <div class="brand-name">HAISSEL</div>
-            <div class="brand-tag">Affiliation &amp; performance</div>
+        <div class="topbar-inner">
+          <a class="wordmark" href="/" aria-label="HAISSEL — accueil">
+            <span class="wordmark-logo" aria-hidden="true">H</span>
+            <span class="wordmark-text">HAISSEL</span>
+            <span class="wordmark-tag">Espace membre</span>
+          </a>
+
+          <div class="topbar-actions">
+            <span id="status-badge" class="status-pill offline">Connexion</span>
+            <button id="notif-enable-top" class="ghost-button on-brand hidden" type="button">Activer les notifications Windows</button>
+            <button id="logout-button" class="ghost-button on-brand hidden" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>
+              Déconnexion
+            </button>
           </div>
         </div>
 
+        <!-- Navigation principale (bas d'écran sur téléphone) -->
         <nav class="topbar-nav" aria-label="Navigation principale">
-          <button class="nav-button active" type="button" data-view="dashboard">Dashboard</button>
-          <button class="nav-button" type="button" data-view="offers">Offres</button>
-          <button class="nav-button" type="button" data-view="link">Mon lien</button>
-          <button class="nav-button" type="button" data-view="stats">Statistiques</button>
-          <button class="nav-button" type="button" data-view="profile">Profil</button>
+          <div class="topbar-nav-inner">
+            <button class="nav-button active" type="button" data-view="links" aria-current="page">
+              <svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>
+              <span>Accueil</span>
+            </button>
+            <button class="nav-button" type="button" data-view="notifications">
+              <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>
+              <span>Notifications</span>
+            </button>
+            <button class="nav-button" type="button" data-view="profile">
+              <svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>
+              <span>Mon compte</span>
+            </button>
+          </div>
         </nav>
-
-        <div class="topbar-actions">
-          <span id="status-badge" class="status-pill offline">Connexion</span>
-          <button id="logout-button" class="ghost-button hidden" type="button">Déconnexion</button>
-        </div>
       </header>
 
-      <main class="layout">
-        <aside class="sidebar">
-          <div class="card profile-card">
+      <main id="main" class="layout">
+        <!-- Carte membre (visible une fois connecté) -->
+        <aside class="sidebar" aria-label="Votre compte">
+          <div class="member-card">
             <div class="profile-header">
-              <div class="avatar" id="sidebar-avatar">H</div>
-              <div>
+              <div class="avatar" id="sidebar-avatar" aria-hidden="true">H</div>
+              <div class="member-id">
                 <h2 id="sidebar-name">Bonjour</h2>
                 <p id="sidebar-email">Connectez-vous</p>
               </div>
             </div>
-
-            <div class="mini-grid">
-              <div class="mini-card">
-                <span>Clics</span>
-                <strong id="mini-clicks">0</strong>
-              </div>
-              <div class="mini-card">
-                <span>Conv.</span>
-                <strong id="mini-conversions">0</strong>
-              </div>
-              <div class="mini-card">
-                <span>Gains</span>
-                <strong id="mini-earnings">0 €</strong>
-              </div>
-            </div>
+            <ul class="side-menu" aria-label="Raccourcis">
+              <li><button type="button" data-view="links"><svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>Liens et offres</button></li>
+              <li><button type="button" data-view="notifications"><svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>Notifications</button></li>
+              <li><button type="button" data-view="profile"><svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>Profil et sécurité</button></li>
+            </ul>
           </div>
+          <p class="side-note">Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par la mention « Publicité ».</p>
         </aside>
 
         <section class="content-panel">
+          <!-- ====================== ACCUEIL / AUTHENTIFICATION ====================== -->
           <div id="auth-screen" class="auth-layout">
             <div class="auth-intro">
-              <div class="intro-kicker"><span></span> VOTRE ESPACE AFFILIÉ</div>
-              <h1>Transformez vos<br />recommandations<br /><em>en résultats.</em></h1>
-              <p>Un espace simple pour partager vos offres, suivre vos performances et retrouver vos gains.</p>
-              <div class="intro-proof">
-                <div class="proof-symbol" aria-hidden="true">↗</div>
-                <div><strong>Tout au même endroit</strong><span>Vos liens et statistiques, réunis clairement.</span></div>
+              <h1>Bienvenue sur HAISSEL</h1>
+              <p class="lede">Connectez-vous pour retrouver les liens et offres partenaires publiés par l'équipe.</p>
+              <ol class="steps">
+                <li><span class="step-no" aria-hidden="true">1</span><span><strong>Créez votre compte</strong> avec une adresse e-mail et un pseudo.</span></li>
+                <li><span class="step-no" aria-hidden="true">2</span><span><strong>Consultez la liste</strong> des liens, mise à jour par l'équipe.</span></li>
+                <li><span class="step-no" aria-hidden="true">3</span><span><strong>Cliquez sur « Ouvrir »</strong> : le site partenaire s'ouvre dans un nouvel onglet.</span></li>
+              </ol>
+              <div class="trust-box">
+                <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
+                <p><strong>Votre compte reste privé.</strong> Le mot de passe est chiffré de façon irréversible (Argon2id) et la session n'est accessible qu'à votre navigateur. Vos données : <a href="confidentialite.html">politique de confidentialité</a>.</p>
               </div>
-              <div class="intro-decoration" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             </div>
 
-            <div class="card auth-card">
-              <div class="auth-header">
-                <div class="brand-mark large">H</div>
-                <div>
-                  <div class="eyebrow">RAVI DE VOUS REVOIR</div>
-                  <h2>Bienvenue sur Haissel</h2>
-                  <p>Connectez-vous pour accéder à votre espace.</p>
-                </div>
+            <div class="auth-card">
+              <div class="auth-card-head">
+                <span class="wordmark-logo" aria-hidden="true">H</span>
+                <h2 id="auth-title">Identification</h2>
               </div>
 
               <div class="auth-tabs" role="tablist" aria-label="Choix d'authentification">
-                <button class="tab-button active" type="button" data-form="login">Connexion</button>
-                <button class="tab-button" type="button" data-form="register">Créer un compte</button>
+                <button class="tab-button active" type="button" role="tab" aria-selected="true" data-form="login">Se connecter</button>
+                <button class="tab-button" type="button" role="tab" aria-selected="false" data-form="register">Créer un compte</button>
               </div>
 
               <div id="auth-error" class="auth-error hidden" role="alert" aria-live="polite"></div>
+              <div id="auth-info" class="auth-info hidden" role="status" aria-live="polite"></div>
 
               <form id="login-form" class="auth-form active" novalidate>
                 <label class="field">
-                  <span>Identifiant ou adresse e-mail</span>
-                  <input id="login-identifier" type="text" placeholder="ex. camille ou camille@mail.fr" autocomplete="username" required />
+                  <span>Adresse e-mail ou pseudo</span>
+                  <input id="login-identifier" type="text" placeholder="ex. camille_b" autocomplete="username" maxlength="254" required />
                 </label>
                 <label class="field">
                   <span>Mot de passe</span>
-                  <input id="login-password" type="password" placeholder="Votre mot de passe" autocomplete="current-password" required />
+                  <input id="login-password" type="password" autocomplete="current-password" maxlength="128" required />
                 </label>
-                <button class="primary-button" type="submit">Se connecter <span aria-hidden="true">→</span></button>
+                <button class="primary-button" type="submit">Se connecter</button>
+                <button id="forgot-link" class="text-button hidden" type="button">Mot de passe oublié ?</button>
+              </form>
+
+              <!-- Double authentification -->
+              <form id="mfa-form" class="auth-form hidden" novalidate>
+                <p class="form-intro">Saisissez le code à 6 chiffres affiché par votre application d'authentification.</p>
+                <label class="field" id="mfa-code-field">
+                  <span>Code de vérification</span>
+                  <input id="mfa-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" />
+                </label>
+                <label class="field hidden" id="mfa-recovery-field">
+                  <span>Code de récupération</span>
+                  <input id="mfa-recovery" type="text" maxlength="20" autocomplete="off" placeholder="XXXXX-XXXXX" />
+                </label>
+                <button class="primary-button" type="submit">Valider</button>
+                <button id="mfa-toggle-recovery" class="text-button" type="button">Utiliser un code de récupération</button>
+                <button class="text-button" type="button" data-back-to-login>Annuler</button>
+              </form>
+
+              <!-- Mot de passe oublié -->
+              <form id="forgot-form" class="auth-form hidden" novalidate>
+                <p class="form-intro">Indiquez l'adresse e-mail du compte : si elle existe, un lien de réinitialisation valable 30 minutes vous sera envoyé.</p>
+                <label class="field">
+                  <span>Adresse e-mail</span>
+                  <input id="forgot-email" type="email" autocomplete="email" maxlength="254" required />
+                </label>
+                <button class="primary-button" type="submit">Envoyer le lien</button>
+                <button class="text-button" type="button" data-back-to-login>Retour à la connexion</button>
+              </form>
+
+              <!-- Nouveau mot de passe (lien reçu par e-mail) -->
+              <form id="reset-form" class="auth-form hidden" novalidate>
+                <p class="form-intro">Choisissez un nouveau mot de passe. Toutes vos sessions seront fermées.</p>
+                <label class="field">
+                  <span>Nouveau mot de passe <small>(10 caractères minimum)</small></span>
+                  <input id="reset-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                </label>
+                <label class="field">
+                  <span>Confirmation</span>
+                  <input id="reset-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                </label>
+                <button class="primary-button" type="submit">Enregistrer</button>
+                <button class="text-button" type="button" data-back-to-login>Retour à la connexion</button>
               </form>
 
               <form id="register-form" class="auth-form hidden" novalidate>
                 <div class="grid-2">
                   <label class="field">
                     <span>Prénom</span>
-                    <input id="register-first-name" type="text" placeholder="Prénom" autocomplete="given-name" required />
+                    <input id="register-first-name" type="text" autocomplete="given-name" maxlength="60" required />
                   </label>
                   <label class="field">
                     <span>Nom</span>
-                    <input id="register-last-name" type="text" placeholder="Nom" autocomplete="family-name" required />
+                    <input id="register-last-name" type="text" autocomplete="family-name" maxlength="60" required />
                   </label>
                 </div>
 
                 <label class="field">
-                  <span>Nom d'utilisateur</span>
-                  <input id="register-username" type="text" placeholder="nom_utilisateur" autocomplete="username" required />
+                  <span>Pseudo <small>(unique, 3 à 30 caractères)</small></span>
+                  <input id="register-username" type="text" placeholder="ex. camille_b" autocomplete="username" minlength="3" maxlength="30" required />
                 </label>
 
                 <label class="field">
                   <span>Adresse e-mail</span>
-                  <input id="register-email" type="email" placeholder="prenom@mail.com" autocomplete="email" required />
+                  <input id="register-email" type="email" placeholder="prenom@mail.com" autocomplete="email" maxlength="254" required />
                 </label>
 
                 <div class="grid-2">
                   <label class="field">
-                    <span>Mot de passe</span>
-                    <input id="register-password" type="password" placeholder="8 caractères minimum" autocomplete="new-password" required />
+                    <span>Mot de passe <small>(10 caractères min.)</small></span>
+                    <input id="register-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
                   </label>
                   <label class="field">
                     <span>Confirmation</span>
-                    <input id="register-confirm-password" type="password" placeholder="Répéter le mot de passe" autocomplete="new-password" required />
+                    <input id="register-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
                   </label>
                 </div>
 
-                <button class="primary-button" type="submit">Créer mon compte <span aria-hidden="true">→</span></button>
+                <label class="show-password">
+                  <input id="register-show-password" type="checkbox" />
+                  <span>Afficher les mots de passe</span>
+                </label>
+
+                <p class="security-note">En créant un compte, vous acceptez les <a href="cgu.html" target="_blank">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>. Inscription dès 15 ans (avant : accord d'un parent).</p>
+                <button class="primary-button" type="submit">Créer mon compte</button>
               </form>
-              <p class="auth-footnote">Vos données restent privées et sécurisées.</p>
             </div>
           </div>
 
+          <!-- ====================== ESPACE MEMBRE ====================== -->
           <div id="app-screen" class="app-screen hidden">
-            <section id="dashboard-view" class="view-panel active">
+            <section id="links-view" class="view-panel" aria-labelledby="links-title">
               <div class="section-header">
                 <div>
-                  <p class="eyebrow">Accueil</p>
-                  <h2>Bonjour, <span id="welcome-name">utilisateur</span></h2>
+                  <p class="eyebrow">Bonjour, <span id="welcome-name">utilisateur</span></p>
+                  <h2 id="links-title" class="section-title">Liens et offres</h2>
                 </div>
+                <button id="refresh-links" class="secondary-button" type="button">
+                  <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
+                  Actualiser
+                </button>
               </div>
-
-              <div class="stats-grid cards-grid">
-                <article class="stat-card blue">
-                  <span>Clics</span>
-                  <strong id="metric-clicks">0</strong>
-                  <small id="metric-clicks-delta">0%</small>
-                </article>
-                <article class="stat-card violet">
-                  <span>Conversions</span>
-                  <strong id="metric-conversions">0</strong>
-                  <small id="metric-conversions-delta">0</small>
-                </article>
-                <article class="stat-card green">
-                  <span>Gains</span>
-                  <strong id="metric-earnings">0 €</strong>
-                  <small id="metric-earnings-delta">0 €</small>
-                </article>
-                <article class="stat-card orange">
-                  <span>Taux</span>
-                  <strong id="metric-rate">0%</strong>
-                  <small id="metric-rate-delta">Performance</small>
-                </article>
-              </div>
-
-              <div class="panel-card">
-                <div class="panel-head">
-                  <h3>Mes offres</h3>
-                  <button class="secondary-button" type="button" data-view="offers">Voir tout</button>
-                </div>
-                <div id="dashboard-offers" class="offer-grid compact"></div>
-              </div>
+              <p class="ad-notice">Ces liens mènent vers des <strong>sites partenaires</strong>. Ceux marqués « Publicité » sont des liens affiliés : HAISSEL peut percevoir une commission. Rien ne vous oblige à cliquer.</p>
+              <div id="links-list" class="offer-grid" aria-live="polite"></div>
             </section>
 
-            <section id="offers-view" class="view-panel hidden">
+            <section id="notifications-view" class="view-panel hidden" aria-labelledby="notif-title">
               <div class="section-header">
                 <div>
-                  <p class="eyebrow">Offres</p>
-                  <h2>Offres disponibles</h2>
-                </div>
-              </div>
-              <div id="offers-list" class="offer-grid"></div>
-            </section>
-
-            <section id="link-view" class="view-panel hidden">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Mon lien</p>
-                  <h2>Votre lien personnel</h2>
+                  <p class="eyebrow">Messages de l'équipe</p>
+                  <h2 id="notif-title" class="section-title">Notifications</h2>
                 </div>
               </div>
 
-              <div class="panel-card">
-                <label class="field">
-                  <span>Choisir une offre</span>
-                  <select id="affiliate-offer-select"></select>
-                </label>
-
-                <div class="link-box">
-                  <label class="small-label" for="affiliate-link-input">Lien d'affiliation</label>
-                  <div class="link-row">
-                    <input id="affiliate-link-input" type="text" readonly value="" placeholder="Cliquez sur « Obtenir mon lien »" />
-                    <button id="generate-link-button" class="secondary-button" type="button">Obtenir mon lien</button>
-                    <button id="copy-link-button" class="primary-button" type="button" disabled>Copier le lien</button>
-                  </div>
-                  <p id="link-feedback" class="link-feedback" role="status" aria-live="polite"></p>
-                </div>
-                <p class="hint-text">Partagez ce lien : chaque visite est comptée par Haissel puis redirigée vers l'offre. Les conversions sont confirmées par le partenaire avant d'apparaître dans vos gains.</p>
-              </div>
-            </section>
-
-            <section id="stats-view" class="view-panel hidden">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Statistiques</p>
-                  <h2>Performance</h2>
-                </div>
-              </div>
-
-              <div class="stats-grid compact-grid">
-                <article class="stat-card blue">
-                  <span>Total clics</span>
-                  <strong id="stats-clicks">0</strong>
-                </article>
-                <article class="stat-card violet">
-                  <span>Total conversions</span>
-                  <strong id="stats-conversions">0</strong>
-                </article>
-                <article class="stat-card green">
-                  <span>Gains</span>
-                  <strong id="stats-earnings">0 €</strong>
-                </article>
-                <article class="stat-card orange">
-                  <span>Taux</span>
-                  <strong id="stats-rate">0%</strong>
-                </article>
-              </div>
-
-              <div class="panel-card">
-                <div class="panel-head">
-                  <h3>Détail par code</h3>
-                </div>
-                <div id="stats-table-wrap" class="table-wrap"></div>
-              </div>
-
-              <div class="panel-card">
-                <div class="panel-head">
-                  <h3>Mes conversions</h3>
-                </div>
-                <div id="conversions-table-wrap" class="table-wrap"></div>
-              </div>
-            </section>
-
-            <section id="profile-view" class="view-panel hidden">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Profil</p>
-                  <h2>Informations du compte</h2>
-                </div>
-              </div>
-
-              <div class="panel-card profile-card-box">
-                <div class="profile-top">
-                  <div class="avatar large" id="profile-avatar">H</div>
-                  <div>
-                    <h3 id="profile-display-name">Utilisateur</h3>
-                    <p id="profile-username">@username</p>
-                  </div>
-                </div>
-
+              <div class="profile-card-box notif-box">
+                <h3 class="card-title">Réception des messages</h3>
+                <p class="security-note">Les messages de l'administration s'affichent dans cette page tant qu'elle est ouverte. Vous pouvez aussi recevoir des notifications système de votre ordinateur.</p>
                 <ul class="profile-list">
-                  <li><span>Nom complet</span><strong id="profile-full-name">-</strong></li>
-                  <li><span>Email</span><strong id="profile-email">-</strong></li>
-                  <li><span>Date d'inscription</span><strong id="profile-created-at">-</strong></li>
+                  <li><span>Canal temps réel</span><strong id="realtime-status">Hors ligne</strong></li>
+                  <li><span>Notifications Windows</span><strong id="notif-permission-status">Non configuré</strong></li>
                 </ul>
+                <p id="notif-permission-help" class="security-note"></p>
+                <p id="notif-diagnostic" class="security-note notif-diagnostic"></p>
+                <p id="notif-last-result" class="security-note" role="status" aria-live="polite"></p>
+                <div class="notif-box-actions">
+                  <button id="notif-enable" class="primary-button" type="button">Activer les notifications Windows</button>
+                  <button id="notif-test" class="ghost-button hidden" type="button">Tester une notification Windows</button>
+                  <button id="realtime-retry" class="ghost-button hidden" type="button">Se reconnecter</button>
+                </div>
+              </div>
+            </section>
 
-                <button id="profile-logout" class="ghost-button danger-button" type="button">Se déconnecter</button>
+            <section id="profile-view" class="view-panel hidden" aria-labelledby="profile-title">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Mon compte</p>
+                  <h2 id="profile-title" class="section-title">Profil et sécurité</h2>
+                </div>
+              </div>
+
+              <div class="profile-grid">
+                <div class="profile-card-box">
+                  <div class="profile-top">
+                    <div class="avatar large" id="profile-avatar" aria-hidden="true">H</div>
+                    <div>
+                      <h3 id="profile-display-name">Utilisateur</h3>
+                      <p id="profile-username">@username</p>
+                    </div>
+                  </div>
+
+                  <ul class="profile-list">
+                    <li><span>Nom complet</span><strong id="profile-full-name">-</strong></li>
+                    <li><span>E-mail</span><strong id="profile-email">-</strong></li>
+                    <li><span>Inscription</span><strong id="profile-created-at">-</strong></li>
+                  </ul>
+
+                  <button id="profile-logout" class="ghost-button" type="button">Se déconnecter</button>
+                </div>
+
+                <div class="profile-card-box security-box">
+                  <h3 class="card-title">Changer de mot de passe</h3>
+                  <form id="password-form" class="auth-form" novalidate>
+                    <div id="password-feedback" class="auth-info hidden" role="status" aria-live="polite"></div>
+                    <div id="password-error" class="auth-error hidden" role="alert"></div>
+                    <label class="field">
+                      <span>Mot de passe actuel</span>
+                      <input id="current-password" type="password" autocomplete="current-password" maxlength="128" required />
+                    </label>
+                    <div class="grid-2">
+                      <label class="field">
+                        <span>Nouveau mot de passe</span>
+                        <input id="new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                      </label>
+                      <label class="field">
+                        <span>Confirmation</span>
+                        <input id="new-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                      </label>
+                    </div>
+                    <button class="primary-button" type="submit">Changer le mot de passe</button>
+                  </form>
+                  <p class="security-note">Changer le mot de passe ferme toutes vos autres sessions.</p>
+                  <button id="logout-all-button" class="ghost-button danger-button" type="button">Se déconnecter de tous les appareils</button>
+                </div>
+
+                <div class="profile-card-box security-box">
+                  <h3 class="card-title">Mes données personnelles</h3>
+                  <p class="security-note">Vos droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
+                  <a class="ghost-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
+                  <details class="danger-zone">
+                    <summary>Supprimer mon compte</summary>
+                    <form id="delete-account-form" class="auth-form" novalidate>
+                      <div id="delete-account-error" class="auth-error hidden" role="alert"></div>
+                      <p class="security-note">Cette action est définitive.</p>
+                      <label class="field">
+                        <span>Mot de passe</span>
+                        <input id="delete-account-password" type="password" autocomplete="current-password" maxlength="128" required />
+                      </label>
+                      <label class="field">
+                        <span>Tapez SUPPRIMER pour confirmer</span>
+                        <input id="delete-account-confirm" type="text" autocomplete="off" maxlength="20" required />
+                      </label>
+                      <button class="ghost-button danger-button" type="submit">Supprimer définitivement mon compte</button>
+                    </form>
+                  </details>
+                </div>
               </div>
             </section>
           </div>
         </section>
       </main>
+
+      <!-- ====================== PIED DE PAGE ====================== -->
+      <footer class="site-footer">
+        <div class="footer-meta">
+          <span><strong>HAISSEL</strong> · espace membre</span>
+          <a href="mentions-legales.html">Mentions légales</a>
+          <a href="confidentialite.html">Confidentialité</a>
+          <a href="cgu.html">CGU</a>
+        </div>
+      </footer>
     </div>
 
+    <!-- Notifications reçues pendant la visite (texte brut uniquement). -->
+    <div id="notif-stack" class="notif-stack" role="status" aria-live="polite"></div>
+
+    <script src="notifications.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

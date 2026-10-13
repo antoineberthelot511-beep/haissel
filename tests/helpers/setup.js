@@ -15,7 +15,11 @@ const dotenv = require('dotenv');
 const SCHEMA = `haissel_test_${process.pid}_${crypto.randomBytes(3).toString('hex')}`;
 
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-secret-0123456789-abcdefghijklmnopqrstuvwxyz';
+process.env.APP_SECRET = 'test-secret-0123456789-abcdefghijklmnopqrstuvwxyz';
+process.env.JWT_SECRET = '';
+process.env.MAIL_TRANSPORT = 'memory';
+process.env.ADMIN_REQUIRE_MFA = 'true';
+process.env.COOKIE_SECURE = 'false';
 process.env.PROXY_SHARED_SECRET = 'test-proxy-secret-0123456789-abcdefghijklmnop';
 process.env.AFFILIATE_WEBHOOK_SECRET = 'test-webhook-secret-0123456789-abcdefghijklmn';
 process.env.ALLOWED_EMAIL_DOMAIN = '';
@@ -29,7 +33,7 @@ if (process.env.TEST_DATABASE_URL) {
 }
 
 const { Pool } = require('pg');
-const bcrypt = require('bcryptjs');
+const argon2 = require('argon2');
 const request = require('supertest');
 
 const adminPool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
@@ -51,30 +55,76 @@ async function teardownDatabase() {
 
 let counter = 0;
 
-/** Crée un utilisateur directement en base (mot de passe : Password123!). */
-async function createUser({ admin = false, active = true, banned = false, prefix = 'user' } = {}) {
+const PASSWORD = 'Password123!';
+// Hash Argon2id rapide pour les tests (format identique, coût réduit).
+let fastHashPromise;
+const fastHash = () => {
+  if (!fastHashPromise) fastHashPromise = argon2.hash(PASSWORD, { type: argon2.argon2id, memoryCost: 1024, timeCost: 2, parallelism: 1 });
+  return fastHashPromise;
+};
+
+/**
+ * Crée un utilisateur directement en base (mot de passe : Password123!).
+ * Les administrateurs ont la double authentification déjà activée
+ * (secret TOTP connu des tests, voir login()).
+ */
+async function createUser({
+  admin = false, active = true, banned = false, verified = true, mfaSecret = null, prefix = 'user',
+} = {}) {
   const { pool } = require('../../src/config/database');
+  const mfa = require('../../src/services/mfa.service');
   counter += 1;
   const username = `${prefix}${counter}_${crypto.randomBytes(2).toString('hex')}`;
-  const hash = await bcrypt.hash('Password123!', 4);
+  const secret = mfaSecret || (admin ? mfa.generateSecret() : null);
   const result = await pool.query(
-    `INSERT INTO users (username, email, password_hash, display_name, is_active, is_banned)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, email`,
-    [username, `${username}@exemple.fr`, hash, `Test ${username}`, active, banned]
+    `INSERT INTO users (username, email, password_hash, display_name, first_name, last_name,
+                        is_active, is_banned, email_verified_at, mfa_enabled, mfa_secret_enc)
+     VALUES ($1, $2, $3, $4, 'Test', 'User', $5, $6, $7, $8, $9) RETURNING id, username, email`,
+    [username, `${username}@exemple.fr`, await fastHash(), `Test ${username}`, active, banned,
+      verified ? new Date() : null, Boolean(secret), secret ? mfa.encryptSecret(secret) : null]
   );
-  const user = result.rows[0];
+  const user = { ...result.rows[0], mfaSecret: secret };
   if (admin) {
     await pool.query("INSERT INTO admins (user_id, role) VALUES ($1, 'ADMIN')", [user.id]);
   }
   return user;
 }
 
-async function login(app, user) {
-  const res = await request(app)
-    .post('/api/auth/login')
-    .send({ identifier: user.username, password: 'Password123!' });
+/** Code TOTP valide « maintenant » ; l'anti-rejeu est réinitialisé pour les tests. */
+async function totpFor(user) {
+  const { pool } = require('../../src/config/database');
+  const mfa = require('../../src/services/mfa.service');
+  await pool.query('UPDATE users SET mfa_last_step = NULL WHERE id = $1', [user.id]);
+  return mfa.hotp(user.mfaSecret, mfa.currentStep());
+}
+
+function extractCookie(res) {
+  const header = (res.headers['set-cookie'] || []).find((c) => /^(__Host-)?haissel_sid=[^;]+/.test(c));
+  return header ? header.split(';')[0] : null;
+}
+
+/**
+ * Connexion complète (mot de passe, puis TOTP si nécessaire).
+ * Retourne une « identité » de test : { cookie, csrf }.
+ */
+async function login(app, user, { headers = {} } = {}) {
+  let res = await request(app).post('/api/auth/login').set(headers)
+    .send({ identifier: user.username, password: PASSWORD });
   if (res.status !== 200) throw new Error(`Login failed (${res.status}): ${JSON.stringify(res.body)}`);
-  return res.body.data.token;
+  let identity = { cookie: extractCookie(res), csrf: res.body.data.csrf_token };
+
+  if (res.body.data.mfa_required) {
+    res = await request(app).post('/api/auth/mfa/verify').set(headers).set(auth(identity))
+      .send({ code: await totpFor(user) });
+    if (res.status !== 200) throw new Error(`MFA failed (${res.status}): ${JSON.stringify(res.body)}`);
+    identity = { cookie: extractCookie(res), csrf: res.body.data.csrf_token };
+  }
+  return identity;
+}
+
+/** En-têtes d'une requête authentifiée (cookie de session + jeton CSRF). */
+function auth(identity) {
+  return { Cookie: identity.cookie, 'X-CSRF-Token': identity.csrf };
 }
 
 /** En-têtes simulant une requête relayée par Nginx depuis un appareil du LAN. */
@@ -92,6 +142,10 @@ function signWebhook(body, { secret = process.env.AFFILIATE_WEBHOOK_SECRET, time
 }
 
 module.exports = {
+  PASSWORD,
+  auth,
+  totpFor,
+  extractCookie,
   SCHEMA,
   setupDatabase,
   teardownDatabase,

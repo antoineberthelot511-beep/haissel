@@ -5,6 +5,10 @@
  *   node scripts/promote-admin.js --email alice@exemple.fr
  *   node scripts/promote-admin.js --user-id 42
  *   node scripts/promote-admin.js --username alice --demote   (retire le rôle)
+ *   (--force est exigé pour retirer le rôle au dernier administrateur)
+ *
+ * Toute modification de rôle ferme les sessions du compte (rotation) :
+ * les nouveaux droits ne s'appliquent qu'après une nouvelle connexion.
  *
  * Idempotent : relancer la commande ne crée aucun doublon.
  */
@@ -46,7 +50,7 @@ async function main() {
   const lookup = buildLookup(args);
 
   if (!lookup) {
-    console.error('Usage : node scripts/promote-admin.js --username alice | --email alice@exemple.fr | --user-id 42 [--demote]');
+    console.error('Usage : node scripts/promote-admin.js --username alice | --email alice@exemple.fr | --user-id 42 [--demote [--force]]');
     process.exitCode = 1;
     return;
   }
@@ -61,8 +65,28 @@ async function main() {
 
   const label = `${user.username} <${user.email}> (id ${user.id})`;
 
+  const revokeSessions = () => pool.query(
+    "UPDATE sessions SET revoked_at = NOW(), revoked_reason = 'role_changed' WHERE user_id = $1 AND revoked_at IS NULL",
+    [user.id]
+  );
+  const logRoleChange = (event) => pool.query(
+    "INSERT INTO security_events (user_id, event, details) VALUES ($1, $2, '{\"source\":\"cli\"}')",
+    [user.id, event]
+  ).catch(() => {});
+
   if (args.demote) {
+    const count = await pool.query("SELECT COUNT(*)::int AS n FROM admins WHERE role = 'ADMIN'");
+    const isAdmin = await pool.query('SELECT 1 FROM admins WHERE user_id = $1', [user.id]);
+    if (isAdmin.rowCount && count.rows[0].n <= 1 && !args.force) {
+      console.error("Refusé : c'est le dernier administrateur. Promouvez d'abord un autre compte, ou ajoutez --force.");
+      process.exitCode = 1;
+      return;
+    }
     const removed = await pool.query('DELETE FROM admins WHERE user_id = $1 RETURNING id', [user.id]);
+    if (removed.rowCount) {
+      await revokeSessions();
+      await logRoleChange('role_admin_removed');
+    }
     console.log(removed.rowCount ? `Rôle ADMIN retiré : ${label}` : `${label} n'était pas administrateur.`);
     return;
   }
@@ -81,6 +105,8 @@ async function main() {
   if (result.rowCount === 0) {
     console.log(`Déjà administrateur : ${label}`);
   } else {
+    await revokeSessions();
+    await logRoleChange('role_admin_granted');
     console.log(result.rows[0].inserted ? `Promu ADMIN : ${label}` : `Rôle mis à jour vers ADMIN : ${label}`);
   }
 
