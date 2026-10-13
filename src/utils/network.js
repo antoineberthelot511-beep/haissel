@@ -36,6 +36,8 @@ function normalizeIp(ip) {
 }
 
 function getClientIp(req) {
+  // Vercel (trust proxy activé dans app.js) : IP fournie par son proxy.
+  if (process.env.VERCEL === '1' && req.ip) return normalizeIp(req.ip);
   if (isTrustedProxyRequest(req)) {
     const forwarded = req.get('x-real-ip');
     if (forwarded) return normalizeIp(forwarded);
@@ -47,6 +49,9 @@ function getClientIp(req) {
  * Vrai uniquement si la requête provient de la machine serveur elle-même.
  */
 function isLocalRequest(req) {
+  // Vercel : aucune requête n'est « locale », même si la fonction reçoit la
+  // connexion depuis 127.0.0.1 (pont interne du runtime).
+  if (process.env.VERCEL === '1') return false;
   if (isTrustedProxyRequest(req)) {
     return req.get('x-haissel-admin-gate') === '1';
   }

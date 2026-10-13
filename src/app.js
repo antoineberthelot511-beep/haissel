@@ -52,6 +52,29 @@ app.disable('x-powered-by');
  */
 app.set('trust proxy', false);
 
+/*
+ * Vercel : la fonction est appelée par le proxy de Vercel, qui termine le
+ * HTTPS et réécrit X-Forwarded-For / X-Forwarded-Proto (un client ne peut
+ * pas les imposer). On s'y fie uniquement dans ce mode : protocole correct
+ * pour le contrôle CSRF et le cookie Secure, IP réelle pour les limites.
+ */
+const onVercel = process.env.VERCEL === '1';
+if (onVercel) {
+  app.set('trust proxy', true);
+
+  // Pas de process.exit possible : une configuration dangereuse bloque
+  // toutes les requêtes (sans jamais révéler de valeur secrète).
+  const { errors, warnings } = validateSecurityConfig();
+  for (const warning of warnings) logger.warn(warning);
+  for (const error of errors) logger.error(`Configuration invalide : ${error}`);
+  if (errors.length) {
+    app.use((req, res) => res.status(503).json({
+      success: false,
+      error: { code: 'SERVER_MISCONFIGURED', message: 'Serveur mal configuré : consultez les journaux Vercel.' },
+    }));
+  }
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: false,
@@ -330,7 +353,8 @@ if (require.main === module) {
   startServer();
 }
 
-module.exports = {
-  app,
-  pool,
-};
+// Vercel attend l'application Express comme export principal ;
+// les tests et scripts utilisent { app, pool }.
+module.exports = app;
+module.exports.app = app;
+module.exports.pool = pool;

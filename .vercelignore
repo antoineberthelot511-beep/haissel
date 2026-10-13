@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules_old/
+sauvegardes/
+merde/
+frontend/image/
+certs/
+nginx/
+stdout
+*.exe
+*.msi
+*.crdownload
+*.log
