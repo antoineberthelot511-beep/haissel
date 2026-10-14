@@ -21,6 +21,8 @@
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="1.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M4.5 5.5c2.6-.9 5.1-.6 7.5 1v13c-2.4-1.6-4.9-1.9-7.5-1zM19.5 5.5c-2.6-.9-5.1-.6-7.5 1v13c2.4-1.6 4.9-1.9 7.5-1z" /></symbol>
       <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3" /></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 8v8M8 12h8" /></symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24"><path d="M4 4h7.5l8.5 8.5-7.5 7.5L4 11.5zM8.2 8.2h.01" /></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></symbol>
     </svg>
 
@@ -52,20 +54,20 @@
               <span>Accueil</span>
             </button>
             <button class="nav-button" type="button" data-view="links">
-              <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
-              <span>Liens</span>
+              <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
+              <span>Offres</span>
             </button>
             <button class="nav-button" type="button" data-view="learn">
               <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
               <span>Apprendre</span>
             </button>
-            <button class="nav-button" type="button" data-view="notifications">
-              <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>
-              <span>Notifications</span>
+            <button class="nav-button" type="button" data-view="publish">
+              <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+              <span>Publier</span>
             </button>
             <button class="nav-button" type="button" data-view="profile">
               <svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>
-              <span>Mon compte</span>
+              <span>Profil</span>
             </button>
           </div>
         </nav>
@@ -84,8 +86,9 @@
             </div>
             <ul class="side-menu" aria-label="Raccourcis">
               <li><button type="button" data-view="home"><svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>Accueil</button></li>
-              <li><button type="button" data-view="links"><svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>Liens et offres</button></li>
+              <li><button type="button" data-view="links"><svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>Offres</button></li>
               <li><button type="button" data-view="learn"><svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>Apprendre l'affiliation</button></li>
+              <li><button type="button" data-view="publish"><svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>Publier une offre</button></li>
               <li><button type="button" data-view="notifications"><svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>Notifications</button></li>
               <li><button type="button" data-view="profile"><svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>Profil et sécurité</button></li>
             </ul>
@@ -234,6 +237,14 @@
                 <p id="home-date" class="home-date"></p>
               </div>
               <div class="widget-grid">
+                <article class="widget widget-wide" aria-labelledby="w-community-title">
+                  <header class="widget-head">
+                    <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
+                    <h3 id="w-community-title">Dernières offres de la communauté</h3>
+                  </header>
+                  <ul id="home-community" class="widget-list" aria-live="polite"><li class="widget-empty">Chargement…</li></ul>
+                  <button class="widget-more" type="button" data-goto="links">Toutes les offres</button>
+                </article>
                 <article class="widget" aria-labelledby="w-links-title">
                   <header class="widget-head">
                     <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
@@ -279,14 +290,37 @@
               <div class="section-header">
                 <div>
                   <p class="eyebrow">Bonjour, <span id="welcome-name">utilisateur</span></p>
-                  <h2 id="links-title" class="section-title">Liens et offres</h2>
+                  <h2 id="links-title" class="section-title">Offres</h2>
                 </div>
                 <button id="refresh-links" class="secondary-button" type="button">
                   <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
                   Actualiser
                 </button>
               </div>
-              <p class="ad-notice">Ces liens mènent vers des <strong>sites partenaires</strong>. Ceux marqués « Publicité » sont des liens affiliés : HAISSEL peut percevoir une commission. Rien ne vous oblige à cliquer.</p>
+              <p class="ad-notice">Toutes ces offres sont des <strong>liens affiliés</strong> (mention « Publicité ») : la personne qui a publié le lien (un membre ou l'équipe HAISSEL) peut toucher une commission si tu réalises l'action demandée. <strong>Aucun gain n'est garanti</strong>, ni pour toi ni pour elle. Rien ne t'oblige à cliquer.</p>
+
+              <h3 class="subsection-title">Offres de la communauté</h3>
+              <form id="community-filters" class="filters-bar" role="search" aria-label="Rechercher une offre">
+                <label class="field">
+                  <span>Rechercher</span>
+                  <input id="community-q" type="search" maxlength="80" placeholder="ex. application, jeu…" />
+                </label>
+                <label class="field">
+                  <span>Catégorie</span>
+                  <select id="community-category"><option value="">Toutes</option></select>
+                </label>
+                <label class="field">
+                  <span>Pays (code)</span>
+                  <input id="community-country" type="text" maxlength="2" placeholder="FR" autocomplete="off" />
+                </label>
+                <label class="show-password filter-saved">
+                  <input id="community-saved" type="checkbox" />
+                  <span>Mes offres enregistrées</span>
+                </label>
+              </form>
+              <div id="community-list" class="offer-grid" aria-live="polite"></div>
+
+              <h3 class="subsection-title">Liens de l'équipe HAISSEL</h3>
               <div id="links-list" class="offer-grid" aria-live="polite"></div>
             </section>
 
@@ -300,7 +334,8 @@
               <p class="ad-notice">Ici, on apprend comment fonctionne l'affiliation. <strong>Personne ne peut garantir des gains</strong> : beaucoup de débutants ne gagnent rien. Les conditions officielles de chaque programme priment toujours sur ces pages.</p>
 
               <div class="learn-tabs" role="tablist" aria-label="Rubriques de la formation">
-                <button class="learn-tab active" type="button" role="tab" aria-selected="true" aria-controls="learn-guides" data-learn-tab="guides">Apprendre</button>
+                <button class="learn-tab active" type="button" role="tab" aria-selected="true" aria-controls="learn-mylead" data-learn-tab="mylead">Parcours MyLead</button>
+                <button class="learn-tab" type="button" role="tab" aria-selected="false" aria-controls="learn-guides" data-learn-tab="guides">Apprendre</button>
                 <button class="learn-tab" type="button" role="tab" aria-selected="false" aria-controls="learn-opportunities" data-learn-tab="opportunities">Opportunités</button>
                 <button class="learn-tab" type="button" role="tab" aria-selected="false" aria-controls="learn-tutorials" data-learn-tab="tutorials">Tutoriels</button>
                 <button class="learn-tab" type="button" role="tab" aria-selected="false" aria-controls="learn-referral" data-learn-tab="referral">Parrainage</button>
@@ -308,7 +343,11 @@
                 <button class="learn-tab" type="button" role="tab" aria-selected="false" aria-controls="learn-transparency" data-learn-tab="transparency">Transparence</button>
               </div>
 
-              <div id="learn-guides" class="learn-panel" role="tabpanel" aria-label="Guides pour débutants">
+              <div id="learn-mylead" class="learn-panel" role="tabpanel" aria-label="Parcours MyLead">
+                <div id="mylead-guide" class="learn-list"></div>
+              </div>
+
+              <div id="learn-guides" class="learn-panel hidden" role="tabpanel" aria-label="Guides pour débutants">
                 <p class="security-note">Les bases : affiliation, CPL et commissions. Chaque guide est relu par l'équipe avant publication.</p>
                 <div id="learn-guides-list" class="learn-list" aria-live="polite"></div>
               </div>
@@ -420,12 +459,92 @@
               </div>
             </section>
 
+            <section id="publish-view" class="view-panel hidden" aria-labelledby="publish-title">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Partager ton lien d'affiliation</p>
+                  <h2 id="publish-title" class="section-title">Publier une offre</h2>
+                </div>
+              </div>
+              <p class="ad-notice">Chaque offre est <strong>vérifiée par l'équipe</strong> avant d'être visible. Décris-la honnêtement : pas de promesse de gains, pas de fausse information. Les jeux d'argent, la crypto, le crédit, les rencontres, les contenus pour adultes, le tabac et l'alcool sont refusés. HAISSEL ne te demandera jamais ton mot de passe MyLead.</p>
+
+              <form id="publish-form" class="profile-card-box publish-form" novalidate>
+                <h3 id="publish-form-title" class="card-title">Nouvelle offre</h3>
+                <div id="publish-error" class="auth-error hidden" role="alert"></div>
+                <label class="field">
+                  <span>Titre <small>(5 à 120 caractères)</small></span>
+                  <input id="pub-title" type="text" minlength="5" maxlength="120" required />
+                </label>
+                <label class="field">
+                  <span>Lien <small>(doit commencer par https://)</small></span>
+                  <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required />
+                </label>
+                <label class="field">
+                  <span>Description <small>(ce que c'est et pour qui, 20 caractères minimum)</small></span>
+                  <textarea id="pub-description" rows="4" minlength="20" maxlength="1500" required></textarea>
+                </label>
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Catégorie</span>
+                    <select id="pub-category" required><option value="">Choisir…</option></select>
+                  </label>
+                  <label class="field">
+                    <span>Pays concernés <small>(codes : FR, BE…)</small></span>
+                    <input id="pub-countries" type="text" maxlength="200" placeholder="FR, BE" required />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Action attendue <small>(ex. « inscription avec e-mail confirmé »)</small></span>
+                  <input id="pub-action" type="text" maxlength="300" required />
+                </label>
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Rémunération annoncée <small>(facultatif)</small></span>
+                    <input id="pub-payout" type="text" maxlength="160" placeholder="Seulement si elle figure dans ta campagne" />
+                  </label>
+                  <label class="field">
+                    <span>Âge minimum <small>(si la campagne en fixe un)</small></span>
+                    <input id="pub-min-age" type="number" inputmode="numeric" min="10" max="99" />
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Conditions et restrictions <small>(facultatif)</small></span>
+                  <textarea id="pub-conditions" rows="3" maxlength="2000" placeholder="ex. pas de trafic incité, France uniquement…"></textarea>
+                </label>
+                <label class="show-password">
+                  <input id="pub-rights" type="checkbox" required />
+                  <span>Je confirme avoir le droit de promouvoir cette offre (campagne acceptée sur ma plateforme d'affiliation) et que les informations sont exactes.</span>
+                </label>
+                <div class="publish-actions">
+                  <button id="pub-preview-button" class="secondary-button" type="button">Voir l'aperçu</button>
+                  <button class="primary-button" type="submit">Envoyer pour vérification</button>
+                  <button id="pub-cancel-edit" class="ghost-button hidden" type="button">Annuler la modification</button>
+                </div>
+                <div id="publish-success" class="auth-info hidden" role="status" aria-live="polite"></div>
+              </form>
+
+              <div id="publish-preview" class="publish-preview hidden" aria-live="polite">
+                <h3 class="subsection-title">Aperçu</h3>
+                <p class="security-note">Voici comment les autres membres verront ton offre, une fois vérifiée.</p>
+                <div id="publish-preview-card" class="offer-grid"></div>
+              </div>
+
+              <h3 class="subsection-title">Mes offres</h3>
+              <div id="my-offers" class="learn-list" aria-live="polite"></div>
+            </section>
+
             <section id="profile-view" class="view-panel hidden" aria-labelledby="profile-title">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">Mon compte</p>
                   <h2 id="profile-title" class="section-title">Profil et sécurité</h2>
                 </div>
+              </div>
+
+              <div class="profile-shortcuts">
+                <button class="secondary-button" type="button" data-goto="notifications"><svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>Notifications</button>
+                <button class="secondary-button" type="button" data-goto="publish"><svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>Mes offres publiées</button>
+                <button id="profile-saved" class="secondary-button" type="button"><svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>Offres enregistrées</button>
               </div>
 
               <div class="profile-grid">
@@ -514,7 +633,61 @@
     <!-- Notifications reçues pendant la visite (texte brut uniquement). -->
     <div id="notif-stack" class="notif-stack" role="status" aria-live="polite"></div>
 
+    <!-- Avant d'ouvrir un lien publié par un membre -->
+    <dialog id="leave-dialog" class="app-dialog" aria-labelledby="leave-title">
+      <form method="dialog">
+        <h2 id="leave-title">Tu vas quitter HAISSEL</h2>
+        <p>Ce lien ouvre le site <strong id="leave-domain"></strong> dans un nouvel onglet. C'est un <strong>lien affilié</strong> : son auteur peut toucher une commission.</p>
+        <p id="leave-age" class="guide-warning hidden"></p>
+        <p class="security-note">HAISSEL n'a pas vérifié ce site lui-même. Ne donne jamais tes mots de passe et méfie-toi des promesses de gains.</p>
+        <div class="dialog-actions">
+          <button value="cancel" class="ghost-button" type="submit">Annuler</button>
+          <button value="confirm" id="leave-confirm" class="primary-button" type="submit">Continuer</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Signalement -->
+    <dialog id="report-dialog" class="app-dialog" aria-labelledby="report-title">
+      <form id="report-form" novalidate>
+        <h2 id="report-title">Signaler cette offre</h2>
+        <p id="report-offer" class="security-note"></p>
+        <div id="report-error" class="auth-error hidden" role="alert"></div>
+        <label class="field">
+          <span>Motif</span>
+          <select id="report-reason" required>
+            <option value="">Choisir…</option>
+            <option value="misleading">Trompeuse (fausses promesses, fausses infos)</option>
+            <option value="spam">Spam ou doublon</option>
+            <option value="dangerous">Lien dangereux ou arnaque</option>
+            <option value="minors">Inadaptée aux mineurs</option>
+            <option value="rights">L'auteur n'a pas le droit de la promouvoir</option>
+            <option value="other">Autre</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Détails <small>(facultatif)</small></span>
+          <textarea id="report-details" rows="3" maxlength="500"></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button class="ghost-button" type="button" data-close-dialog>Annuler</button>
+          <button class="primary-button" type="submit">Envoyer le signalement</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Profil public d'un membre -->
+    <dialog id="member-dialog" class="app-dialog wide" aria-labelledby="member-title">
+      <div class="dialog-head">
+        <h2 id="member-title">Profil</h2>
+        <button class="ghost-button" type="button" data-close-dialog aria-label="Fermer">✕</button>
+      </div>
+      <p id="member-meta" class="security-note"></p>
+      <div id="member-offers" class="offer-grid" aria-live="polite"></div>
+    </dialog>
+
     <script src="notifications.js"></script>
+    <script src="mylead-guide.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

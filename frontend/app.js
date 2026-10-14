@@ -22,6 +22,7 @@ const state = {
   loadedAt: 0,
   resetToken: '',
   learn: { loaded: false, opportunities: [] },
+  community: { loaded: false, categories: {}, editing: null, reportId: null },
 };
 
 const ui = {};
@@ -174,6 +175,9 @@ function setActiveView(viewName) {
     panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
   });
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
+  if ((viewName === 'links' || viewName === 'home') && state.user && !state.community.loaded) loadCommunity();
+  if (viewName === 'publish' && state.user) loadMyOffers();
+  window.scrollTo({ top: 0 });
 }
 
 function showLoggedOut() {
@@ -181,6 +185,7 @@ function showLoggedOut() {
   state.user = null;
   state.links = [];
   state.learn = { loaded: false, opportunities: [] };
+  state.community = { loaded: false, categories: {}, editing: null, reportId: null };
   ui.authScreen.classList.remove('hidden');
   ui.appScreen.classList.add('hidden');
   updateUserSummary();
@@ -393,6 +398,7 @@ async function loadLearn() {
     renderOpportunities();
     renderReferral(referral);
     renderHomeLearn(items);
+    renderMyLeadGuide(referral);
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     for (const list of lists) {
@@ -412,6 +418,358 @@ function setLearnTab(name) {
   });
   document.querySelectorAll('.learn-panel').forEach((panel) => {
     panel.classList.toggle('hidden', panel.id !== `learn-${name}`);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Offres de la communauté
+// ---------------------------------------------------------------------------
+
+const OFFER_STATUS_LABELS = {
+  pending: ['En attente de vérification', 'pending'],
+  published: ['Publiée', 'published'],
+  rejected: ['Refusée', 'rejected'],
+};
+
+function openDialog(dialog) {
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+}
+
+function closeDialog(dialog) {
+  if (typeof dialog.close === 'function') dialog.close();
+  else dialog.removeAttribute('open');
+}
+
+function fillCategorySelect(select, categories, firstLabel) {
+  const current = select.value;
+  select.replaceChildren(h('option', { value: '' }, firstLabel),
+    ...Object.entries(categories).map(([value, label]) => h('option', { value }, label)));
+  select.value = current;
+}
+
+/** Ouvre un lien de membre après confirmation (domaine affiché, âge rappelé). */
+function confirmLeave(offer) {
+  ui.leaveDomain.textContent = offer.domain || 'site externe';
+  ui.leaveAge.textContent = offer.min_age ? `Offre réservée aux ${offer.min_age} ans et plus : ne continue que si tu as cet âge.` : '';
+  ui.leaveAge.classList.toggle('hidden', !offer.min_age);
+  ui.leaveDialog.returnValue = '';
+  ui.leaveDialog.addEventListener('close', () => {
+    if (ui.leaveDialog.returnValue === 'confirm') window.open(offer.url, '_blank', 'noopener,noreferrer');
+  }, { once: true });
+  openDialog(ui.leaveDialog);
+}
+
+function communityCard(offer, { preview = false } = {}) {
+  const row = (label, value) => (value ? h('li', null, h('span', null, label), h('strong', null, value)) : null);
+  const saveButton = h('button', {
+    className: 'ghost-button small-button', type: 'button', 'aria-pressed': String(offer.saved), disabled: preview,
+    onclick: () => toggleSave(offer, saveButton),
+  }, offer.saved ? '★ Enregistrée' : '☆ Enregistrer');
+
+  return h('article', { className: 'offer-card community-card' },
+    h('div', { className: 'offer-body' },
+      h('div', { className: 'offer-header-line' },
+        h('h4', null, offer.title),
+        h('span', { className: 'pill ad', title: 'Lien affilié : son auteur peut toucher une commission.' }, 'Publicité'),
+        h('span', { className: 'pill' }, offer.category_label),
+        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
+      h('p', { className: 'community-description' }, offer.description),
+      h('ul', { className: 'profile-list compact' },
+        row('Action attendue', offer.expected_action),
+        row('Pays', offer.countries),
+        row('Rémunération annoncée', offer.payout_text ? `${offer.payout_text} (non garantie)` : null)),
+      offer.conditions ? h('details', { className: 'community-conditions' },
+        h('summary', null, 'Conditions et restrictions'), h('p', null, offer.conditions)) : null,
+      h('p', { className: 'community-meta' },
+        'Publiée par ',
+        preview
+          ? h('strong', null, `@${offer.author.username}`)
+          : h('button', { className: 'widget-link', type: 'button', onclick: () => openMember(offer.author.username) }, `@${offer.author.username}`),
+        ` · ${formatDate(offer.published_at || offer.created_at)}`),
+      h('div', { className: 'offer-footer' },
+        h('span', { className: 'offer-domain' }, offer.domain ? `Site : ${offer.domain}` : ''),
+        h('div', { className: 'card-actions' },
+          offer.is_mine || preview ? null : saveButton,
+          offer.is_mine || preview ? null : h('button', { className: 'ghost-button small-button', type: 'button', onclick: () => openReport(offer) }, 'Signaler'),
+          h('button', {
+            className: 'offer-link-button', type: 'button', disabled: preview,
+            'aria-label': `Ouvrir « ${offer.title} » (site externe, nouvel onglet)`,
+            onclick: () => confirmLeave(offer),
+          }, 'Ouvrir ↗')))));
+}
+
+function communityQuery() {
+  const params = new URLSearchParams();
+  const q = ui.communityQ.value.trim();
+  const country = ui.communityCountry.value.trim();
+  if (q) params.set('q', q);
+  if (ui.communityCategory.value) params.set('category', ui.communityCategory.value);
+  if (/^[A-Za-z]{2}$/.test(country)) params.set('country', country);
+  if (ui.communitySaved.checked) params.set('saved', '1');
+  return params.toString();
+}
+
+async function loadCommunity() {
+  ui.communityList.setAttribute('aria-busy', 'true');
+  if (!ui.communityList.childElementCount) ui.communityList.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement des offres…'));
+  try {
+    const query = communityQuery();
+    const data = await api(`/api/community/offers${query ? `?${query}` : ''}`);
+    state.community.loaded = true;
+    state.community.categories = data.categories || {};
+    fillCategorySelect(ui.communityCategory, state.community.categories, 'Toutes');
+    fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
+    const items = data.items || [];
+    ui.communityList.setAttribute('aria-busy', 'false');
+    ui.communityList.replaceChildren(...(items.length
+      ? items.map((offer) => communityCard(offer))
+      : [h('div', { className: 'panel-card' }, query
+        ? 'Aucune offre ne correspond à ta recherche.'
+        : 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
+    if (!query) {
+      widgetItems(ui.homeCommunity, items.slice(0, 5).map((offer) => h('li', null,
+        h('button', { className: 'widget-link', type: 'button', onclick: () => confirmLeave(offer) }, offer.title),
+        h('small', null, `@${offer.author.username}`))), 'Aucune offre publiée pour le moment.');
+    }
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    ui.communityList.setAttribute('aria-busy', 'false');
+    ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+      h('p', null, `Impossible de charger les offres : ${error.message}`),
+      h('button', { className: 'secondary-button', type: 'button', onclick: loadCommunity }, 'Réessayer')));
+    widgetItems(ui.homeCommunity, [], 'Offres indisponibles pour le moment.');
+  }
+}
+
+let communityTimer;
+function scheduleCommunityLoad() {
+  clearTimeout(communityTimer);
+  communityTimer = setTimeout(loadCommunity, 300);
+}
+
+async function toggleSave(offer, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/community/offers/${encodeURIComponent(offer.id)}/save`, { method: offer.saved ? 'DELETE' : 'POST' });
+    offer.saved = !offer.saved;
+    button.textContent = offer.saved ? '★ Enregistrée' : '☆ Enregistrer';
+    button.setAttribute('aria-pressed', String(offer.saved));
+    if (ui.communitySaved.checked && !offer.saved) loadCommunity();
+  } catch (error) {
+    window.alert(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function openReport(offer) {
+  state.community.reportId = offer.id;
+  ui.reportOffer.textContent = `« ${offer.title} » publiée par @${offer.author.username}`;
+  ui.reportForm.reset();
+  ui.reportError.classList.add('hidden');
+  openDialog(ui.reportDialog);
+}
+
+async function handleReport(event) {
+  event.preventDefault();
+  const reason = ui.reportReason.value;
+  if (!reason) {
+    ui.reportError.textContent = 'Choisis un motif.';
+    ui.reportError.classList.remove('hidden');
+    return;
+  }
+  setBusy(ui.reportForm, true);
+  try {
+    const data = await api(`/api/community/offers/${encodeURIComponent(state.community.reportId)}/report`, {
+      method: 'POST', body: { reason, details: ui.reportDetails.value.trim() },
+    });
+    closeDialog(ui.reportDialog);
+    window.alert(data.message);
+  } catch (error) {
+    ui.reportError.textContent = error.message;
+    ui.reportError.classList.remove('hidden');
+  } finally {
+    setBusy(ui.reportForm, false);
+  }
+}
+
+async function openMember(username) {
+  ui.memberTitle.textContent = `@${username}`;
+  ui.memberMeta.textContent = 'Chargement…';
+  ui.memberOffers.replaceChildren();
+  openDialog(ui.memberDialog);
+  try {
+    const [{ profile }, offers] = await Promise.all([
+      api(`/api/community/members/${encodeURIComponent(username)}`),
+      api(`/api/community/offers?author=${encodeURIComponent(username)}`),
+    ]);
+    ui.memberMeta.textContent = `Membre depuis le ${formatDate(profile.member_since)} · ${profile.published_offers} offre${profile.published_offers > 1 ? 's' : ''} publiée${profile.published_offers > 1 ? 's' : ''}`;
+    ui.memberOffers.replaceChildren(...(offers.items.length
+      ? offers.items.map((offer) => communityCard(offer))
+      : [h('p', { className: 'security-note' }, 'Aucune offre publiée.')]));
+  } catch (error) {
+    ui.memberMeta.textContent = error.message;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Publier
+// ---------------------------------------------------------------------------
+
+function readPublishForm() {
+  const minAge = ui.pubMinAge.value.trim();
+  return {
+    title: ui.pubTitle.value.trim(),
+    url: ui.pubUrl.value.trim(),
+    description: ui.pubDescription.value.trim(),
+    category: ui.pubCategory.value,
+    countries: ui.pubCountries.value.trim(),
+    expected_action: ui.pubAction.value.trim(),
+    payout_text: ui.pubPayout.value.trim() || null,
+    min_age: minAge === '' ? null : Number(minAge),
+    conditions: ui.pubConditions.value.trim() || null,
+    rights_confirmed: ui.pubRights.checked,
+  };
+}
+
+function publishFeedback(kind, message) {
+  ui.publishError.textContent = kind === 'error' ? message : '';
+  ui.publishError.classList.toggle('hidden', kind !== 'error');
+  ui.publishSuccess.textContent = kind === 'info' ? message : '';
+  ui.publishSuccess.classList.toggle('hidden', kind !== 'info');
+}
+
+/** Contrôles de confort ; le serveur revérifie tout. */
+function checkPublishForm(values) {
+  if (values.title.length < 5) return 'Le titre doit contenir au moins 5 caractères.';
+  if (!/^https:\/\//i.test(values.url)) return 'Le lien doit commencer par https://';
+  if (values.description.length < 20) return 'La description doit contenir au moins 20 caractères.';
+  if (!values.category) return 'Choisis une catégorie.';
+  if (values.countries.length < 2) return 'Indique les pays concernés (ex. FR).';
+  if (values.expected_action.length < 5) return 'Décris l’action attendue.';
+  if (values.min_age !== null && !(Number.isInteger(values.min_age) && values.min_age >= 10 && values.min_age <= 99)) {
+    return 'L’âge minimum doit être un nombre entre 10 et 99.';
+  }
+  if (!values.rights_confirmed) return 'Coche la confirmation avant d’envoyer.';
+  return '';
+}
+
+function showPublishPreview() {
+  const values = readPublishForm();
+  let domain = '';
+  try { domain = new URL(values.url).hostname; } catch (error) { /* lien incomplet */ }
+  const preview = {
+    ...values,
+    domain,
+    title: values.title || 'Titre de ton offre',
+    description: values.description || 'Ta description apparaîtra ici.',
+    category_label: state.community.categories[values.category] || 'Catégorie',
+    author: { username: state.user?.username || 'toi' },
+    created_at: new Date().toISOString(),
+    saved: false,
+    is_mine: true,
+  };
+  ui.publishPreviewCard.replaceChildren(communityCard(preview, { preview: true }));
+  ui.publishPreview.classList.remove('hidden');
+  ui.publishPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetPublishForm() {
+  state.community.editing = null;
+  ui.publishForm.reset();
+  ui.publishFormTitle.textContent = 'Nouvelle offre';
+  ui.pubCancelEdit.classList.add('hidden');
+  ui.publishPreview.classList.add('hidden');
+}
+
+function startOfferEdit(offer) {
+  state.community.editing = offer.id;
+  ui.pubTitle.value = offer.title;
+  ui.pubUrl.value = offer.url;
+  ui.pubDescription.value = offer.description;
+  ui.pubCategory.value = offer.category;
+  ui.pubCountries.value = offer.countries;
+  ui.pubAction.value = offer.expected_action;
+  ui.pubPayout.value = offer.payout_text || '';
+  ui.pubMinAge.value = offer.min_age ?? '';
+  ui.pubConditions.value = offer.conditions || '';
+  ui.pubRights.checked = false;
+  ui.publishFormTitle.textContent = `Modifier : ${offer.title}`;
+  ui.pubCancelEdit.classList.remove('hidden');
+  publishFeedback('info', 'Une offre modifiée est de nouveau vérifiée avant d’être visible.');
+  ui.publishForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function removeMyOffer(offer) {
+  if (!window.confirm(`Retirer « ${offer.title} » ? Elle ne sera plus visible.`)) return;
+  try {
+    const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}`, { method: 'DELETE' });
+    publishFeedback('info', data.message);
+    loadMyOffers();
+    state.community.loaded = false;
+  } catch (error) {
+    publishFeedback('error', error.message);
+  }
+}
+
+async function loadMyOffers() {
+  ui.myOffers.setAttribute('aria-busy', 'true');
+  try {
+    const data = await api('/api/community/offers/mine');
+    state.community.categories = data.categories || state.community.categories;
+    fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
+    ui.myOffers.setAttribute('aria-busy', 'false');
+    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map((offer) => {
+      const [label, kind] = OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending'];
+      return h('article', { className: 'learn-card my-offer' },
+        h('div', { className: 'offer-header-line' },
+          h('h4', null, offer.title),
+          h('span', { className: `status-tag ${kind}` }, label)),
+        h('p', { className: 'offer-domain' }, offer.domain),
+        offer.moderation_note ? h('p', { className: 'guide-warning' }, `Message de l’équipe : ${offer.moderation_note}`) : null,
+        h('div', { className: 'card-actions' },
+          h('button', { className: 'secondary-button small-button', type: 'button', onclick: () => startOfferEdit(offer) }, 'Modifier'),
+          h('button', { className: 'ghost-button small-button danger-button', type: 'button', onclick: () => removeMyOffer(offer) }, 'Retirer')));
+    }) : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (onglet Apprendre) t’explique comment obtenir ton lien.')]));
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    ui.myOffers.setAttribute('aria-busy', 'false');
+    ui.myOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, `Impossible de charger tes offres : ${error.message}`));
+  }
+}
+
+async function handlePublish(event) {
+  event.preventDefault();
+  const values = readPublishForm();
+  const problem = checkPublishForm(values);
+  if (problem) {
+    publishFeedback('error', problem);
+    return;
+  }
+  setBusy(ui.publishForm, true);
+  try {
+    const editing = state.community.editing;
+    const data = await api(editing ? `/api/community/offers/${encodeURIComponent(editing)}` : '/api/community/offers', {
+      method: editing ? 'PATCH' : 'POST', body: values,
+    });
+    resetPublishForm();
+    publishFeedback('info', data.offer?.status === 'published' ? 'Ton offre est publiée.' : data.message);
+    ui.publishSuccess.focus?.();
+    loadMyOffers();
+  } catch (error) {
+    publishFeedback('error', error.message);
+  } finally {
+    setBusy(ui.publishForm, false);
+  }
+}
+
+function renderMyLeadGuide(referral) {
+  if (!window.HaisselMyLeadGuide) return;
+  window.HaisselMyLeadGuide.render(ui.myleadGuide, {
+    referral,
+    onOpenTab: setLearnTab,
+    onOpenView: setActiveView,
   });
 }
 
@@ -726,7 +1084,19 @@ document.addEventListener('DOMContentLoaded', () => {
     learnOpportunitiesList: 'learn-opportunities-list', oppAge: 'opp-age', oppCountry: 'opp-country',
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
-    homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date',
+    homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date', homeCommunity: 'home-community',
+    communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
+    communityCountry: 'community-country', communitySaved: 'community-saved', communityFilters: 'community-filters',
+    leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
+    reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
+    reportReason: 'report-reason', reportDetails: 'report-details',
+    memberDialog: 'member-dialog', memberTitle: 'member-title', memberMeta: 'member-meta', memberOffers: 'member-offers',
+    publishForm: 'publish-form', publishFormTitle: 'publish-form-title', publishError: 'publish-error',
+    publishSuccess: 'publish-success', publishPreview: 'publish-preview', publishPreviewCard: 'publish-preview-card',
+    pubTitle: 'pub-title', pubUrl: 'pub-url', pubDescription: 'pub-description', pubCategory: 'pub-category',
+    pubCountries: 'pub-countries', pubAction: 'pub-action', pubPayout: 'pub-payout', pubMinAge: 'pub-min-age',
+    pubConditions: 'pub-conditions', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
+    pubPreviewButton: 'pub-preview-button', myOffers: 'my-offers', myleadGuide: 'mylead-guide',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -789,6 +1159,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   ui.oppAge.addEventListener('input', renderOpportunities);
   ui.oppCountry.addEventListener('input', renderOpportunities);
+
+  // Offres de la communauté
+  ui.communityFilters.addEventListener('submit', (event) => { event.preventDefault(); loadCommunity(); });
+  ui.communityQ.addEventListener('input', scheduleCommunityLoad);
+  ui.communityCountry.addEventListener('input', scheduleCommunityLoad);
+  ui.communityCategory.addEventListener('change', loadCommunity);
+  ui.communitySaved.addEventListener('change', loadCommunity);
+  ui.reportForm.addEventListener('submit', handleReport);
+  document.querySelectorAll('[data-close-dialog]').forEach((button) => {
+    button.addEventListener('click', () => closeDialog(button.closest('dialog')));
+  });
+  document.getElementById('profile-saved').addEventListener('click', () => {
+    ui.communitySaved.checked = true;
+    state.community.loaded = false;
+    setActiveView('links');
+  });
+
+  // Publier
+  ui.publishForm.addEventListener('submit', handlePublish);
+  ui.pubPreviewButton.addEventListener('click', showPublishPreview);
+  ui.pubCancelEdit.addEventListener('click', () => { resetPublishForm(); publishFeedback('', ''); });
+  renderMyLeadGuide({ available: false });
   ui.mfaToggleRecovery.addEventListener('click', () => {
     const recovery = ui.mfaRecoveryField.classList.toggle('hidden') === false;
     ui.mfaCodeField.classList.toggle('hidden', recovery);

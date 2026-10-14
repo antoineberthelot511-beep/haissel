@@ -100,6 +100,7 @@
           <a href="#links" data-section="links">Liens</a>
           <a href="#clicks" data-section="clicks">Clics</a>
           <a href="#notifications" data-section="notifications">Notifications</a>
+          <a href="#moderation" data-section="moderation">Offres membres</a>
           <a href="#content" data-section="content">Guides et tutoriels</a>
           <a href="#opportunities" data-section="opportunities">Opportunités</a>
           <a href="#referral" data-section="referral">Parrainage</a>
@@ -230,6 +231,26 @@
           <h2>Historique</h2>
           <p class="muted">« Distribuées » = reçues par le navigateur de l'utilisateur. « Affichées » = le navigateur a confirmé l'affichage (ce n'est pas une preuve de lecture).</p>
           <div id="notif-history" class="panel table-wrap"></div>
+        </section>
+
+        <!-- MODÉRATION DES OFFRES MEMBRES -->
+        <section id="section-moderation" class="section" aria-labelledby="h-moderation" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Communauté</p>
+              <h1 id="h-moderation">Offres des membres</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="moderation">Actualiser</button>
+          </header>
+          <p class="muted">Avant de publier une offre, vérifie que le lien mène bien au site annoncé, que la description est honnête (pas de promesse de gains), que l'âge minimum et les pays sont cohérents et que l'offre convient à un public jeune. Un refus ou un retrait exige un motif, qui est montré à l'auteur.</p>
+          <div class="panel moderation-filters" role="group" aria-label="Filtrer les offres">
+            <button class="btn small ghost" type="button" data-moderation-filter="pending">En attente</button>
+            <button class="btn small ghost" type="button" data-moderation-filter="reported">Signalées</button>
+            <button class="btn small ghost" type="button" data-moderation-filter="published">Publiées</button>
+            <button class="btn small ghost" type="button" data-moderation-filter="rejected">Refusées</button>
+            <button class="btn small ghost" type="button" data-moderation-filter="removed">Retirées</button>
+          </div>
+          <div id="moderation-list" class="moderation-list" aria-live="polite"></div>
         </section>
 
         <!-- GUIDES ET TUTORIELS -->

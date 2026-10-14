@@ -342,7 +342,7 @@ async function handleLogout() {
 // Navigation
 // ---------------------------------------------------------------------------
 
-const SECTIONS = ['dashboard', 'links', 'clicks', 'notifications', 'content', 'opportunities', 'referral'];
+const SECTIONS = ['dashboard', 'links', 'clicks', 'notifications', 'moderation', 'content', 'opportunities', 'referral'];
 
 function sectionFromHash() {
   const name = window.location.hash.replace('#', '');
@@ -803,6 +803,86 @@ async function handleReferralSubmit(event) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Modération des offres des membres
+// ---------------------------------------------------------------------------
+
+const REPORT_REASON_LABELS = {
+  misleading: 'Trompeuse', spam: 'Spam', dangerous: 'Dangereuse', minors: 'Inadaptée aux mineurs', rights: 'Droits', other: 'Autre',
+};
+const MEMBER_STATUS_BADGES = {
+  pending: ['En attente', 'warn'], published: ['Publiée', 'ok'], rejected: ['Refusée', 'bad'], removed: ['Retirée', 'muted'],
+};
+state.moderationFilter = 'pending';
+
+async function moderate(offer, decision) {
+  let note = null;
+  if (decision !== 'publish') {
+    note = window.prompt(decision === 'reject' ? 'Motif du refus (montré à l’auteur) :' : 'Motif du retrait (montré à l’auteur) :');
+    if (note === null) return;
+    if (!note.trim()) { toast('Un motif est obligatoire.', 'error'); return; }
+  } else if (!(await confirmAction('Publier cette offre ?', `« ${offer.title} » sera visible par tous les membres. As-tu vérifié le lien (${offer.domain}), la description, l’âge et les pays ?`, 'Publier'))) {
+    return;
+  }
+  try {
+    await api(`/api/admin/community/offers/${encodeURIComponent(offer.id)}/moderate`, {
+      method: 'POST', body: JSON.stringify({ decision, note }),
+    });
+    toast(decision === 'publish' ? 'Offre publiée.' : decision === 'reject' ? 'Offre refusée.' : 'Offre retirée.');
+    await loadModeration();
+  } catch (error) {
+    if (error.status === 400) toast(error.message, 'error');
+    else handleError(error);
+  }
+}
+
+function moderationCard(offer) {
+  const [label, kind] = MEMBER_STATUS_BADGES[offer.status] || [offer.status, 'muted'];
+  const row = (name, value) => (value ? h('li', null, h('span', { className: 'muted' }, `${name} : `), value) : null);
+  const actions = [];
+  if (offer.status !== 'published') actions.push(h('button', { className: 'btn small primary', type: 'button', onclick: () => moderate(offer, 'publish') }, 'Publier'));
+  if (offer.status === 'pending') actions.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => moderate(offer, 'reject') }, 'Refuser'));
+  if (offer.status !== 'removed') actions.push(h('button', { className: 'btn small danger', type: 'button', onclick: () => moderate(offer, 'remove') }, 'Retirer'));
+
+  return h('article', { className: 'panel moderation-card' },
+    h('div', { className: 'moderation-head' },
+      h('strong', null, offer.title),
+      badge(label, kind),
+      offer.min_age && offer.min_age >= 18 ? badge(`${offer.min_age} ans et +`, 'bad') : null,
+      offer.open_reports ? badge(`${offer.open_reports} signalement${offer.open_reports > 1 ? 's' : ''}`, 'bad') : null),
+    h('p', { className: 'muted' }, `@${offer.author.username} · ${offer.category_label} · ${date(offer.updated_at)}`),
+    h('p', { className: 'moderation-description' }, offer.description),
+    h('ul', { className: 'moderation-meta' },
+      row('Lien', h('code', { className: 'url' }, offer.url)),
+      row('Domaine', offer.domain),
+      row('Action', offer.expected_action),
+      row('Pays', offer.countries),
+      row('Âge minimum', offer.min_age ? `${offer.min_age} ans` : null),
+      row('Rémunération annoncée', offer.payout_text),
+      row('Conditions', offer.conditions),
+      row('Note', offer.moderation_note)),
+    offer.reports?.length ? h('div', { className: 'moderation-reports' },
+      h('strong', null, 'Signalements'),
+      h('ul', null, offer.reports.map((report) => h('li', null,
+        `${REPORT_REASON_LABELS[report.reason] || report.reason} · ${date(report.created_at)}`,
+        report.details ? ` — ${report.details}` : '')))) : null,
+    h('div', { className: 'row-actions' }, actions));
+}
+
+async function loadModeration() {
+  document.querySelectorAll('[data-moderation-filter]').forEach((button) => {
+    const active = button.dataset.moderationFilter === state.moderationFilter;
+    button.classList.toggle('primary', active);
+    button.classList.toggle('ghost', !active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  const data = await api(`/api/admin/community/offers?status=${encodeURIComponent(state.moderationFilter)}`);
+  const list = $('moderation-list');
+  list.replaceChildren(...(data.items.length
+    ? data.items.map(moderationCard)
+    : [h('p', { className: 'empty panel' }, 'Aucune offre dans cette liste.')]));
+}
+
 const LOADERS = {
   dashboard: loadDashboard,
   links: loadLinks,
@@ -811,6 +891,7 @@ const LOADERS = {
   content: loadContent,
   opportunities: loadOpportunities,
   referral: loadReferral,
+  moderation: loadModeration,
 };
 
 // ---------------------------------------------------------------------------
@@ -831,6 +912,12 @@ function bindEvents() {
   $('content-form').addEventListener('submit', (event) => handleLearnSubmit('content', event));
   $('opportunity-form').addEventListener('submit', (event) => handleLearnSubmit('opportunity', event));
   $('referral-form').addEventListener('submit', handleReferralSubmit);
+  document.querySelectorAll('[data-moderation-filter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.moderationFilter = button.dataset.moderationFilter;
+      loadModeration().catch(handleError);
+    });
+  });
   document.querySelectorAll('[data-cancel-edit]').forEach((button) => {
     button.addEventListener('click', () => resetEditor(button.dataset.cancelEdit));
   });

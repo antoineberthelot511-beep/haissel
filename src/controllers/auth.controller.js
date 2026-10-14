@@ -644,6 +644,14 @@ async function exportMyData(req, res, next) {
       security_events: await query(`
         SELECT event, ip_address, user_agent, created_at
         FROM security_events WHERE user_id = $1 ORDER BY created_at`),
+      member_offers: await query(`
+        SELECT title, url, description, category, countries, expected_action, payout_text, min_age, conditions,
+               status, moderation_note, created_at, updated_at, published_at
+        FROM member_offers WHERE user_id = $1 ORDER BY created_at`),
+      saved_offers: await query(`
+        SELECT offer_id, created_at FROM member_offer_saves WHERE user_id = $1 ORDER BY created_at`),
+      offer_reports: await query(`
+        SELECT offer_id, reason, details, created_at FROM member_offer_reports WHERE user_id = $1 ORDER BY created_at`),
     };
     await logSecurityEvent('data_export', { req, userId });
     res.set('Content-Disposition', 'attachment; filename="haissel-mes-donnees.json"');

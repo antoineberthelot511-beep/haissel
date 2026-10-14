@@ -525,3 +525,100 @@ body { font-size: .9375rem; }
   .learn-tab { flex: 0 0 auto; }
   .section-header { flex-wrap: wrap; align-items: flex-start; }
 }
+
+/* ==========================================================================
+   Communauté : catalogue, publication, fenêtres, parcours MyLead
+   (mobile d'abord, puis élargissement)
+   ========================================================================== */
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.field select, .field textarea {
+  width: 100%; min-height: 44px; padding: .55rem .7rem; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); background: var(--surface); font: inherit; color: var(--text);
+}
+.field textarea { resize: vertical; }
+.field select:focus, .field textarea:focus { border-color: var(--brand); outline: 3px solid var(--brand-line); outline-offset: 0; }
+.subsection-title { font-size: 1.05rem; color: var(--brand-dark); margin: 1.4rem 0 .6rem; }
+
+.filters-bar {
+  display: grid; gap: .6rem; grid-template-columns: 1fr; padding: .8rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: .8rem;
+}
+.filter-saved { align-self: end; min-height: 44px; }
+.widget-wide { grid-column: 1 / -1; }
+.widget-list small { color: var(--text-muted); white-space: nowrap; }
+
+.community-card { align-items: stretch; }
+.community-card .offer-body { gap: .45rem; }
+.community-description { white-space: pre-line; overflow-wrap: anywhere; }
+.pill.adult { background: var(--error-soft); color: #7a1912; border-color: #e3a29d; }
+.profile-list.compact li { padding: .3rem 0; font-size: .9rem; }
+.community-conditions summary { cursor: pointer; font-weight: 600; color: var(--brand-strong); }
+.community-conditions p { margin-top: .3rem; white-space: pre-line; overflow-wrap: anywhere; color: var(--text-muted); font-size: .9rem; }
+.community-meta { font-size: .85rem; color: var(--text-muted); }
+.card-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.small-button { min-height: 40px; padding: .35rem .75rem; font-size: .88rem; }
+.offer-card button.offer-link-button { border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+.offer-card button:disabled { opacity: .55; cursor: not-allowed; }
+
+.status-tag { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+.status-tag.pending { background: var(--ad-soft); color: var(--ad); }
+.status-tag.published { background: var(--ok-soft); color: var(--ok); }
+.status-tag.rejected { background: var(--error-soft); color: var(--error); }
+.my-offer .card-actions { margin-top: .3rem; }
+
+.publish-form { display: grid; gap: .9rem; }
+.publish-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.publish-actions .primary-button, .publish-actions .secondary-button { flex: 1 1 200px; }
+.publish-preview { margin-top: .5rem; }
+.profile-shortcuts { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.profile-shortcuts .secondary-button { display: inline-flex; align-items: center; gap: .4rem; }
+
+/* Fenêtres */
+.app-dialog {
+  width: min(520px, calc(100vw - 1.5rem)); max-height: calc(100vh - 2rem); overflow: auto;
+  padding: 1.1rem; border: 1px solid var(--line); border-top: 4px solid var(--brand); border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .25); color: var(--text);
+}
+.app-dialog.wide { width: min(900px, calc(100vw - 1.5rem)); }
+.app-dialog::backdrop { background: rgba(10, 25, 22, .55); }
+.app-dialog h2 { font-size: 1.15rem; margin-bottom: .6rem; color: var(--brand-dark); }
+.app-dialog form { display: grid; gap: .8rem; }
+.app-dialog p { overflow-wrap: anywhere; }
+.dialog-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+
+/* Parcours MyLead */
+.guide-head { display: grid; gap: .6rem; }
+.guide-progress { width: 100%; height: 14px; accent-color: var(--brand); }
+.guide-progress-text { font-weight: 600; color: var(--brand-dark); }
+.guide-step summary { display: flex; align-items: center; gap: .7rem; }
+.guide-step-no {
+  flex: 0 0 auto; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand-dark); font-weight: 800;
+}
+.guide-step.is-done .guide-step-no { background: var(--ok); color: #fff; }
+.guide-step.is-done .learn-card-title { color: var(--ok); }
+.guide-step-body { gap: .8rem; }
+.guide-warning { padding: .6rem .8rem; border-left: 4px solid var(--ad); background: var(--ad-soft); color: #5c3200; font-weight: 600; border-radius: var(--radius); }
+.guide-checklist { border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .9rem; display: grid; gap: .4rem; }
+.guide-checklist legend { font-weight: 600; padding: 0 .3rem; }
+.guide-figure { margin: 0; display: grid; justify-items: center; gap: .3rem; }
+.guide-figure-svg { width: min(240px, 80%); height: auto; font-family: var(--f-ui); }
+.guide-figure figcaption { font-size: .8rem; color: var(--text-muted); text-align: center; }
+.guide-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.guide-actions > * { flex: 1 1 220px; text-align: center; }
+.guide-done { width: 100%; min-height: 48px; }
+.guide-done[aria-pressed='true'] { background: var(--ok); }
+
+@media (min-width: 641px) {
+  .filters-bar { grid-template-columns: 2fr 1fr 1fr auto; align-items: end; }
+}
+@media (max-width: 640px) {
+  .card-actions { width: 100%; }
+  .card-actions > * { flex: 1 1 auto; }
+  .offer-footer { flex-direction: column; align-items: stretch; gap: .5rem; }
+  .dialog-actions > * { flex: 1 1 auto; }
+}
+
+/* Défilement automatique : ne pas passer sous le bandeau fixe */
+.guide-step, #publish-form, #publish-preview { scroll-margin-top: 7rem; }
