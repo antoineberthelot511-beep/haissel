@@ -242,3 +242,8 @@ tbody tr:hover { background: #fafbff; }
 .clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 28ch; }
 @media (max-width: 900px) { .notif-grid { grid-template-columns: 1fr; } }
 .badge.muted { background: #eef0f5; color: var(--muted); }
+
+/* Apprendre : actions par ligne et case à cocher */
+.row-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+.checkbox-field { align-content: start; }
+.checkbox-field input[type='checkbox'] { width: 20px; height: 20px; min-height: 0; }

@@ -81,6 +81,7 @@ const REQUIRED_TABLES = [
   'users', 'sessions', 'admins', 'affiliate_links', 'user_affiliate_codes',
   'clicks', 'conversions', 'earnings', 'admin_actions',
   'notification_broadcasts', 'notification_recipients',
+  'learning_content', 'opportunities', 'site_settings',
 ];
 
 async function findMissingTables(pool) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const admin = require('../controllers/admin.controller');
 const broadcast = require('../controllers/broadcast.controller');
+const learn = require('../controllers/learn.controller');
 const { broadcastBurstLimiter, broadcastHourlyLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
@@ -40,5 +41,16 @@ router.get('/actions', admin.listAdminActions);
 router.get('/notifications', broadcast.listBroadcasts);
 router.get('/notifications/presence', broadcast.getPresence);
 router.post('/notifications', broadcastBurstLimiter, broadcastHourlyLimiter, broadcast.sendBroadcast);
+
+// Espace pédagogique : contenus, opportunités, réglages du parrainage.
+for (const [path, handlers] of [['content', learn.content], ['opportunities', learn.opportunity]]) {
+  router.get(`/learn/${path}`, handlers.list);
+  router.post(`/learn/${path}`, handlers.create);
+  router.patch(`/learn/${path}/:id`, handlers.update);
+  router.post(`/learn/${path}/:id/verify`, handlers.verify);
+  router.post(`/learn/${path}/:id/status`, handlers.setStatus);
+}
+router.get('/learn/settings', learn.getSettings);
+router.put('/learn/settings', learn.updateSettings);
 
 module.exports = router;

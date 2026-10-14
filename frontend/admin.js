@@ -342,7 +342,7 @@ async function handleLogout() {
 // Navigation
 // ---------------------------------------------------------------------------
 
-const SECTIONS = ['dashboard', 'links', 'clicks', 'notifications'];
+const SECTIONS = ['dashboard', 'links', 'clicks', 'notifications', 'content', 'opportunities', 'referral'];
 
 function sectionFromHash() {
   const name = window.location.hash.replace('#', '');
@@ -636,11 +636,181 @@ async function handleNotifSubmit(event) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Apprendre : guides, tutoriels, opportunités, parrainage
+// ---------------------------------------------------------------------------
+
+const STATUS_BADGES = {
+  draft: ['Brouillon', 'muted'],
+  published: ['Publié', 'ok'],
+  disabled: ['Désactivé', 'bad'],
+};
+
+/** Lit les champs [data-field] d'un formulaire ; vide -> null. */
+function readForm(form) {
+  const values = {};
+  form.querySelectorAll('[data-field]').forEach((input) => {
+    const name = input.dataset.field;
+    if (input.type === 'checkbox') values[name] = input.checked;
+    else if (input.type === 'number') values[name] = input.value === '' ? null : Number(input.value);
+    else values[name] = input.value.trim() === '' ? null : input.value.trim();
+  });
+  return values;
+}
+
+function fillForm(form, values) {
+  form.querySelectorAll('[data-field]').forEach((input) => {
+    const value = values[input.dataset.field];
+    if (input.type === 'checkbox') input.checked = Boolean(value);
+    else input.value = value === null || value === undefined ? '' : String(value);
+  });
+}
+
+const learnEditors = {
+  content: { api: '/api/admin/learn/content', form: 'content-form', table: 'content-table', title: 'content-form-title', error: 'content-error', label: 'contenu', editing: null },
+  opportunity: { api: '/api/admin/learn/opportunities', form: 'opportunity-form', table: 'opportunity-table', title: 'opportunity-form-title', error: 'opportunity-error', label: 'opportunité', editing: null },
+};
+
+function resetEditor(name) {
+  const editor = learnEditors[name];
+  editor.editing = null;
+  $(editor.form).reset();
+  $(editor.title).textContent = name === 'content' ? 'Nouveau contenu' : 'Nouvelle opportunité';
+  document.querySelector(`[data-cancel-edit="${name}"]`).hidden = true;
+  showAlert(editor.error, '');
+}
+
+function startEdit(name, item) {
+  const editor = learnEditors[name];
+  editor.editing = item.id;
+  fillForm($(editor.form), item);
+  $(editor.title).textContent = `Modifier : ${item.title || item.name}`;
+  document.querySelector(`[data-cancel-edit="${name}"]`).hidden = false;
+  showAlert(editor.error, item.status === 'published' ? 'Attention : enregistrer une modification retire la publication jusqu’à une nouvelle vérification.' : '');
+  $(editor.form).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function learnAction(name, item, action, body) {
+  const editor = learnEditors[name];
+  try {
+    await api(`${editor.api}/${encodeURIComponent(item.id)}/${action}`, { method: 'POST', body: JSON.stringify(body || {}) });
+    toast(action === 'verify' ? 'Vérification enregistrée.' : 'Statut mis à jour.');
+    await LOADERS[name === 'content' ? 'content' : 'opportunities']();
+  } catch (error) {
+    if (error.status === 409 || error.status === 400) toast(error.message, 'error');
+    else handleError(error);
+  }
+}
+
+async function confirmVerify(name, item) {
+  const message = name === 'content'
+    ? 'Confirmez que ce texte est exact, sans promesse de gain, sans chiffre inventé ni témoignage fictif.'
+    : 'Confirmez avoir relu les conditions officielles : action rémunérée, pays, âge minimum, restrictions et méthodes de promotion autorisées.';
+  if (await confirmAction('Marquer comme vérifié ?', message, 'Je confirme')) learnAction(name, item, 'verify');
+}
+
+function learnActions(name, item) {
+  const buttons = [h('button', { className: 'btn small ghost', type: 'button', onclick: () => startEdit(name, item) }, 'Modifier')];
+  if (!item.verified_at) {
+    buttons.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => confirmVerify(name, item) }, 'Vérifier'));
+  }
+  if (item.status !== 'published' && item.verified_at) {
+    buttons.push(h('button', { className: 'btn small primary', type: 'button', onclick: () => learnAction(name, item, 'status', { status: 'published' }) }, 'Publier'));
+  }
+  if (item.status === 'published') {
+    buttons.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => learnAction(name, item, 'status', { status: 'draft' }) }, 'Dépublier'));
+  }
+  if (item.status !== 'disabled') {
+    buttons.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => learnAction(name, item, 'status', { status: 'disabled' }) }, 'Désactiver'));
+  } else {
+    buttons.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => learnAction(name, item, 'status', { status: 'draft' }) }, 'Réactiver (brouillon)'));
+  }
+  return h('div', { className: 'row-actions' }, buttons);
+}
+
+function verificationCell(item) {
+  if (item.verified_at) return badge(`Vérifié ${date(item.verified_at)}`, 'ok');
+  if (item.missing_for_publication?.length) return h('small', null, `À compléter : ${item.missing_for_publication.join(', ')}`);
+  return badge('À vérifier', 'warn');
+}
+
+async function loadContent() {
+  const data = await api(learnEditors.content.api);
+  renderTable('content-table', [
+    { label: 'Titre', render: (c) => h('div', { className: 'cell-main' }, h('strong', null, c.title), h('small', null, c.slug)) },
+    { label: 'Type', render: (c) => (c.kind === 'guide' ? 'Guide' : 'Tutoriel') },
+    { label: 'Statut', render: (c) => badge(...STATUS_BADGES[c.status]) },
+    { label: 'Vérification', render: verificationCell },
+    { label: 'Actions', render: (c) => learnActions('content', c) },
+  ], data.items, 'Aucun contenu.');
+}
+
+async function loadOpportunities() {
+  const data = await api(learnEditors.opportunity.api);
+  renderTable('opportunity-table', [
+    { label: 'Offre', render: (o) => h('div', { className: 'cell-main' }, h('strong', null, o.name), h('small', null, [o.network, o.countries].filter(Boolean).join(' · '))) },
+    { label: 'Âge min.', render: (o) => (o.min_age ? `${o.min_age} ans` : '—') },
+    { label: 'Statut', render: (o) => badge(...STATUS_BADGES[o.status]) },
+    { label: 'Vérification', render: verificationCell },
+    { label: 'Actions', render: (o) => learnActions('opportunity', o) },
+  ], data.items, 'Aucune opportunité. Ajoutez-en une après avoir lu ses conditions officielles.');
+}
+
+async function handleLearnSubmit(name, event) {
+  event.preventDefault();
+  const editor = learnEditors[name];
+  showAlert(editor.error, '');
+  const values = readForm(event.target);
+  try {
+    if (editor.editing) {
+      await api(`${editor.api}/${encodeURIComponent(editor.editing)}`, { method: 'PATCH', body: JSON.stringify(values) });
+      toast(`Modification enregistrée : ce ${editor.label === 'contenu' ? 'contenu' : 'élément'} doit être vérifié à nouveau.`);
+    } else {
+      await api(editor.api, { method: 'POST', body: JSON.stringify(values) });
+      toast('Brouillon créé. Vérifiez-le avant de le publier.');
+    }
+    resetEditor(name);
+    await LOADERS[name === 'content' ? 'content' : 'opportunities']();
+  } catch (error) {
+    if (error.status === 400 || error.status === 409) showAlert(editor.error, error.message);
+    else handleError(error);
+  }
+}
+
+function renderReferralState(ready) {
+  $('referral-state').replaceChildren(ready
+    ? h('p', null, badge('Visible', 'ok'), ' Le lien de parrainage est affiché aux membres.')
+    : h('p', null, badge('Masqué', 'warn'), ' Remplissez tous les champs pour afficher le lien aux membres.'));
+}
+
+async function loadReferral() {
+  const data = await api('/api/admin/learn/settings');
+  fillForm($('referral-form'), data.settings);
+  renderReferralState(data.referral_ready);
+}
+
+async function handleReferralSubmit(event) {
+  event.preventDefault();
+  showAlert('referral-error', '');
+  try {
+    const data = await api('/api/admin/learn/settings', { method: 'PUT', body: JSON.stringify(readForm(event.target)) });
+    fillForm($('referral-form'), data.settings);
+    renderReferralState(data.referral_ready);
+    toast('Réglages enregistrés.');
+  } catch (error) {
+    if (error.status === 400) showAlert('referral-error', error.message);
+    else handleError(error);
+  }
+}
+
 const LOADERS = {
   dashboard: loadDashboard,
   links: loadLinks,
   clicks: loadClicks,
   notifications: loadNotifications,
+  content: loadContent,
+  opportunities: loadOpportunities,
+  referral: loadReferral,
 };
 
 // ---------------------------------------------------------------------------
@@ -658,6 +828,12 @@ function bindEvents() {
   $('admin-logout').addEventListener('click', handleLogout);
   $('link-form').addEventListener('submit', handleLinkSubmit);
   $('notif-form').addEventListener('submit', handleNotifSubmit);
+  $('content-form').addEventListener('submit', (event) => handleLearnSubmit('content', event));
+  $('opportunity-form').addEventListener('submit', (event) => handleLearnSubmit('opportunity', event));
+  $('referral-form').addEventListener('submit', handleReferralSubmit);
+  document.querySelectorAll('[data-cancel-edit]').forEach((button) => {
+    button.addEventListener('click', () => resetEditor(button.dataset.cancelEdit));
+  });
   for (const id of ['notif-title', 'notif-message', 'notif-url']) {
     $(id).addEventListener('input', updateNotifPreview);
   }

@@ -398,3 +398,24 @@ body:has(#auth-screen:not(.hidden)) .layout { grid-template-columns: minmax(0, 1
   .section-title { font-size: 1.3rem; }
   .notif-stack { bottom: 5rem; }
 }
+
+/* ---------- Apprendre ---------- */
+.learn-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1rem 0; }
+.learn-tab {
+  min-height: 40px; padding: .4rem .9rem; border: 1px solid var(--line-strong); border-radius: 999px;
+  background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.learn-tab:hover { color: var(--brand-strong); border-color: var(--brand-strong); }
+.learn-tab.active { background: var(--brand-strong); border-color: var(--brand-strong); color: #fff; }
+.learn-panel { display: grid; gap: 1rem; }
+.learn-list { display: grid; gap: .75rem; }
+.learn-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.1rem; display: grid; gap: .6rem; }
+.learn-card summary { cursor: pointer; display: grid; gap: .2rem; }
+.learn-card-title { font-weight: 700; font-size: 1.05rem; color: var(--brand-dark); }
+.learn-card-summary { color: var(--text-muted); font-size: .95rem; }
+.learn-card-body { display: grid; gap: .5rem; margin-top: .6rem; }
+.learn-card h4 { font-size: 1rem; margin-top: .3rem; }
+.learn-card p { overflow-wrap: anywhere; }
+.learn-points { margin: 0; padding-left: 1.2rem; display: grid; gap: .35rem; }
+.learn-warning { color: var(--ad); font-weight: 600; font-size: .9rem; }
+.opportunity-card .profile-list li { padding: .35rem 0; }

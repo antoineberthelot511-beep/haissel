@@ -21,6 +21,7 @@ const state = {
   links: [],
   loadedAt: 0,
   resetToken: '',
+  learn: { loaded: false, opportunities: [] },
 };
 
 const ui = {};
@@ -169,12 +170,14 @@ function setActiveView(viewName) {
   document.querySelectorAll('.view-panel').forEach((panel) => {
     panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
   });
+  if (viewName === 'learn' && state.user && !state.learn.loaded) loadLearn();
 }
 
 function showLoggedOut() {
   if (notificationCenter) notificationCenter.stop();
   state.user = null;
   state.links = [];
+  state.learn = { loaded: false, opportunities: [] };
   ui.authScreen.classList.remove('hidden');
   ui.appScreen.classList.add('hidden');
   updateUserSummary();
@@ -225,6 +228,159 @@ function renderLinksLoading() {
     h('div', { className: 'panel-card' }, 'Chargement des liens…'),
     h('div', { className: 'offer-card skeleton', 'aria-hidden': 'true' }),
     h('div', { className: 'offer-card skeleton', 'aria-hidden': 'true' }));
+}
+
+// ---------------------------------------------------------------------------
+// Apprendre (guides, opportunités, tutoriels, parrainage)
+// ---------------------------------------------------------------------------
+
+/** Texte rédigé par l'admin : « ## titre », « - point », « 1. étape », paragraphes. Jamais de HTML. */
+function renderRichText(text) {
+  const nodes = [];
+  let list = null;
+  for (const rawLine of String(text || '').split('\n')) {
+    const line = rawLine.trim();
+    const item = /^(-|\d+\.)\s+(.*)$/.exec(line);
+    if (item) {
+      const tag = item[1] === '-' ? 'ul' : 'ol';
+      if (!list || list.tagName.toLowerCase() !== tag) {
+        list = h(tag, { className: 'learn-points' });
+        nodes.push(list);
+      }
+      list.append(h('li', null, item[2]));
+      continue;
+    }
+    list = null;
+    if (!line) continue;
+    nodes.push(line.startsWith('## ') ? h('h4', null, line.slice(3)) : h('p', null, line));
+  }
+  return nodes;
+}
+
+function contentCard(item) {
+  return h('details', { className: 'learn-card' },
+    h('summary', null,
+      h('span', { className: 'learn-card-title' }, item.title),
+      item.summary ? h('span', { className: 'learn-card-summary' }, item.summary) : null),
+    h('div', { className: 'learn-card-body' }, renderRichText(item.body)));
+}
+
+function splitCountries(value) {
+  return String(value || '').toUpperCase().split(/[\s,;/]+/).filter(Boolean);
+}
+
+function opportunityCard(item, { age, country }) {
+  const tooYoung = Number.isInteger(age) && age < item.min_age;
+  const countries = splitCountries(item.countries);
+  const wrongCountry = country && countries.length && !countries.includes(country)
+    && !countries.some((code) => ['MONDE', 'WORLD', 'ALL', 'TOUS'].includes(code));
+  const row = (label, value) => (value ? h('li', null, h('span', null, label), h('strong', null, value)) : null);
+
+  let action;
+  if (!item.url) action = null;
+  else if (tooYoung) action = h('p', { className: 'learn-warning' }, `Réservé aux ${item.min_age} ans et plus : lien masqué selon l'âge indiqué.`);
+  else if (wrongCountry) action = h('p', { className: 'learn-warning' }, 'Votre pays ne fait pas partie des pays acceptés : lien masqué.');
+  else {
+    action = h('a', {
+      className: 'offer-link-button',
+      href: item.url,
+      target: '_blank',
+      rel: item.is_affiliate ? 'sponsored noopener noreferrer' : 'noopener noreferrer',
+      'aria-label': `Ouvrir « ${item.name} » (nouvel onglet)`,
+    }, 'Voir l’offre ↗');
+  }
+
+  return h('article', { className: 'learn-card opportunity-card' },
+    h('div', { className: 'offer-header-line' },
+      h('h3', null, item.name),
+      item.is_affiliate ? h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut percevoir une commission.' }, 'Publicité') : null,
+      h('span', { className: 'pill' }, `${item.min_age} ans et +`)),
+    h('ul', { className: 'profile-list' },
+      row('Annonceur', item.advertiser),
+      row('Plateforme', item.network),
+      row('Action rémunérée', item.paid_action),
+      row('Rémunération annoncée', item.payout_text ? `${item.payout_text} (non garantie)` : null),
+      row('Pays acceptés', item.countries),
+      row('Conditions vérifiées le', formatDate(item.conditions_checked_at))),
+    h('h4', null, 'Restrictions'),
+    renderRichText(item.restrictions),
+    item.allowed_channels ? [h('h4', null, 'Canaux autorisés'), renderRichText(item.allowed_channels)] : null,
+    item.forbidden_methods ? [h('h4', null, 'Méthodes interdites'), renderRichText(item.forbidden_methods)] : null,
+    h('div', { className: 'offer-footer' },
+      item.terms_url ? h('a', { href: item.terms_url, target: '_blank', rel: 'noopener noreferrer' }, 'Conditions officielles ↗') : h('span'),
+      action));
+}
+
+function renderLearnList(container, items, render, emptyMessage) {
+  container.setAttribute('aria-busy', 'false');
+  container.replaceChildren(...(items.length ? items.map(render) : [h('div', { className: 'panel-card' }, emptyMessage)]));
+}
+
+function renderOpportunities() {
+  const ageValue = Number.parseInt(ui.oppAge.value, 10);
+  const filters = {
+    age: Number.isInteger(ageValue) ? ageValue : null,
+    country: ui.oppCountry.value.trim().toUpperCase(),
+  };
+  renderLearnList(ui.learnOpportunitiesList, state.learn.opportunities, (item) => opportunityCard(item, filters),
+    'Aucune opportunité publiée pour le moment. Chaque offre est vérifiée avant d’apparaître ici.');
+}
+
+function renderReferral(referral) {
+  if (referral.rate_text) ui.referralRate.textContent = referral.rate_text;
+  if (referral.available) {
+    ui.referralAge.textContent = `${referral.min_age} ans minimum selon les conditions vérifiées le ${formatDate(referral.terms_checked_at)}. Les conditions officielles font foi.`;
+    ui.referralBox.replaceChildren(
+      h('div', { className: 'offer-footer' },
+        h('a', { href: referral.terms_url, target: '_blank', rel: 'noopener noreferrer' }, 'Conditions officielles du programme ↗'),
+        h('a', {
+          className: 'offer-link-button', href: referral.url, target: '_blank', rel: 'sponsored noopener noreferrer',
+        }, 'S’inscrire avec le lien de parrainage ↗')),
+      h('p', { className: 'security-note' }, 'Lien de parrainage de l’éditeur de HAISSEL (lien affilié).'));
+  } else {
+    ui.referralBox.replaceChildren(h('div', { className: 'panel-card' },
+      'Le lien de parrainage sera disponible après la vérification des conditions officielles du programme.'));
+  }
+}
+
+async function loadLearn() {
+  const lists = [ui.learnGuidesList, ui.learnTutorialsList, ui.learnOpportunitiesList];
+  for (const list of lists) {
+    list.setAttribute('aria-busy', 'true');
+    if (!list.childElementCount) list.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement…'));
+  }
+  try {
+    const [content, opportunities, referral] = await Promise.all([
+      api('/api/learn/content'), api('/api/learn/opportunities'), api('/api/learn/referral'),
+    ]);
+    const items = content.items || [];
+    state.learn = { loaded: true, opportunities: opportunities.items || [] };
+    renderLearnList(ui.learnGuidesList, items.filter((item) => item.kind === 'guide'), contentCard,
+      'Les guides sont en cours de relecture. Revenez bientôt !');
+    renderLearnList(ui.learnTutorialsList, items.filter((item) => item.kind === 'tutorial'), contentCard,
+      'Les tutoriels sont en cours de relecture. Revenez bientôt !');
+    renderOpportunities();
+    renderReferral(referral);
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    for (const list of lists) {
+      list.setAttribute('aria-busy', 'false');
+      list.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+        h('p', null, `Impossible de charger le contenu : ${error.message}`),
+        h('button', { className: 'secondary-button', type: 'button', onclick: loadLearn }, 'Réessayer')));
+    }
+  }
+}
+
+function setLearnTab(name) {
+  document.querySelectorAll('.learn-tab').forEach((tab) => {
+    const active = tab.dataset.learnTab === name;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll('.learn-panel').forEach((panel) => {
+    panel.classList.toggle('hidden', panel.id !== `learn-${name}`);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -533,6 +689,9 @@ document.addEventListener('DOMContentLoaded', () => {
     resetPassword: 'reset-password', resetConfirmPassword: 'reset-confirm-password',
     mfaCode: 'mfa-code', mfaRecovery: 'mfa-recovery', mfaRecoveryField: 'mfa-recovery-field',
     mfaCodeField: 'mfa-code-field', mfaToggleRecovery: 'mfa-toggle-recovery',
+    learnGuidesList: 'learn-guides-list', learnTutorialsList: 'learn-tutorials-list',
+    learnOpportunitiesList: 'learn-opportunities-list', oppAge: 'opp-age', oppCountry: 'opp-country',
+    referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -584,6 +743,11 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.profileLogout.addEventListener('click', handleLogout);
   ui.logoutAllButton.addEventListener('click', handleLogoutAll);
   ui.refreshLinks.addEventListener('click', loadLinks);
+  document.querySelectorAll('.learn-tab').forEach((tab) => {
+    tab.addEventListener('click', () => setLearnTab(tab.dataset.learnTab));
+  });
+  ui.oppAge.addEventListener('input', renderOpportunities);
+  ui.oppCountry.addEventListener('input', renderOpportunities);
   ui.mfaToggleRecovery.addEventListener('click', () => {
     const recovery = ui.mfaRecoveryField.classList.toggle('hidden') === false;
     ui.mfaCodeField.classList.toggle('hidden', recovery);

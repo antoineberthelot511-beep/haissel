@@ -100,6 +100,9 @@
           <a href="#links" data-section="links">Liens</a>
           <a href="#clicks" data-section="clicks">Clics</a>
           <a href="#notifications" data-section="notifications">Notifications</a>
+          <a href="#content" data-section="content">Guides et tutoriels</a>
+          <a href="#opportunities" data-section="opportunities">Opportunités</a>
+          <a href="#referral" data-section="referral">Parrainage</a>
         </nav>
 
         <div class="sidebar-foot">
@@ -227,6 +230,111 @@
           <h2>Historique</h2>
           <p class="muted">« Distribuées » = reçues par le navigateur de l'utilisateur. « Affichées » = le navigateur a confirmé l'affichage (ce n'est pas une preuve de lecture).</p>
           <div id="notif-history" class="panel table-wrap"></div>
+        </section>
+
+        <!-- GUIDES ET TUTORIELS -->
+        <section id="section-content" class="section" aria-labelledby="h-content" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Apprendre</p>
+              <h1 id="h-content">Guides et tutoriels</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="content">Actualiser</button>
+          </header>
+          <p class="muted">Cycle : brouillon → vérifié → publié. Toute modification annule la vérification et retire la publication. Aucune promesse de gain : les formulations du type « gains garantis » sont refusées.</p>
+          <form id="content-form" class="panel form-grid" novalidate>
+            <h2 id="content-form-title">Nouveau contenu</h2>
+            <label class="field">
+              <span>Type</span>
+              <select data-field="kind"><option value="guide">Guide (Apprendre)</option><option value="tutorial">Tutoriel</option></select>
+            </label>
+            <label class="field">
+              <span>Identifiant (minuscules et tirets)</span>
+              <input data-field="slug" type="text" maxlength="80" pattern="[a-z0-9-]+" required />
+            </label>
+            <label class="field span-2">
+              <span>Titre</span>
+              <input data-field="title" type="text" maxlength="120" required />
+            </label>
+            <label class="field span-2">
+              <span>Résumé (optionnel)</span>
+              <input data-field="summary" type="text" maxlength="300" />
+            </label>
+            <label class="field span-2">
+              <span>Contenu (« ## » pour un intertitre, « - » pour une liste, « 1. » pour des étapes)</span>
+              <textarea data-field="body" rows="12" maxlength="20000" required></textarea>
+            </label>
+            <label class="field">
+              <span>Niveau</span>
+              <select data-field="level"><option value="debutant">Débutant</option><option value="intermediaire">Intermédiaire</option></select>
+            </label>
+            <label class="field">
+              <span>Ordre d'affichage</span>
+              <input data-field="position" type="number" min="0" max="10000" value="100" />
+            </label>
+            <div id="content-error" class="alert error span-2" role="alert" hidden></div>
+            <div class="span-2 notif-actions">
+              <button class="btn primary" type="submit">Enregistrer en brouillon</button>
+              <button class="btn ghost" type="button" data-cancel-edit="content" hidden>Annuler la modification</button>
+            </div>
+          </form>
+          <div id="content-table" class="panel table-wrap"></div>
+        </section>
+
+        <!-- OPPORTUNITÉS -->
+        <section id="section-opportunities" class="section" aria-labelledby="h-opportunities" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Apprendre</p>
+              <h1 id="h-opportunities">Opportunités</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="opportunities">Actualiser</button>
+          </header>
+          <p class="muted">Avant de vérifier une offre, relisez ses conditions officielles : action réellement rémunérée, pays, âge minimum, restrictions de promotion. Ces champs et la date de contrôle sont obligatoires pour la vérification. N'inventez aucun chiffre : indiquez seulement la rémunération publiée par l'annonceur.</p>
+          <form id="opportunity-form" class="panel form-grid" novalidate>
+            <h2 id="opportunity-form-title">Nouvelle opportunité</h2>
+            <label class="field"><span>Nom de l'offre</span><input data-field="name" type="text" maxlength="120" required /></label>
+            <label class="field"><span>Annonceur</span><input data-field="advertiser" type="text" maxlength="120" /></label>
+            <label class="field"><span>Plateforme (ex. MyLead)</span><input data-field="network" type="text" maxlength="80" /></label>
+            <label class="field"><span>Âge minimum</span><input data-field="min_age" type="number" min="10" max="99" /></label>
+            <label class="field span-2"><span>Action rémunérée (exactement comme dans les conditions)</span><input data-field="paid_action" type="text" maxlength="300" /></label>
+            <label class="field"><span>Rémunération publiée par l'annonceur (optionnel)</span><input data-field="payout_text" type="text" maxlength="160" /></label>
+            <label class="field"><span>Pays acceptés (codes séparés par des virgules, ex. FR, BE)</span><input data-field="countries" type="text" maxlength="200" /></label>
+            <label class="field span-2"><span>Restrictions</span><textarea data-field="restrictions" rows="4" maxlength="2000"></textarea></label>
+            <label class="field"><span>Canaux autorisés</span><textarea data-field="allowed_channels" rows="3" maxlength="1000"></textarea></label>
+            <label class="field"><span>Méthodes interdites</span><textarea data-field="forbidden_methods" rows="3" maxlength="1000"></textarea></label>
+            <label class="field"><span>Lien de l'offre (optionnel)</span><input data-field="url" type="url" maxlength="2000" placeholder="https://..." /></label>
+            <label class="field"><span>Page des conditions officielles</span><input data-field="terms_url" type="url" maxlength="2000" placeholder="https://..." /></label>
+            <label class="field"><span>Conditions vérifiées le</span><input data-field="conditions_checked_at" type="date" /></label>
+            <label class="field checkbox-field"><span>Lien affilié (affiche « Publicité »)</span><input data-field="is_affiliate" type="checkbox" checked /></label>
+            <div id="opportunity-error" class="alert error span-2" role="alert" hidden></div>
+            <div class="span-2 notif-actions">
+              <button class="btn primary" type="submit">Enregistrer en brouillon</button>
+              <button class="btn ghost" type="button" data-cancel-edit="opportunity" hidden>Annuler la modification</button>
+            </div>
+          </form>
+          <div id="opportunity-table" class="panel table-wrap"></div>
+        </section>
+
+        <!-- PARRAINAGE -->
+        <section id="section-referral" class="section" aria-labelledby="h-referral" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Apprendre</p>
+              <h1 id="h-referral">Parrainage MyLead</h1>
+            </div>
+          </header>
+          <p class="muted">Le lien n'est affiché aux membres que lorsque tous les champs sont remplis. Vérifiez sur les conditions officielles de MyLead le taux annoncé et l'âge minimum, puis indiquez la date de cette vérification.</p>
+          <div id="referral-state" class="panel presence" aria-live="polite"></div>
+          <form id="referral-form" class="panel form-grid" novalidate>
+            <label class="field span-2"><span>Mon lien de parrainage MyLead</span><input data-field="referral_url" type="url" maxlength="2000" placeholder="https://..." /></label>
+            <label class="field span-2"><span>Page des conditions officielles du programme</span><input data-field="referral_terms_url" type="url" maxlength="2000" placeholder="https://..." /></label>
+            <label class="field span-2"><span>Rémunération annoncée (texte affiché)</span><input data-field="referral_rate_text" type="text" maxlength="300" /></label>
+            <label class="field"><span>Âge minimum exigé par MyLead</span><input data-field="referral_min_age" type="number" min="10" max="99" /></label>
+            <label class="field"><span>Conditions vérifiées le</span><input data-field="referral_terms_checked_at" type="date" /></label>
+            <div id="referral-error" class="alert error span-2" role="alert" hidden></div>
+            <div class="span-2"><button class="btn primary" type="submit">Enregistrer</button></div>
+          </form>
         </section>
       </main>
     </div>
