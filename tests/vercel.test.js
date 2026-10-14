@@ -52,6 +52,12 @@ describe('Vercel : point d\'entrée', () => {
     expect(res.text).toContain('Espace membre');
     expect(res.text).not.toContain('Console d\'administration');
   });
+
+  it('contient la balise de vérification MyLead dans le <head> de /', async () => {
+    const res = await request(app).get('/');
+    const head = res.text.slice(0, res.text.indexOf('</head>'));
+    expect(head).toContain('<!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->');
+  });
 });
 
 describe('Vercel : accès administrateur', () => {
