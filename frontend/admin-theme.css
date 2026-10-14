@@ -25,3 +25,30 @@
 .sidebar { border-right: 1px solid var(--line); }
 .nav a[aria-current="page"] { box-shadow: inset 3px 0 0 #008673; }
 .badge.violet { background: #e3f3f0; color: #00513f; }
+
+/* ---------- Thème « espace scolaire » (même apparence que l'espace membre) ---------- */
+:root {
+  --bg: #e4e8eb;
+  --line: #c9d1d6;
+  --radius: 4px;
+  --shadow: 0 1px 2px rgba(20, 35, 40, .08);
+  font-size: 15px;
+}
+.sidebar { background: #00473a; color: #fff; border-right: 0; padding: 1rem .75rem; }
+.sidebar .brand-mark { background: #fff; color: #00473a; }
+.sidebar .brand-name { color: #fff; }
+.sidebar .brand-tag, .sidebar .muted, .sidebar .who strong { color: #d9efea; }
+.sidebar .nav a { color: #fff; border-radius: var(--radius); padding: .55rem .75rem; }
+.sidebar .nav a:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+.sidebar .nav a[aria-current="page"] { background: #fff; color: #00513f; box-shadow: none; }
+.sidebar .btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .6); }
+.sidebar .btn.ghost:hover { background: rgba(255, 255, 255, .14); }
+.main-content { padding-top: 1.25rem; }
+.section-head { padding-bottom: .5rem; border-bottom: 2px solid #008673; margin-bottom: 1rem; }
+.section-head h1 { font-size: 1.3rem; color: #00513f; }
+.panel, .metric-card, .login-card { border-radius: var(--radius); }
+.form-grid > h2, .panel > h2 { color: #00513f; }
+.metric-card { border-radius: var(--radius); }
+.btn { border-radius: var(--radius); }
+.field input, .field select, .field textarea { border-radius: var(--radius); }
+table th { background: #e3f3f0; color: #00513f; }

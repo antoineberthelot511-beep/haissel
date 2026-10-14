@@ -20,6 +20,7 @@
       <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4.5H6.5v15H14M10.5 12H20m-3.2-3.4L20 12l-3.2 3.4" /></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="1.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M4.5 5.5c2.6-.9 5.1-.6 7.5 1v13c-2.4-1.6-4.9-1.9-7.5-1zM19.5 5.5c-2.6-.9-5.1-.6-7.5 1v13c2.4-1.6 4.9-1.9 7.5-1z" /></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.3 1.3M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.3-1.3" /></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></symbol>
     </svg>
 
@@ -46,9 +47,13 @@
         <!-- Navigation principale (bas d'écran sur téléphone) -->
         <nav class="topbar-nav" aria-label="Navigation principale">
           <div class="topbar-nav-inner">
-            <button class="nav-button active" type="button" data-view="links" aria-current="page">
+            <button class="nav-button active" type="button" data-view="home" aria-current="page">
               <svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>
               <span>Accueil</span>
+            </button>
+            <button class="nav-button" type="button" data-view="links">
+              <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
+              <span>Liens</span>
             </button>
             <button class="nav-button" type="button" data-view="learn">
               <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
@@ -78,7 +83,8 @@
               </div>
             </div>
             <ul class="side-menu" aria-label="Raccourcis">
-              <li><button type="button" data-view="links"><svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>Liens et offres</button></li>
+              <li><button type="button" data-view="home"><svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>Accueil</button></li>
+              <li><button type="button" data-view="links"><svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>Liens et offres</button></li>
               <li><button type="button" data-view="learn"><svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>Apprendre l'affiliation</button></li>
               <li><button type="button" data-view="notifications"><svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>Notifications</button></li>
               <li><button type="button" data-view="profile"><svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>Profil et sécurité</button></li>
@@ -219,7 +225,57 @@
 
           <!-- ====================== ESPACE MEMBRE ====================== -->
           <div id="app-screen" class="app-screen hidden">
-            <section id="links-view" class="view-panel" aria-labelledby="links-title">
+            <section id="home-view" class="view-panel" aria-labelledby="home-title">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Bonjour, <span id="home-name">utilisateur</span></p>
+                  <h2 id="home-title" class="section-title">Page d'accueil</h2>
+                </div>
+                <p id="home-date" class="home-date"></p>
+              </div>
+              <div class="widget-grid">
+                <article class="widget" aria-labelledby="w-links-title">
+                  <header class="widget-head">
+                    <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
+                    <h3 id="w-links-title">Derniers liens publiés</h3>
+                  </header>
+                  <ul id="home-links" class="widget-list" aria-live="polite"><li class="widget-empty">Chargement…</li></ul>
+                  <button class="widget-more" type="button" data-goto="links">Tous les liens</button>
+                </article>
+                <article class="widget" aria-labelledby="w-learn-title">
+                  <header class="widget-head">
+                    <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
+                    <h3 id="w-learn-title">Apprendre</h3>
+                  </header>
+                  <ul id="home-learn" class="widget-list" aria-live="polite"><li class="widget-empty">Chargement…</li></ul>
+                  <button class="widget-more" type="button" data-goto="learn">Ouvrir la formation</button>
+                </article>
+                <article class="widget" aria-labelledby="w-notif-title">
+                  <header class="widget-head">
+                    <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>
+                    <h3 id="w-notif-title">Notifications</h3>
+                  </header>
+                  <ul class="widget-list">
+                    <li><span>Canal temps réel</span><strong id="home-realtime">Hors ligne</strong></li>
+                    <li><span>Notifications Windows</span><strong id="home-notif-permission">Non configuré</strong></li>
+                  </ul>
+                  <button class="widget-more" type="button" data-goto="notifications">Réglages des notifications</button>
+                </article>
+                <article class="widget" aria-labelledby="w-account-title">
+                  <header class="widget-head">
+                    <svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>
+                    <h3 id="w-account-title">Mon compte</h3>
+                  </header>
+                  <ul class="widget-list">
+                    <li><span>Pseudo</span><strong id="home-username">—</strong></li>
+                    <li><span>Membre depuis</span><strong id="home-created">—</strong></li>
+                  </ul>
+                  <button class="widget-more" type="button" data-goto="profile">Profil et sécurité</button>
+                </article>
+              </div>
+            </section>
+
+            <section id="links-view" class="view-panel hidden" aria-labelledby="links-title">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">Bonjour, <span id="welcome-name">utilisateur</span></p>

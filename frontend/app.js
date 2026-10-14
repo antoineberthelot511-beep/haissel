@@ -154,6 +154,9 @@ function updateUserSummary() {
   ui.sidebarAvatar.textContent = initials;
   ui.profileAvatar.textContent = initials;
 
+  ui.homeName.textContent = ui.welcomeName.textContent;
+  ui.homeUsername.textContent = state.user ? `@${state.user.username}` : '—';
+  ui.homeCreated.textContent = formatDate(state.user?.created_at);
   ui.statusBadge.textContent = state.user ? 'En ligne' : 'Connexion';
   ui.statusBadge.classList.toggle('offline', !state.user);
   ui.logoutButton.classList.toggle('hidden', !state.user);
@@ -170,7 +173,7 @@ function setActiveView(viewName) {
   document.querySelectorAll('.view-panel').forEach((panel) => {
     panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
   });
-  if (viewName === 'learn' && state.user && !state.learn.loaded) loadLearn();
+  if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
 }
 
 function showLoggedOut() {
@@ -181,7 +184,7 @@ function showLoggedOut() {
   ui.authScreen.classList.remove('hidden');
   ui.appScreen.classList.add('hidden');
   updateUserSummary();
-  setActiveView('links');
+  setActiveView('home');
 }
 
 function showLoggedIn(user) {
@@ -189,7 +192,7 @@ function showLoggedIn(user) {
   ui.authScreen.classList.add('hidden');
   ui.appScreen.classList.remove('hidden');
   updateUserSummary();
-  setActiveView('links');
+  setActiveView('home');
   loadLinks();
   if (notificationCenter) notificationCenter.start();
 }
@@ -214,7 +217,35 @@ function linkCard(link) {
         }, 'Ouvrir ↗'))));
 }
 
+// ---------------------------------------------------------------------------
+// Page d'accueil (encadrés)
+// ---------------------------------------------------------------------------
+
+function widgetItems(container, items, emptyMessage) {
+  container.replaceChildren(...(items.length ? items : [h('li', { className: 'widget-empty' }, emptyMessage)]));
+}
+
+function renderHomeLinks() {
+  widgetItems(ui.homeLinks, state.links.slice(0, 5).map((link) => h('li', null,
+    h('a', { href: link.go_url, target: '_blank', rel: 'noopener noreferrer' }, link.name),
+    h('span', { className: 'pill ad' }, 'Publicité'))), 'Aucun lien publié pour le moment.');
+}
+
+function renderHomeLearn(items) {
+  widgetItems(ui.homeLearn, items.slice(0, 5).map((item) => h('li', null,
+    h('button', { className: 'widget-link', type: 'button', onclick: () => { setActiveView('learn'); setLearnTab(item.kind === 'guide' ? 'guides' : 'tutorials'); } }, item.title),
+    h('small', null, item.kind === 'guide' ? 'Guide' : 'Tutoriel'))), 'Les guides arrivent bientôt.');
+}
+
+/** Recopie dans l'accueil l'état affiché par le centre de notifications. */
+function mirrorText(source, target) {
+  const copy = () => { target.textContent = source.textContent; };
+  copy();
+  new MutationObserver(copy).observe(source, { childList: true, characterData: true, subtree: true });
+}
+
 function renderLinks() {
+  renderHomeLinks();
   ui.linksList.setAttribute('aria-busy', 'false');
   ui.linksList.replaceChildren(...(state.links.length
     ? state.links.map(linkCard)
@@ -361,6 +392,7 @@ async function loadLearn() {
       'Les tutoriels sont en cours de relecture. Revenez bientôt !');
     renderOpportunities();
     renderReferral(referral);
+    renderHomeLearn(items);
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     for (const list of lists) {
@@ -396,6 +428,7 @@ async function loadLinks() {
     renderLinks();
   } catch (error) {
     if (error.status !== 401 && error.status !== 403) {
+      widgetItems(ui.homeLinks, [], 'Liens indisponibles pour le moment.');
       ui.linksList.setAttribute('aria-busy', 'false');
       ui.linksList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
         h('p', null, `Impossible de charger les liens : ${error.message}`),
@@ -692,6 +725,8 @@ document.addEventListener('DOMContentLoaded', () => {
     learnGuidesList: 'learn-guides-list', learnTutorialsList: 'learn-tutorials-list',
     learnOpportunitiesList: 'learn-opportunities-list', oppAge: 'opp-age', oppCountry: 'opp-country',
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
+    homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
+    homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -743,6 +778,12 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.profileLogout.addEventListener('click', handleLogout);
   ui.logoutAllButton.addEventListener('click', handleLogoutAll);
   ui.refreshLinks.addEventListener('click', loadLinks);
+  ui.homeDate.textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  mirrorText(document.getElementById('realtime-status'), document.getElementById('home-realtime'));
+  mirrorText(document.getElementById('notif-permission-status'), document.getElementById('home-notif-permission'));
+  document.querySelectorAll('[data-goto]').forEach((button) => {
+    button.addEventListener('click', () => setActiveView(button.dataset.goto));
+  });
   document.querySelectorAll('.learn-tab').forEach((tab) => {
     tab.addEventListener('click', () => setLearnTab(tab.dataset.learnTab));
   });

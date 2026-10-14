@@ -419,3 +419,109 @@ body:has(#auth-screen:not(.hidden)) .layout { grid-template-columns: minmax(0, 1
 .learn-points { margin: 0; padding-left: 1.2rem; display: grid; gap: .35rem; }
 .learn-warning { color: var(--ad); font-weight: 600; font-size: .9rem; }
 .opportunity-card .profile-list li { padding: .35rem 0; }
+
+/* ==========================================================================
+   Thème « espace scolaire » : bandeau compact, barre de rubriques à onglet
+   plein, encadrés à titre coloré, densité élevée. Identité HAISSEL (vert).
+   Apparence uniquement : aucune règle ne masque une fonctionnalité.
+   ========================================================================== */
+:root {
+  --bg: #e4e8eb;
+  --line: #c9d1d6;
+  --radius: 4px;
+  --shadow: 0 1px 2px rgba(20, 35, 40, .08);
+  --band: #00473a;
+}
+body { font-size: .9375rem; }
+
+/* Bandeau */
+.topbar { background: var(--band); box-shadow: 0 1px 0 rgba(0, 0, 0, .2); }
+.topbar-inner { padding-top: .45rem; padding-bottom: .45rem; }
+.wordmark-logo { background: #fff; color: var(--band); border-radius: 4px; }
+.wordmark-text { font-size: 1.1rem; }
+.wordmark-tag { background: rgba(255, 255, 255, .14); border-radius: 3px; }
+
+/* Barre de rubriques : onglet actif plein */
+.topbar-nav { background: var(--brand); border-bottom: 0; color: #fff; }
+.topbar-nav-inner { gap: 0; }
+.nav-button {
+  color: #fff; padding: .6rem 1rem; border-bottom: 0; border-radius: 0;
+  font-weight: 600; min-height: 44px;
+}
+.nav-button:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+.nav-button.active { background: var(--surface); color: var(--brand-dark); }
+.nav-button:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+
+/* Mise en page plus dense */
+.layout { padding-top: 1rem; gap: 1rem; grid-template-columns: 230px minmax(0, 1fr); }
+.sidebar { top: 6.5rem; }
+.member-card, .profile-card-box, .offer-card, .learn-card, .panel-card, .auth-card { border-radius: var(--radius); border-color: var(--line); }
+.profile-header { background: var(--brand); border-bottom: 0; color: #fff; }
+.profile-header .member-id p { color: #d9efea; }
+.profile-header .avatar { background: #fff; color: var(--brand-dark); }
+.side-menu button { padding: .55rem 1rem; font-size: .9rem; }
+.section-header { padding-bottom: .5rem; border-bottom: 2px solid var(--brand); margin-bottom: 1rem; }
+.section-title { font-size: 1.25rem; color: var(--brand-dark); }
+.home-date { color: var(--text-muted); font-size: .9rem; text-transform: capitalize; }
+
+/* Encadrés (page d'accueil) */
+.widget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; align-items: start; }
+.widget { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+.widget-head {
+  display: flex; align-items: center; gap: .5rem; padding: .55rem .8rem;
+  border-bottom: 1px solid var(--line); background: var(--brand-soft); color: var(--brand-dark);
+}
+.widget-head h3 { font-size: .95rem; font-weight: 700; }
+.widget-list { list-style: none; margin: 0; padding: 0; }
+.widget-list li {
+  display: flex; justify-content: space-between; align-items: center; gap: .6rem;
+  padding: .5rem .8rem; border-bottom: 1px solid #edf0f2; font-size: .9rem;
+}
+.widget-list li:last-child { border-bottom: 0; }
+.widget-list li:hover { background: var(--surface-2); }
+.widget-list span { color: var(--text-muted); }
+.widget-list a, .widget-link { overflow-wrap: anywhere; font-weight: 600; }
+.widget-link { border: 0; background: none; padding: 0; color: var(--brand-strong); cursor: pointer; text-align: left; font: inherit; font-weight: 600; }
+.widget-link:hover { text-decoration: underline; }
+.widget-empty { color: var(--text-muted); font-style: italic; }
+.widget-empty:hover { background: none !important; }
+.widget-more {
+  margin-top: auto; padding: .55rem .8rem; border: 0; border-top: 1px solid var(--line);
+  background: var(--surface-2); color: var(--brand-strong); font: inherit; font-size: .88rem; font-weight: 600;
+  text-align: right; cursor: pointer; border-radius: 0 0 var(--radius) var(--radius);
+}
+.widget-more::after { content: ' ›'; }
+.widget-more:hover { background: var(--brand-soft); }
+
+/* Onglets de rubrique (Apprendre) façon onglets de classeur */
+.learn-tabs { gap: 0; border-bottom: 2px solid var(--brand); }
+.learn-tab {
+  border-radius: var(--radius) var(--radius) 0 0; border: 1px solid var(--line); border-bottom: 0;
+  background: #f1f4f5; margin-right: 2px; min-height: 38px; font-size: .9rem;
+}
+.learn-tab.active { background: var(--brand); border-color: var(--brand); }
+
+/* Boutons et champs : coins droits, tailles stables */
+.primary-button, .secondary-button, .ghost-button, .offer-link-button { border-radius: var(--radius); }
+.field input { border-radius: var(--radius); }
+.primary-button:disabled, .secondary-button:disabled, .ghost-button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Connexion : carte centrée sous bandeau HAISSEL */
+.auth-card { border-top: 4px solid var(--brand); }
+.auth-card-head { border-bottom: 1px solid var(--line); padding-bottom: .8rem; }
+.auth-intro h1 { font-size: 1.6rem; }
+
+@media (max-width: 960px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .topbar-nav { background: var(--surface); color: var(--text); }
+  .nav-button { color: var(--text-muted); min-height: 56px; padding: .4rem .1rem; font-size: .72rem; min-width: 0; }
+  .nav-button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-button:hover { background: var(--surface-2); color: var(--brand-strong); }
+  .nav-button.active { background: var(--brand-soft); color: var(--brand-dark); }
+  .widget-grid { grid-template-columns: minmax(0, 1fr); }
+  .learn-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .learn-tab { flex: 0 0 auto; }
+  .section-header { flex-wrap: wrap; align-items: flex-start; }
+}
