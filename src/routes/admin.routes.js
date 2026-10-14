@@ -2,6 +2,7 @@ const express = require('express');
 const admin = require('../controllers/admin.controller');
 const broadcast = require('../controllers/broadcast.controller');
 const learn = require('../controllers/learn.controller');
+const community = require('../controllers/community.controller');
 const { broadcastBurstLimiter, broadcastHourlyLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
@@ -52,5 +53,9 @@ for (const [path, handlers] of [['content', learn.content], ['opportunities', le
 }
 router.get('/learn/settings', learn.getSettings);
 router.put('/learn/settings', learn.updateSettings);
+
+// Modération des offres publiées par les membres.
+router.get('/community/offers', community.adminListOffers);
+router.post('/community/offers/:id/moderate', community.adminModerateOffer);
 
 module.exports = router;

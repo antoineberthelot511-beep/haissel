@@ -19,6 +19,7 @@ const authRouter = require('./routes/auth.routes');
 const affiliateRouter = require('./routes/affiliate.routes');
 const adminRouter = require('./routes/admin.routes');
 const learnRouter = require('./routes/learn.routes');
+const communityRouter = require('./routes/community.routes');
 const webhookRouter = require('./routes/webhook.routes');
 const realtimeRouter = require('./routes/realtime.routes');
 const realtime = require('./services/realtime.service');
@@ -235,6 +236,7 @@ app.use('/api/auth', authRouter);
 app.get('/api/links', authenticateToken, listLinks);
 app.use('/api/affiliate', affiliateRouter);
 app.use('/api/learn', learnRouter);
+app.use('/api/community', communityRouter);
 app.use('/api/admin', adminRouter);
 // Flux temps réel (SSE) et accusés d'affichage des notifications admin.
 app.use('/api/notifications', realtimeRouter);
