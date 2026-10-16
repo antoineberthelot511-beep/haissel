@@ -7,6 +7,7 @@
     <meta name="description" content="HAISSEL : créez votre compte et retrouvez les liens et offres partenaires publiés par l'équipe." />
     <meta name="theme-color" content="#008673" />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="redesign.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
@@ -93,7 +94,6 @@
               <li><button type="button" data-view="profile"><svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>Profil et sécurité</button></li>
             </ul>
           </div>
-          <p class="side-note">Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par la mention « Publicité ».</p>
         </aside>
 
         <section class="content-panel">
@@ -238,6 +238,10 @@
               </div>
               <div class="widget-grid">
                 <article class="widget widget-wide" aria-labelledby="w-community-title">
+              <div class="home-note">
+                <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
+                <p>Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par la mention « Publicité ». Chaque offre est vérifiée par l'équipe avant d'être visible.</p>
+              </div>
                   <header class="widget-head">
                     <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
                     <h3 id="w-community-title">Dernières offres de la communauté</h3>
@@ -272,20 +276,19 @@
                   </ul>
                   <button class="widget-more" type="button" data-goto="notifications">Réglages des notifications</button>
                 </article>
-                <article class="widget" aria-labelledby="w-account-title">
-                  <header class="widget-head">
-                    <svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>
-                    <h3 id="w-account-title">Mon compte</h3>
-                  </header>
-                  <ul class="widget-list">
-                    <li><span>Pseudo</span><strong id="home-username">—</strong></li>
-                    <li><span>Membre depuis</span><strong id="home-created">—</strong></li>
-                  </ul>
-                  <button class="widget-more" type="button" data-goto="profile">Profil et sécurité</button>
-                </article>
               </div>
             </section>
 
+              <section class="account-band" aria-labelledby="w-account-title">
+                <div class="account-band-id">
+                  <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><circle class="seal-inner" cx="24" cy="24" r="14.5" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
+                  <div>
+                    <h3 id="w-account-title">Mon compte</h3>
+                    <p><strong id="home-username">—</strong> <span>· membre depuis <span id="home-created">—</span></span></p>
+                  </div>
+                </div>
+                <button class="account-band-button" type="button" data-goto="profile">Profil et sécurité</button>
+              </section>
             <section id="links-view" class="view-panel hidden" aria-labelledby="links-title">
               <div class="section-header">
                 <div>

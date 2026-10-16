@@ -182,6 +182,7 @@ const FONT_PACKAGES = {
   'ibm-plex-mono': '@fontsource/ibm-plex-mono',
   orbitron: '@fontsource/orbitron',
   'space-grotesk': '@fontsource/space-grotesk',
+  'ibm-plex-sans': '@fontsource/ibm-plex-sans',
 };
 for (const [name, pkg] of Object.entries(FONT_PACKAGES)) {
   app.use(`/vendor/fonts/${name}`, express.static(path.dirname(require.resolve(`${pkg}/package.json`)), { index: false, maxAge: '30d' }));
