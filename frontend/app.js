@@ -451,7 +451,7 @@ function fillCategorySelect(select, categories, firstLabel) {
 /** Ouvre un lien de membre après confirmation (domaine affiché, âge rappelé). */
 function confirmLeave(offer) {
   ui.leaveDomain.textContent = offer.domain || 'site externe';
-  ui.leaveAge.textContent = offer.min_age ? `Offre réservée aux ${offer.min_age} ans et plus : ne continue que si tu as cet âge.` : '';
+  ui.leaveAge.textContent = offer.min_age ? `Offre réservée aux ${offer.min_age} ans et plus : ne continuez que si vous avez cet âge.` : '';
   ui.leaveAge.classList.toggle('hidden', !offer.min_age);
   ui.leaveDialog.returnValue = '';
   ui.leaveDialog.addEventListener('close', () => {

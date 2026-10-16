@@ -109,7 +109,7 @@
               </ol>
               <div class="trust-box">
                 <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
-                <p><strong>Votre compte reste privé.</strong> Le mot de passe est chiffré de façon irréversible (Argon2id) et la session n'est accessible qu'à votre navigateur. Vos données : <a href="confidentialite.html">politique de confidentialité</a>.</p>
+                <p><strong>Votre compte reste privé.</strong> Votre mot de passe est stocké de façon sécurisée : personne, pas même nous, ne peut le lire ou le retrouver. Vos données : <a href="confidentialite.html">politique de confidentialité</a>.</p>
               </div>
             </div>
 
@@ -310,8 +310,8 @@
                   <select id="community-category"><option value="">Toutes</option></select>
                 </label>
                 <label class="field">
-                  <span>Pays (code)</span>
-                  <input id="community-country" type="text" maxlength="2" placeholder="FR" autocomplete="off" />
+                  <span>Pays (code à 2 lettres)</span>
+                  <input id="community-country" type="text" maxlength="2" placeholder="ex. FR, BE, CH" autocomplete="off" />
                 </label>
                 <label class="show-password filter-saved">
                   <input id="community-saved" type="checkbox" />
@@ -348,7 +348,7 @@
               </div>
 
               <div id="learn-guides" class="learn-panel hidden" role="tabpanel" aria-label="Guides pour débutants">
-                <p class="security-note">Les bases : affiliation, CPL et commissions. Chaque guide est relu par l'équipe avant publication.</p>
+                <p class="security-note">Les bases : affiliation, CPL (coût par lead : vous êtes payé quand quelqu'un remplit un formulaire, pas forcément quand il achète) et commissions. Chaque guide est relu par l'équipe avant publication.</p>
                 <div id="learn-guides-list" class="learn-list" aria-live="polite"></div>
               </div>
 
@@ -636,10 +636,10 @@
     <!-- Avant d'ouvrir un lien publié par un membre -->
     <dialog id="leave-dialog" class="app-dialog" aria-labelledby="leave-title">
       <form method="dialog">
-        <h2 id="leave-title">Tu vas quitter HAISSEL</h2>
+        <h2 id="leave-title">Vous allez quitter HAISSEL</h2>
         <p>Ce lien ouvre le site <strong id="leave-domain"></strong> dans un nouvel onglet. C'est un <strong>lien affilié</strong> : son auteur peut toucher une commission.</p>
         <p id="leave-age" class="guide-warning hidden"></p>
-        <p class="security-note">HAISSEL n'a pas vérifié ce site lui-même. Ne donne jamais tes mots de passe et méfie-toi des promesses de gains.</p>
+        <p class="security-note">HAISSEL n'a pas vérifié ce site lui-même. Ne donnez jamais vos mots de passe et méfiez-vous des promesses de gains.</p>
         <div class="dialog-actions">
           <button value="cancel" class="ghost-button" type="submit">Annuler</button>
           <button value="confirm" id="leave-confirm" class="primary-button" type="submit">Continuer</button>
