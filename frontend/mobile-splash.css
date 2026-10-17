@@ -1,0 +1,35 @@
+/* Écran d'accueil réservé aux smartphones. */
+.mobile-splash { display: none; }
+
+@media (max-width: 760px) {
+  .mobile-splash:not([hidden]) {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    background: #e9e9e9;
+  }
+  body.splash-open { overflow: hidden; }
+}
+
+.mobile-splash-frame {
+  position: relative;
+  width: min(100vw, calc(100dvh * 542 / 1024));
+  aspect-ratio: 542 / 1024;
+}
+.mobile-splash-frame img { display: block; width: 100%; height: 100%; }
+
+.splash-hit {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.splash-hit:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
+.splash-login    { left: 9.6%;  top: 5.3%;  width: 40.2%; height: 5.3%; }
+.splash-register { left: 49.8%; top: 5.3%;  width: 40.4%; height: 5.3%; }
+.splash-learn    { left: 9.6%;  top: 85.2%; width: 80.6%; height: 5.3%; }

@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#008673" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="redesign.css" />
+    <link rel="stylesheet" href="mobile-splash.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
@@ -26,6 +27,16 @@
       <symbol id="i-tag" viewBox="0 0 24 24"><path d="M4 4h7.5l8.5 8.5-7.5 7.5L4 11.5zM8.2 8.2h.01" /></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></symbol>
     </svg>
+
+    <!-- Écran d'accueil smartphone : image + zones cliquables invisibles -->
+    <div id="mobile-splash" class="mobile-splash" hidden>
+      <div class="mobile-splash-frame">
+        <img src="image/accueil-mobile.jpg" alt="Do you want to make money?" />
+        <button type="button" class="splash-hit splash-login" data-splash-form="login" aria-label="Se connecter"></button>
+        <button type="button" class="splash-hit splash-register" data-splash-form="register" aria-label="Créer un compte"></button>
+        <button type="button" class="splash-hit splash-learn" aria-label="Learn more"></button>
+      </div>
+    </div>
 
     <div class="app-shell">
       <!-- ====================== EN-TÊTE ====================== -->
@@ -136,6 +147,7 @@
                   <span>Mot de passe</span>
                   <input id="login-password" type="password" autocomplete="current-password" maxlength="128" required />
                 </label>
+                <div class="turnstile-slot hidden" data-turnstile-action="login"></div>
                 <button class="primary-button" type="submit">Se connecter</button>
                 <button id="forgot-link" class="text-button hidden" type="button">Mot de passe oublié ?</button>
               </form>
@@ -221,6 +233,7 @@
                 </label>
 
                 <p class="security-note">En créant un compte, vous acceptez les <a href="cgu.html" target="_blank">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>. Inscription dès 15 ans (avant : accord d'un parent).</p>
+                <div class="turnstile-slot hidden" data-turnstile-action="register"></div>
                 <button class="primary-button" type="submit">Créer mon compte</button>
               </form>
             </div>
@@ -236,12 +249,12 @@
                 </div>
                 <p id="home-date" class="home-date"></p>
               </div>
-              <div class="widget-grid">
-                <article class="widget widget-wide" aria-labelledby="w-community-title">
               <div class="home-note">
                 <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
                 <p>Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par la mention « Publicité ». Chaque offre est vérifiée par l'équipe avant d'être visible.</p>
               </div>
+              <div class="widget-grid">
+                <article class="widget widget-wide" aria-labelledby="w-community-title">
                   <header class="widget-head">
                     <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
                     <h3 id="w-community-title">Dernières offres de la communauté</h3>
@@ -277,8 +290,6 @@
                   <button class="widget-more" type="button" data-goto="notifications">Réglages des notifications</button>
                 </article>
               </div>
-            </section>
-
               <section class="account-band" aria-labelledby="w-account-title">
                 <div class="account-band-id">
                   <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><circle class="seal-inner" cx="24" cy="24" r="14.5" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
@@ -289,6 +300,8 @@
                 </div>
                 <button class="account-band-button" type="button" data-goto="profile">Profil et sécurité</button>
               </section>
+            </section>
+
             <section id="links-view" class="view-panel hidden" aria-labelledby="links-title">
               <div class="section-header">
                 <div>
@@ -689,8 +702,10 @@
       <div id="member-offers" class="offer-grid" aria-live="polite"></div>
     </dialog>
 
+    <script src="turnstile.js"></script>
     <script src="notifications.js"></script>
     <script src="mylead-guide.js"></script>
     <script src="app.js"></script>
+    <script src="mobile-splash.js"></script>
   </body>
 </html>
