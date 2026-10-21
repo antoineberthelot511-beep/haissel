@@ -581,18 +581,28 @@ function confirmLeave(offer) {
   ui.leaveDialog.returnValue = '';
   ui.leaveDialog.addEventListener('close', async () => {
     if (ui.leaveDialog.returnValue !== 'confirm') return;
+    /*
+     * Onglet ouvert AVANT l'appel réseau : un onglet ouvert plus tard, hors du
+     * geste de l'utilisateur, est bloqué (Safari iOS).
+     * Pas d'option « noopener » : avec elle, window.open renvoie toujours null
+     * et la référence à l'onglet est perdue. Le lien avec cette page est coupé
+     * à la main (opener = null) ; le référent, lui, n'est jamais transmis
+     * (Referrer-Policy: no-referrer, voir src/app.js).
+     */
+    const tab = window.open('about:blank', '_blank');
+    if (tab) {
+      try { tab.opener = null; } catch (error) { /* propriété non modifiable */ }
+    }
+    // Bloqueur de fenêtres : le lien s'ouvre dans l'onglet courant.
+    const go = (url) => (tab ? tab.location.replace(url) : window.location.assign(url));
+
     if (offer.url) {
-      window.open(offer.url, '_blank', 'noopener,noreferrer');
+      go(offer.url);
       return;
     }
-    /*
-     * Fenêtre ouverte AVANT l'appel réseau : un onglet ouvert plus tard, hors
-     * du geste de l'utilisateur, serait bloqué par le navigateur.
-     */
-    const tab = window.open('', '_blank', 'noopener,noreferrer');
     try {
       const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}/open`);
-      if (tab) tab.location = data.url; else window.open(data.url, '_blank', 'noopener,noreferrer');
+      go(data.url);
     } catch (error) {
       if (tab) tab.close();
       setMessage('error', error.message);
