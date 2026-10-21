@@ -124,12 +124,63 @@ describe('publication', () => {
 });
 
 describe('propriété', () => {
-  test("un membre ne peut ni modifier ni retirer l'offre d'un autre", async () => {
+  test("un autre membre reçoit 403, pas 404 : l'offre existe, elle n'est pas à lui", async () => {
     const id = await publish(alice);
-    expect((await request(app).patch(`/api/community/offers/${id}`).set(auth(bob)).send(offer())).status).toBe(404);
-    expect((await request(app).delete(`/api/community/offers/${id}`).set(auth(bob))).status).toBe(404);
+
+    const patched = await request(app).patch(`/api/community/offers/${id}`).set(auth(bob)).send(offer());
+    expect(patched.status).toBe(403);
+    expect(patched.body.error.code).toBe('NOT_OWNER');
+
+    const deleted = await request(app).delete(`/api/community/offers/${id}`).set(auth(bob));
+    expect(deleted.status).toBe(403);
+    expect(deleted.body.error.code).toBe('NOT_OWNER');
+
+    // L'offre n'a pas bougé.
     const row = await pool.query('SELECT status FROM member_offers WHERE id = $1', [id]);
     expect(row.rows[0].status).toBe('published');
+  });
+
+  test('une offre inexistante reste un 404', async () => {
+    const res = await request(app).patch('/api/community/offers/99999999').set(auth(bob)).send(offer());
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  test("un ADMIN peut corriger l'offre d'un membre, sans en devenir l'auteur", async () => {
+    const id = await publish(alice);
+
+    const edited = await request(app).patch(`/api/community/offers/${id}`)
+      .set(auth(admin)).send(offer({ title: 'Titre corrigé par la modération' }));
+    expect(edited.status).toBe(200);
+    // Toute modification repasse en vérification, même venant d'un ADMIN.
+    expect(edited.body.data.offer.status).toBe('pending');
+    // L'auteur affiché reste le membre, pas l'administrateur.
+    expect(edited.body.data.offer.author.username).toBe(aliceUser.username);
+
+    const row = await pool.query('SELECT user_id FROM member_offers WHERE id = $1', [id]);
+    expect(row.rows[0].user_id).toBe(aliceUser.id);
+  });
+
+  test("un ADMIN peut retirer l'offre d'un membre", async () => {
+    const id = await publish(alice);
+    await request(app).delete(`/api/community/offers/${id}`).set(auth(admin)).expect(200);
+    const row = await pool.query('SELECT status FROM member_offers WHERE id = $1', [id]);
+    expect(row.rows[0].status).toBe('removed');
+  });
+
+  test("le propriétaire vient de la session : un user_id dans le corps est ignoré", async () => {
+    const res = await request(app).post('/api/community/offers')
+      .set(auth(alice))
+      .send({ ...offer(), user_id: 999999, id: 123456, status: 'published' });
+    expect(res.status).toBe(201);
+
+    const row = await pool.query(
+      'SELECT user_id, status FROM member_offers WHERE id = $1',
+      [res.body.data.offer.id]
+    );
+    expect(row.rows[0].user_id).toBe(aliceUser.id);
+    // Le statut est imposé par le serveur, pas par le corps de la requête.
+    expect(row.rows[0].status).toBe('pending');
   });
 
   test("modifier sa propre offre la renvoie en vérification ; la retirer la masque", async () => {
@@ -145,6 +196,63 @@ describe('propriété', () => {
   test('sans jeton CSRF, la publication est refusée', async () => {
     const res = await request(app).post('/api/community/offers').set('Cookie', alice.cookie).send(offer());
     expect(res.status).toBe(403);
+  });
+});
+
+describe('liens refusés', () => {
+  /*
+   * Un lien d'offre est fourni par un membre : donnée non fiable. Chaque cas
+   * est testé séparément pour qu'un échec désigne la règle qui a cédé.
+   */
+  const REFUSES = [
+    ['http simple', 'http://exemple.fr/offre'],
+    ['javascript:', 'javascript:alert(1)'],
+    ['data:', 'data:text/html,<script>alert(1)</script>'],
+    ['file:', 'file:///etc/passwd'],
+    ['adresse IP privée', 'https://192.168.1.10/offre'],
+    ['adresse IP publique littérale', 'https://93.184.216.34/offre'],
+    ['bouclage', 'https://127.0.0.1/offre'],
+    ['localhost', 'https://localhost/offre'],
+    ['nom interne', 'https://serveur.internal/offre'],
+    ['identifiants dans le lien', 'https://user:motdepasse@exemple.fr/offre'],
+    ['port particulier', 'https://exemple.fr:8443/offre'],
+    ['raccourcisseur bit.ly', 'https://bit.ly/3abcdef'],
+    ['raccourcisseur tinyurl', 'https://tinyurl.com/abcdef'],
+    ['raccourcisseur t.co', 'https://t.co/abcdef'],
+    ['raccourcisseur avec www', 'https://www.bit.ly/3abcdef'],
+  ];
+
+  test.each(REFUSES)('refuse : %s', async (_label, url) => {
+    const res = await request(app).post('/api/community/offers').set(auth(alice)).send(offer({ url }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_URL');
+    // Le message est rattaché au champ, pour l'afficher sous « Lien ».
+    expect(res.body.error.field).toBe('url');
+  });
+
+  test('accepte un vrai lien https', async () => {
+    const res = await request(app).post('/api/community/offers')
+      .set(auth(alice)).send(offer({ url: 'https://partenaire.exemple.fr/landing?sub=haissel' }));
+    expect(res.status).toBe(201);
+  });
+
+  test('les erreurs de champ désignent le champ fautif', async () => {
+    const titre = await request(app).post('/api/community/offers').set(auth(alice)).send(offer({ title: 'abc' }));
+    expect(titre.status).toBe(400);
+    expect(titre.body.error.field).toBe('title');
+
+    const categorie = await request(app).post('/api/community/offers').set(auth(alice)).send(offer({ category: 'inexistante' }));
+    expect(categorie.status).toBe(400);
+    expect(categorie.body.error.field).toBe('category');
+
+    const age = await request(app).post('/api/community/offers').set(auth(alice)).send(offer({ min_age: 5 }));
+    expect(age.status).toBe(400);
+    expect(age.body.error.field).toBe('min_age');
+
+    const droits = await request(app).post('/api/community/offers').set(auth(alice)).send(offer({ rights_confirmed: false }));
+    expect(droits.status).toBe(400);
+    expect(droits.body.error.code).toBe('RIGHTS_NOT_CONFIRMED');
+    expect(droits.body.error.field).toBe('rights_confirmed');
   });
 });
 

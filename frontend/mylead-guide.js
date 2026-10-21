@@ -1,18 +1,26 @@
 'use strict';
 
 /*
- * Parcours « Débuter sur MyLead » (10 étapes).
+ * Parcours « Débuter sur MyLead » (11 étapes).
  *
  * - Contenu statique : aucun appel réseau, aucun code à saisir par le membre.
  * - Progression enregistrée uniquement dans ce navigateur (localStorage) :
  *   rien n'est envoyé au serveur.
- * - Libellés repris des guides officiels MyLead (consultés le 14/10/2026) ;
+ * - Libellés repris des guides officiels MyLead (revérifiés le 20/10/2026 sur
+ *   les pages référencées ci-dessous, datées du 05/08/2025 pour les sources de
+ *   trafic et du 22/08/2025 pour l'obtention du lien) ;
  *   l'interface de MyLead peut évoluer, ce que chaque étape rappelle.
  * - Illustrations : schémas originaux (SVG), pas des captures de MyLead.
  * - Tout le texte est inséré via des nœuds texte (jamais innerHTML).
  */
 (function () {
-  const STORAGE_KEY = 'haissel_mylead_progress_v1';
+  /*
+   * v2 : une étape a été insérée au milieu du parcours. La progression étant
+   * stockée sous forme d'indices, réutiliser la clé v1 aurait décalé les
+   * étapes déjà cochées d'un cran. On repart donc d'une progression vide
+   * plutôt que d'en afficher une fausse.
+   */
+  const STORAGE_KEY = 'haissel_mylead_progress_v2';
   const OFFICIAL = {
     start: 'https://mylead.global/fr/start',
     register: 'https://pub.mylead.global/register',
@@ -39,7 +47,7 @@
     },
     {
       title: 'Créer un compte éditeur MyLead',
-      intro: 'Le compte éditeur (« publisher ») est gratuit. Avant de t’inscrire, vérifie l’âge minimum demandé dans le règlement de MyLead. Si tu es mineur, parles-en d’abord à un parent.',
+      intro: 'Le compte éditeur (« publisher ») est gratuit. Il faut 18 ans : HAISSEL ne montre ce parcours qu’aux membres qui l’ont déclaré. Vérifie malgré tout les conditions en vigueur sur le site de MyLead avant de t’inscrire — elles font foi.',
       instructions: [
         'Ouvre la page d’inscription officielle (bouton ci-dessous).',
         'Choisis un identifiant, indique ton adresse e-mail et un mot de passe que tu n’utilises nulle part ailleurs.',
@@ -59,12 +67,35 @@
         'Dans le panneau éditeur, ouvre le menu de gauche (sur téléphone : l’icône menu).',
         'Déroule la section « Marketing d’affiliation » puis choisis « Sources de trafic ».',
         'Appuie sur « Ajouter une source de trafic ».',
-        'Choisis le type qui correspond à ce que tu utilises vraiment (par exemple ton compte de réseau social).',
-        'Remplis les informations avec précision : adresse de ta page, sujet, public visé.',
-        'Valide. Tu recevras une notification et un e-mail quand la source sera acceptée.',
+        'Choisis le type qui correspond à ce que tu utilises vraiment : site, blog, forum, réseau social, mailing, application mobile, PPC, réseau, ou autre.',
+        'Remplis les informations demandées : adresse de ta source, catégories de programmes qui t’intéressent, et les données de ton public (tranche d’âge, répartition, pays).',
+        'Indique si ton contenu s’adresse à un public adulte. Réponds honnêtement : c’est ce qui détermine les campagnes qu’on te proposera.',
+        'Valide. Tu recevras une notification dans le panneau et un e-mail quand la source sera acceptée (souvent en quelques heures).',
       ],
-      figure: { title: 'Menu du panneau', rows: ['Tableau de bord', 'Marketing d’affiliation ▾', '   Sources de trafic', '   Campagnes d’affiliation'], highlight: 2, note: 'D’après le guide officiel. Les libellés peuvent varier.' },
+      figure: { title: 'Menu du panneau', rows: ['Tableau de bord', 'Marketing d’affiliation ▾', '   Sources de trafic', '   Campagnes d’affiliation'], highlight: 2, note: 'D’après le guide officiel du 05/08/2025. Les libellés peuvent varier.' },
       links: [{ label: 'Guide officiel : ajouter une source de trafic', href: OFFICIAL.trafficSource }],
+    },
+    {
+      title: 'Où as-tu le droit de publier ton lien ?',
+      intro: 'Avoir un lien ne donne pas le droit de le mettre partout. Tu ne peux publier que là où TU as déclaré une source de trafic acceptée, et seulement si la campagne autorise ce canal. Le reste, c’est au mieux un refus de paiement, au pire la fermeture de ton compte.',
+      instructions: [
+        'Déclare uniquement TES sources : une page, un compte ou un site qui t’appartient et que tu gères. La page d’un ami, un groupe que tu n’administres pas ou une source inventée ne sont pas les tiennes.',
+        'Avant chaque publication, relis la rubrique « trafic autorisé / interdit » de la campagne : elle passe avant tout le reste.',
+        'N’envoie pas ton lien en masse : messages groupés, boucles de discussion, commentaires répétés sous des vidéos, serveurs où tu viens d’arriver. C’est du spam, même quand le lien est honnête.',
+        'Ne fais pas inscrire tes amis ou ta famille « pour faire monter les chiffres ». Une inscription qui ne vient pas d’un intérêt réel est une fraude : elle est détectée, elle n’est pas payée, et elle met ton compte en danger.',
+        'Ne clique jamais sur ton propre lien et ne crée pas de second compte pour contourner un refus.',
+        'Dans le doute sur un endroit : ne publie pas. Demande à l’équipe HAISSEL plutôt que de risquer ton compte.',
+      ],
+      warning: 'Un groupe où « tout le monde poste ses liens » n’est pas une autorisation. Si tu n’as pas déclaré ce canal et que la campagne ne l’autorise pas, tu n’as pas le droit d’y publier.',
+      checklist: [
+        'C’est une source que j’ai déclarée et qui a été acceptée',
+        'La campagne autorise ce canal',
+        'Je ne l’envoie pas en masse',
+        'Je ne fais inscrire personne « pour aider »',
+      ],
+      figure: { title: 'Où publier ?', rows: ['✓ Ma source déclarée', '✓ Canal autorisé', '✗ Envoi en masse', '✗ Inscriptions d’amis'], highlight: -1, note: 'Dans le doute, ne publie pas.' },
+      links: [{ label: 'Guide officiel : sources de trafic', href: OFFICIAL.trafficSource }],
+      internal: { label: 'Lire « Sécurité et légalité »', tab: 'safety' },
     },
     {
       title: 'Trouver une campagne et lire ses conditions',
@@ -108,9 +139,10 @@
       intro: 'Une fois la campagne acceptée, MyLead génère ton lien personnel. C’est ce lien que tu publieras.',
       instructions: [
         'Ouvre la campagne acceptée.',
-        'Repère la section « Vos configurations » (sous les tuiles de couleur, d’après le guide officiel).',
+        'Repère la section « Vos configurations » (« Your configurations » si ton panneau est en anglais) : le lien y apparaît automatiquement une fois la campagne acceptée.',
         'Copie le lien : sur téléphone, appuie longuement dessus puis choisis « Copier », ou utilise le bouton de copie s’il y en a un.',
         'Vérifie que le lien commence par « https:// ».',
+        'Besoin d’un lien différent par canal ? Ouvre « URL Addresses » dans tes configurations pour en créer un autre.',
       ],
       figure: { title: 'Vos configurations', rows: ['Lien principal', 'https://…', 'Copier'], highlight: 2, note: 'Les libellés peuvent varier.' },
       links: [{ label: 'Guide officiel : obtenir son lien', href: OFFICIAL.link }],
@@ -121,7 +153,7 @@
       instructions: [
         'Appuie sur « Publier » dans la barre de navigation.',
         'Colle ton lien dans le champ « Lien ».',
-        'Recopie les informations notées à l’étape 5 : pays, âge minimum, action attendue, restrictions.',
+        'Recopie les informations notées à l’étape « Vérifier pays, âge, action payée et restrictions » : pays, âge minimum, action attendue, restrictions.',
         'N’indique une rémunération que si elle apparaît dans ta campagne MyLead.',
         'Vérifie l’aperçu, coche la confirmation puis envoie. L’équipe vérifie l’offre avant de l’afficher.',
       ],
