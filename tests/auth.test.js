@@ -2,6 +2,10 @@
  * Tests de sécurité de l'authentification (PostgreSQL réel, schéma isolé).
  * Les e-mails sont capturés en mémoire (MAIL_TRANSPORT=memory).
  */
+// /api/affiliate/stats sert d'exemple de route privée au test 18 : sans ce
+// drapeau elle répondrait 404 (fonctionnalité gelée) au lieu de 401.
+process.env.ENABLE_INTERNAL_AFFILIATION = 'true';
+
 const helpers = require('./helpers/setup');
 
 const fs = require('fs');
@@ -38,6 +42,8 @@ function registration(overrides = {}) {
     email: `camille.${id}@exemple.fr`,
     password: NEW_PASSWORD,
     confirm_password: NEW_PASSWORD,
+    // Réponse obligatoire depuis la déclaration de majorité (voir adult.test.js).
+    is_adult: true,
     ...overrides,
   };
 }
@@ -241,8 +247,9 @@ describe('Connexion', () => {
   it('16b. bruteforce : limite par IP (HTTP 429)', async () => {
     process.env.RATE_LIMIT_IN_TESTS = 'true';
     try {
+      // Limite relevée à 30 échecs / 15 min (réseaux partagés, voir README).
       const statuses = [];
-      for (let i = 0; i < 12; i += 1) {
+      for (let i = 0; i < 40; i += 1) {
         throttle.reset();
         const res = await request(app).post('/api/auth/login').set(lanHeaders('192.168.7.7'))
           .send({ identifier: `inconnu${i}@exemple.fr`, password: 'mauvais mot de passe' });
