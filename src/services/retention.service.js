@@ -4,7 +4,9 @@
  *
  *  - clics : IP et navigateur effacés après 6 mois (ip_hash conservé pour les statistiques) ;
  *  - journal de sécurité : supprimé après 12 mois (recommandation CNIL : 6 à 12 mois) ;
- *  - sessions et jetons expirés : supprimés dès qu'ils ne servent plus.
+ *  - sessions et jetons expirés : supprimés dès qu'ils ne servent plus ;
+ *  - compteurs de limitation : supprimés dès que leur fenêtre est passée
+ *    (ils n'existent que sur Vercel, où les compteurs sont en base).
  */
 const { pool } = require('../config/database');
 const { logger } = require('../utils/logger');
@@ -18,6 +20,8 @@ const PURGE_QUERIES = [
   ['security_events', `DELETE FROM security_events WHERE created_at < NOW() - INTERVAL '12 months'`],
   ['sessions', `DELETE FROM sessions WHERE expires_at < NOW() - INTERVAL '1 day' OR revoked_at < NOW() - INTERVAL '1 day'`],
   ['auth_tokens', `DELETE FROM auth_tokens WHERE expires_at < NOW() - INTERVAL '1 day'`],
+  ['rate_limit_counters', `DELETE FROM rate_limit_counters WHERE expires_at < NOW() - INTERVAL '1 hour'`],
+  ['login_throttle_failures', `DELETE FROM login_throttle_failures WHERE last_failure_at < NOW() - INTERVAL '1 day'`],
 ];
 
 async function purgeExpiredData() {

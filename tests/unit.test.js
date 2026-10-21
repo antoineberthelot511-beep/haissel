@@ -14,6 +14,7 @@ const {
 const { validateConversionInput, ConversionError } = require('../src/services/conversion.service');
 const { stripTransactionStatements, listMigrationFiles } = require('../src/db/migrator');
 const { parseId } = require('../src/utils/http');
+const { validateSecurityConfig, isVercel } = require('../src/config/security');
 
 function fakeReq(remoteAddress, headers = {}) {
   const lower = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
@@ -146,5 +147,84 @@ describe('helpers', () => {
     const names = listMigrationFiles().map((m) => m.name);
     expect(names[0]).toBe('init.sql');
     expect(names).toEqual([...names.slice(0, 1), ...names.slice(1).sort()]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Configuration de sécurité propre au déploiement Vercel
+// ---------------------------------------------------------------------------
+
+describe('security config: avertissements Vercel', () => {
+  const saved = { vercel: process.env.VERCEL, allowlist: process.env.ADMIN_IP_ALLOWLIST };
+
+  afterEach(() => {
+    if (saved.vercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = saved.vercel;
+    if (saved.allowlist === undefined) delete process.env.ADMIN_IP_ALLOWLIST;
+    else process.env.ADMIN_IP_ALLOWLIST = saved.allowlist;
+  });
+
+  const allowlistWarning = () => validateSecurityConfig().warnings
+    .filter((warning) => /ADMIN_IP_ALLOWLIST/.test(warning));
+
+  it('avertit quand ADMIN_IP_ALLOWLIST est vide sur Vercel', () => {
+    process.env.VERCEL = '1';
+    process.env.ADMIN_IP_ALLOWLIST = '';
+    expect(allowlistWarning()).toHaveLength(1);
+  });
+
+  it('avertit aussi quand la liste ne contient que des espaces', () => {
+    process.env.VERCEL = '1';
+    process.env.ADMIN_IP_ALLOWLIST = '   ';
+    expect(allowlistWarning()).toHaveLength(1);
+  });
+
+  it('ne dit rien quand la liste est renseignée', () => {
+    process.env.VERCEL = '1';
+    process.env.ADMIN_IP_ALLOWLIST = '203.0.113.9';
+    expect(allowlistWarning()).toHaveLength(0);
+  });
+
+  it('ne dit rien hors Vercel, où l’administration est déjà restreinte au réseau local', () => {
+    delete process.env.VERCEL;
+    process.env.ADMIN_IP_ALLOWLIST = '';
+    expect(allowlistWarning()).toHaveLength(0);
+  });
+
+  it('isVercel() ne réagit qu’à la valeur « 1 »', () => {
+    process.env.VERCEL = '1';
+    expect(isVercel()).toBe(true);
+    process.env.VERCEL = 'true';
+    expect(isVercel()).toBe(false);
+    delete process.env.VERCEL;
+    expect(isVercel()).toBe(false);
+  });
+});
+
+describe('rate limit store: isolation des compteurs', () => {
+  const { PostgresRateLimitStore } = require('../src/middleware/rate-limit.store');
+
+  it('déclare un préfixe par limiteur', () => {
+    const store = new PostgresRateLimitStore('auth');
+    expect(store.prefix).toBe('auth:');
+    expect(store.fullKey('203.0.113.9')).toBe('auth:203.0.113.9');
+  });
+
+  it('annonce des clés partagées entre instances', () => {
+    // localKeys=false : sans cela, express-rate-limit croirait les compteurs
+    // cloisonnés par processus, ce qui est justement le problème à corriger.
+    expect(new PostgresRateLimitStore('general').localKeys).toBe(false);
+  });
+
+  it('ne mélange pas deux limiteurs sur une même clé', () => {
+    const general = new PostgresRateLimitStore('general');
+    const auth = new PostgresRateLimitStore('auth');
+    expect(general.fullKey('1.2.3.4')).not.toBe(auth.fullKey('1.2.3.4'));
+  });
+
+  it('reprend la fenêtre fournie par express-rate-limit', () => {
+    const store = new PostgresRateLimitStore('auth');
+    store.init({ windowMs: 900000 });
+    expect(store.windowMs).toBe(900000);
   });
 });

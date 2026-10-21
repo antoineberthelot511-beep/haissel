@@ -22,6 +22,7 @@ const learnRouter = require('./routes/learn.routes');
 const communityRouter = require('./routes/community.routes');
 const webhookRouter = require('./routes/webhook.routes');
 const realtimeRouter = require('./routes/realtime.routes');
+const internalRouter = require('./routes/internal.routes');
 const realtime = require('./services/realtime.service');
 const { startRetentionJob } = require('./services/retention.service');
 
@@ -82,7 +83,9 @@ app.use(helmet({
     useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
+      // Cloudflare Turnstile : script + iframe du widget anti-robot.
+      scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
+      frameSrc: ['https://challenges.cloudflare.com'],
       scriptSrcAttr: ["'none'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'", 'data:'],
@@ -124,9 +127,17 @@ if (corsOrigins.length > 0) {
 app.use('/api/webhooks', webhookRouter);
 
 app.use(express.json({ limit: '16kb' }));
+
+/*
+ * Tâches planifiées : montées AVANT csrfOriginCheck et la limite générale.
+ * Un planificateur (cron Vercel) n'est pas un navigateur — il n'envoie ni
+ * Origin ni jeton CSRF — et ne doit pas être refusé pour cette raison.
+ * L'authentification se fait par le secret partagé CRON_SECRET.
+ */
+app.use('/api/internal', internalRouter);
+
 // Défense CSRF : origine / Fetch Metadata pour toute requête qui modifie l'état.
 app.use(csrfOriginCheck);
-app.use(generalRateLimiter);
 
 // Pas de cache : évite qu'un navigateur conserve une ancienne interface.
 app.use((req, res, next) => {
@@ -180,9 +191,9 @@ const FONT_PACKAGES = {
   archivo: '@fontsource/archivo',
   fraunces: '@fontsource-variable/fraunces',
   'ibm-plex-mono': '@fontsource/ibm-plex-mono',
+  'ibm-plex-sans': '@fontsource/ibm-plex-sans',
   orbitron: '@fontsource/orbitron',
   'space-grotesk': '@fontsource/space-grotesk',
-  'ibm-plex-sans': '@fontsource/ibm-plex-sans',
 };
 for (const [name, pkg] of Object.entries(FONT_PACKAGES)) {
   app.use(`/vendor/fonts/${name}`, express.static(path.dirname(require.resolve(`${pkg}/package.json`)), { index: false, maxAge: '30d' }));
@@ -195,11 +206,28 @@ app.use(express.static(frontendPath, {
 }));
 
 /*
+ * Limite générale : posée APRÈS les fichiers statiques, volontairement.
+ *
+ * Sur Vercel, les compteurs vivent en base (table rate_limit_counters). Placée
+ * avant express.static, cette limite déclenchait une écriture PostgreSQL pour
+ * CHAQUE fichier servi — feuilles de style, scripts, polices, images. Une
+ * seule ouverture de page en produisait une vingtaine, sans rien protéger :
+ * ces fichiers sont publics, identiques pour tous, et mis en cache par le
+ * réseau de diffusion de Vercel.
+ *
+ * Les fichiers statiques répondent donc avant d'être comptés. Tout ce qui
+ * suit — redirections et API — reste couvert.
+ */
+app.use(generalRateLimiter);
+
+/*
  * ============================================================
  * LIEN AFFILIÉ
  * ============================================================
  */
 
+// Redirection canonique des codes personnels. JAMAIS gelée : les liens déjà
+// partagés doivent continuer de fonctionner (voir ENABLE_INTERNAL_AFFILIATION).
 app.get('/r/:code', redirectRateLimiter, getAffiliateRedirect);
 app.get('/go/:id', redirectRateLimiter, goToLink);
 
@@ -243,18 +271,20 @@ app.use('/api/admin', adminRouter);
 app.use('/api/notifications', realtimeRouter);
 
 /*
- * Anciennes API du réseau social (publications, commentaires, messages…).
- * Non utilisées par l'interface actuelle : désactivées par défaut pour
- * réduire la surface d'attaque. Les tables restent intactes en base.
+ * Fonctionnalité gelée : ENABLE_INTERNAL_AFFILIATION (moteur d'affiliation
+ * interne — codes HAI-XXXXXXXX, conversions, gains, webhook signé). Le code
+ * reste en place et les tables intactes ; seules les routes cessent de
+ * répondre. Le gel n'est pas appliqué ici mais route par route
+ * (requireInternalAffiliation), pour deux raisons : les redirections
+ * /r/:code et /api/affiliate/HAI-… doivent rester actives quoi qu'il arrive,
+ * et une route gelée doit répondre FEATURE_DISABLED plutôt que le NOT_FOUND
+ * générique.
+ *
+ * Les anciennes API du réseau social (publications, commentaires, messages,
+ * profils, signalements) et leur drapeau ENABLE_LEGACY_SOCIAL_API ont été
+ * supprimés : plus aucun code ne les montait et l'interface ne les appelait
+ * pas. Leurs tables restent en base (voir README).
  */
-if (process.env.ENABLE_LEGACY_SOCIAL_API === 'true') {
-  app.use('/api/users', require('./routes/users.routes'));
-  app.use('/api/posts', require('./routes/posts.routes'));
-  app.use('/api', require('./routes/comments.routes'));
-  app.use('/api/notifications', require('./routes/notifications.routes'));
-  app.use('/api/conversations', require('./routes/messages.routes'));
-  app.use('/api/reports', require('./routes/reports.routes'));
-}
 
 /*
  * ============================================================

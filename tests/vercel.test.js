@@ -91,3 +91,57 @@ describe('Vercel : accès administrateur', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('Vercel : tâche de rétention planifiée', () => {
+  const config = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '../vercel.json'), 'utf8'));
+
+  it('déclare un cron quotidien sur la route interne', () => {
+    // startRetentionJob() n'existe que dans un processus permanent : sans ce
+    // cron, la purge RGPD ne tournerait jamais en ligne.
+    expect(config.crons).toEqual([
+      { path: '/api/internal/retention', schedule: '0 3 * * *' },
+    ]);
+  });
+
+  it('répond 404 sur la route interne sans CRON_SECRET', async () => {
+    delete process.env.CRON_SECRET;
+    const res = await request(app).get('/api/internal/retention');
+    expect(res.status).toBe(404);
+  });
+
+  it('répond 401 avec un mauvais secret', async () => {
+    process.env.CRON_SECRET = 'secret-vercel-de-test-0123456789-abcdef';
+    try {
+      const res = await request(app).get('/api/internal/retention')
+        .set('Authorization', 'Bearer mauvais');
+      expect(res.status).toBe(401);
+    } finally {
+      delete process.env.CRON_SECRET;
+    }
+  });
+});
+
+describe('Vercel : présence des utilisateurs', () => {
+  const { getPresence } = require('../src/controllers/broadcast.controller');
+
+  function captureJson() {
+    const res = {
+      statusCode: null,
+      payload: null,
+      status(code) { res.statusCode = code; return res; },
+      json(body) { res.payload = body; return res; },
+    };
+    return res;
+  }
+
+  it('annonce le comptage comme indisponible, sans aucun chiffre de connexions', () => {
+    const res = captureJson();
+    getPresence({}, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload.data).toMatchObject({ available: false, mode: 'poll' });
+    // Un compte partiel (celui d'une seule instance) serait faux : il ne doit
+    // pas apparaître du tout.
+    expect(res.payload.data.connected_users).toBeUndefined();
+    expect(res.payload.data.connections).toBeUndefined();
+  });
+});
