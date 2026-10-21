@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="redesign.css" />
     <link rel="stylesheet" href="mobile-splash.css" />
+    <link rel="stylesheet" href="community-mobile.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
@@ -28,13 +29,48 @@
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></symbol>
     </svg>
 
-    <!-- Écran d'accueil smartphone : image + zones cliquables invisibles -->
-    <div id="mobile-splash" class="mobile-splash" hidden>
-      <div class="mobile-splash-frame">
-        <img src="assets/accueil-mobile.jpg" alt="Do you want to make money?" />
-        <button type="button" class="splash-hit splash-login" data-splash-form="login" aria-label="Se connecter"></button>
-        <button type="button" class="splash-hit splash-register" data-splash-form="register" aria-label="Créer un compte"></button>
-        <button type="button" class="splash-hit splash-learn" aria-label="Learn more"></button>
+    <!-- Écran d'accueil smartphone : HTML natif (texte réel, lisible par un
+         lecteur d'écran, zones cliquables qui ne dépendent plus de la taille
+         de l'écran). Visible tant que l'utilisateur n'est pas connecté. -->
+    <div id="mobile-splash" class="mobile-splash" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="splash-title">
+      <div class="splash-card">
+        <p class="splash-brand">
+          <span class="splash-logo" aria-hidden="true">H</span>
+          <span class="splash-name">HAISSEL</span>
+          <span class="splash-tag">Espace membre</span>
+        </p>
+
+        <h1 id="splash-title" class="splash-title">Les liens et offres partenaires, réunis au même endroit</h1>
+        <p class="splash-lede">Les membres partagent leurs liens d'affiliation, vérifiés par l'équipe avant d'être visibles. Créez votre compte pour les consulter et apprendre à publier les vôtres.</p>
+
+        <div class="splash-actions">
+          <button type="button" class="primary-button splash-button" data-splash-form="register">Créer un compte</button>
+          <button type="button" class="secondary-button splash-button" data-splash-form="login">Se connecter</button>
+        </div>
+
+        <button type="button" class="splash-more" data-splash-scroll="auth-intro">
+          <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
+          En savoir plus
+        </button>
+      </div>
+    </div>
+
+    <!-- Comptes créés avant la mise en place : la question est posée une fois,
+         avant tout accès à l'espace membre. -->
+    <div id="age-gate" class="age-gate" hidden role="dialog" aria-modal="true" aria-labelledby="age-gate-title" tabindex="-1">
+      <div class="age-gate-card">
+        <p class="age-gate-brand">
+          <span class="splash-logo" aria-hidden="true">H</span>
+          <span class="splash-name">HAISSEL</span>
+        </p>
+        <h1 id="age-gate-title">As-tu 18 ans ou plus ?</h1>
+        <p class="age-why">MyLead exige 18 ans pour ouvrir un compte éditeur. Ta réponse décide de ce que tu peux faire sur HAISSEL. <strong>Nous n'enregistrons pas ta date de naissance</strong>, seulement cette réponse et sa date.</p>
+        <div id="age-gate-error" class="field-error hidden" role="alert"></div>
+        <div class="age-gate-actions">
+          <button id="age-gate-yes" class="primary-button" type="button">Oui, j'ai 18 ans ou plus</button>
+          <button id="age-gate-no" class="secondary-button" type="button">Non, j'ai moins de 18 ans</button>
+        </div>
+        <p class="age-consequence">Avec moins de 18 ans, tu gardes l'accès aux guides de l'espace Apprendre. Le parcours MyLead, le parrainage, la publication d'offres et l'ouverture des liens affiliés ne sont pas accessibles.</p>
       </div>
     </div>
 
@@ -67,7 +103,7 @@
             </button>
             <button class="nav-button" type="button" data-view="links">
               <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
-              <span>Offres</span>
+              <span>Rechercher</span>
             </button>
             <button class="nav-button" type="button" data-view="learn">
               <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
@@ -110,7 +146,7 @@
         <section class="content-panel">
           <!-- ====================== ACCUEIL / AUTHENTIFICATION ====================== -->
           <div id="auth-screen" class="auth-layout">
-            <div class="auth-intro">
+            <div class="auth-intro" id="auth-intro">
               <h1>Bienvenue sur HAISSEL</h1>
               <p class="lede">Connectez-vous pour retrouver les liens et offres partenaires publiés par l'équipe.</p>
               <ol class="steps">
@@ -175,6 +211,7 @@
                   <span>Adresse e-mail</span>
                   <input id="forgot-email" type="email" autocomplete="email" maxlength="254" required />
                 </label>
+                <div class="turnstile-slot hidden" data-turnstile-action="forgot-password"></div>
                 <button class="primary-button" type="submit">Envoyer le lien</button>
                 <button class="text-button" type="button" data-back-to-login>Retour à la connexion</button>
               </form>
@@ -232,6 +269,23 @@
                   <span>Afficher les mots de passe</span>
                 </label>
 
+                <fieldset class="age-fieldset">
+                  <legend>As-tu 18 ans ou plus ?</legend>
+                  <p class="age-why">MyLead exige 18 ans pour ouvrir un compte éditeur. Ta réponse décide de ce que tu peux faire sur HAISSEL. <strong>Nous n'enregistrons pas ta date de naissance</strong>, seulement cette réponse.</p>
+                  <div class="age-choices">
+                    <label class="age-choice">
+                      <input type="radio" name="register-adult" id="register-adult-yes" value="yes" required />
+                      <span>Oui, j'ai 18 ans ou plus</span>
+                    </label>
+                    <label class="age-choice">
+                      <input type="radio" name="register-adult" id="register-adult-no" value="no" required />
+                      <span>Non, j'ai moins de 18 ans</span>
+                    </label>
+                  </div>
+                  <p class="field-error hidden" id="err-register-adult" role="alert"></p>
+                  <p class="age-consequence">Avec moins de 18 ans, tu gardes l'accès aux guides de l'espace Apprendre. Le parcours MyLead, le parrainage, la publication d'offres et l'ouverture des liens affiliés ne sont pas accessibles.</p>
+                </fieldset>
+
                 <p class="security-note">En créant un compte, vous acceptez les <a href="cgu.html" target="_blank">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>. Inscription dès 15 ans (avant : accord d'un parent).</p>
                 <div class="turnstile-slot hidden" data-turnstile-action="register"></div>
                 <button class="primary-button" type="submit">Créer mon compte</button>
@@ -251,17 +305,18 @@
               </div>
               <div class="home-note">
                 <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
-                <p>Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par la mention « Publicité ». Chaque offre est vérifiée par l'équipe avant d'être visible.</p>
+                <p>Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par le badge « Lien affilié ». Chaque offre est vérifiée par l'équipe avant d'être visible.</p>
               </div>
+              <div class="home-offers-head">
+                <h3 class="subsection-title">Offres de la communauté</h3>
+                <button class="secondary-button small-button" type="button" data-goto="links">
+                  <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
+                  Rechercher
+                </button>
+              </div>
+              <div id="home-offers" class="offer-grid" aria-live="polite"></div>
+
               <div class="widget-grid">
-                <article class="widget widget-wide" aria-labelledby="w-community-title">
-                  <header class="widget-head">
-                    <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
-                    <h3 id="w-community-title">Dernières offres de la communauté</h3>
-                  </header>
-                  <ul id="home-community" class="widget-list" aria-live="polite"><li class="widget-empty">Chargement…</li></ul>
-                  <button class="widget-more" type="button" data-goto="links">Toutes les offres</button>
-                </article>
                 <article class="widget" aria-labelledby="w-links-title">
                   <header class="widget-head">
                     <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
@@ -306,14 +361,14 @@
               <div class="section-header">
                 <div>
                   <p class="eyebrow">Bonjour, <span id="welcome-name">utilisateur</span></p>
-                  <h2 id="links-title" class="section-title">Offres</h2>
+                  <h2 id="links-title" class="section-title">Rechercher une offre</h2>
                 </div>
                 <button id="refresh-links" class="secondary-button" type="button">
                   <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
                   Actualiser
                 </button>
               </div>
-              <p class="ad-notice">Toutes ces offres sont des <strong>liens affiliés</strong> (mention « Publicité ») : la personne qui a publié le lien (un membre ou l'équipe HAISSEL) peut toucher une commission si tu réalises l'action demandée. <strong>Aucun gain n'est garanti</strong>, ni pour toi ni pour elle. Rien ne t'oblige à cliquer.</p>
+              <p class="ad-notice">Toutes ces offres sont des <strong>liens affiliés</strong> (badge « Lien affilié ») : la personne qui a publié le lien (un membre ou l'équipe HAISSEL) peut toucher une commission si tu réalises l'action demandée. <strong>Aucun gain n'est garanti</strong>, ni pour toi ni pour elle. Rien ne t'oblige à cliquer.</p>
 
               <h3 class="subsection-title">Offres de la communauté</h3>
               <form id="community-filters" class="filters-bar" role="search" aria-label="Rechercher une offre">
@@ -348,6 +403,8 @@
                 </div>
               </div>
               <p class="ad-notice">Ici, on apprend comment fonctionne l'affiliation. <strong>Personne ne peut garantir des gains</strong> : beaucoup de débutants ne gagnent rien. Les conditions officielles de chaque programme priment toujours sur ces pages.</p>
+
+              <p id="minor-notice" class="ad-notice hidden">Tu as déclaré avoir <strong>moins de 18 ans</strong>. Les guides ci-dessous restent à ta disposition. Le parcours MyLead, le parrainage, la publication d'offres et l'ouverture des liens affiliés demandent 18 ans, parce qu'ils mènent à un compte éditeur MyLead.</p>
 
               <div class="learn-tabs" role="tablist" aria-label="Rubriques de la formation">
                 <button class="learn-tab active" type="button" role="tab" aria-selected="true" aria-controls="learn-mylead" data-learn-tab="mylead">Parcours MyLead</button>
@@ -491,46 +548,53 @@
                   <span>Titre <small>(5 à 120 caractères)</small></span>
                   <input id="pub-title" type="text" minlength="5" maxlength="120" required />
                 </label>
+                <p class="field-error hidden" id="err-title" role="alert"></p>
                 <label class="field">
                   <span>Lien <small>(doit commencer par https://)</small></span>
                   <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required />
                 </label>
+                <p class="field-error hidden" id="err-url" role="alert"></p>
                 <label class="field">
                   <span>Description <small>(ce que c'est et pour qui, 20 caractères minimum)</small></span>
                   <textarea id="pub-description" rows="4" minlength="20" maxlength="1500" required></textarea>
                 </label>
-                <div class="grid-2">
-                  <label class="field">
-                    <span>Catégorie</span>
-                    <select id="pub-category" required><option value="">Choisir…</option></select>
-                  </label>
-                  <label class="field">
-                    <span>Pays concernés <small>(codes : FR, BE…)</small></span>
-                    <input id="pub-countries" type="text" maxlength="200" placeholder="FR, BE" required />
-                  </label>
-                </div>
+                <p class="field-error hidden" id="err-description" role="alert"></p>
+                <label class="field">
+                  <span>Catégorie</span>
+                  <select id="pub-category" required><option value="">Choisir…</option></select>
+                </label>
+                <p class="field-error hidden" id="err-category" role="alert"></p>
+                <label class="field">
+                  <span>Pays concernés <small>(codes : FR, BE…)</small></span>
+                  <input id="pub-countries" type="text" maxlength="200" placeholder="FR, BE" required />
+                </label>
+                <p class="field-error hidden" id="err-countries" role="alert"></p>
                 <label class="field">
                   <span>Action attendue <small>(ex. « inscription avec e-mail confirmé »)</small></span>
                   <input id="pub-action" type="text" maxlength="300" required />
                 </label>
-                <div class="grid-2">
-                  <label class="field">
-                    <span>Rémunération annoncée <small>(facultatif)</small></span>
-                    <input id="pub-payout" type="text" maxlength="160" placeholder="Seulement si elle figure dans ta campagne" />
-                  </label>
-                  <label class="field">
-                    <span>Âge minimum <small>(si la campagne en fixe un)</small></span>
-                    <input id="pub-min-age" type="number" inputmode="numeric" min="10" max="99" />
-                  </label>
-                </div>
+                <p class="field-error hidden" id="err-expected_action" role="alert"></p>
+                <label class="field">
+                  <span>Rémunération annoncée <small>(facultatif)</small></span>
+                  <input id="pub-payout" type="text" maxlength="160" placeholder="Seulement si elle figure dans ta campagne" />
+                </label>
+                <p class="field-error hidden" id="err-payout_text" role="alert"></p>
+                <label class="field">
+                  <span>Âge minimum <small>(si la campagne en fixe un)</small></span>
+                  <input id="pub-min-age" type="number" inputmode="numeric" min="10" max="99" />
+                </label>
+                <p class="field-error hidden" id="err-min_age" role="alert"></p>
                 <label class="field">
                   <span>Conditions et restrictions <small>(facultatif)</small></span>
                   <textarea id="pub-conditions" rows="3" maxlength="2000" placeholder="ex. pas de trafic incité, France uniquement…"></textarea>
                 </label>
-                <label class="show-password">
+                <p class="field-error hidden" id="err-conditions" role="alert"></p>
+                <label class="show-password rights-check">
                   <input id="pub-rights" type="checkbox" required />
-                  <span>Je confirme avoir le droit de promouvoir cette offre (campagne acceptée sur ma plateforme d'affiliation) et que les informations sont exactes.</span>
+                  <span>Ce lien vient de <strong>mon propre compte éditeur</strong> et je respecte les conditions de la campagne.</span>
                 </label>
+                <p class="field-error hidden" id="err-rights_confirmed" role="alert"></p>
+                <div class="turnstile-slot hidden" data-turnstile-action="publish"></div>
                 <div class="publish-actions">
                   <button id="pub-preview-button" class="secondary-button" type="button">Voir l'aperçu</button>
                   <button class="primary-button" type="submit">Envoyer pour vérification</button>
@@ -605,6 +669,84 @@
                   </form>
                   <p class="security-note">Changer le mot de passe ferme toutes vos autres sessions.</p>
                   <button id="logout-all-button" class="ghost-button danger-button" type="button">Se déconnecter de tous les appareils</button>
+                </div>
+
+                <!-- Double authentification : facultative pour les membres,
+                     imposée aux administrateurs (voir ensureAdmin). -->
+                <div class="profile-card-box security-box" id="mfa-box">
+                  <h3 class="card-title">Double authentification</h3>
+                  <p class="mfa-state" id="mfa-state" aria-live="polite">
+                    <span class="pill" id="mfa-state-pill">—</span>
+                  </p>
+                  <p class="security-note" id="mfa-explain">Un code à 6 chiffres, en plus du mot de passe, à la connexion. Même si quelqu’un apprend ton mot de passe, il ne peut pas entrer sans ton téléphone. C’est facultatif, mais vivement conseillé.</p>
+
+                  <div id="mfa-error" class="auth-error hidden" role="alert"></div>
+                  <div id="mfa-info" class="auth-info hidden" role="status" aria-live="polite"></div>
+
+                  <!-- Étape 1 : mot de passe -->
+                  <form id="mfa-start-form" class="auth-form hidden" novalidate>
+                    <p class="mfa-step-label">Étape 1 sur 3 — confirme que c’est bien toi</p>
+                    <label class="field">
+                      <span>Ton mot de passe HAISSEL</span>
+                      <input id="mfa-password" type="password" autocomplete="current-password" maxlength="128" required />
+                    </label>
+                    <button class="primary-button" type="submit">Continuer</button>
+                  </form>
+
+                  <!-- Étape 2 : clé à enregistrer -->
+                  <div id="mfa-secret-step" class="hidden">
+                    <p class="mfa-step-label">Étape 2 sur 3 — ajoute HAISSEL dans ton application</p>
+                    <ol class="learn-points">
+                      <li>Installe une application de codes : Google Authenticator, Microsoft Authenticator, Aegis…</li>
+                      <li>Ajoute un compte « manuellement » puis colle la clé ci-dessous.</li>
+                    </ol>
+                    <p class="mfa-secret" id="mfa-secret" aria-label="Clé à recopier dans ton application"></p>
+                    <button id="mfa-copy" class="secondary-button" type="button">Copier la clé</button>
+                    <p class="security-note">Ne partage cette clé avec personne. HAISSEL ne te la redemandera jamais.</p>
+
+                    <form id="mfa-enable-form" class="auth-form" novalidate>
+                      <p class="mfa-step-label">Étape 3 sur 3 — recopie le code affiché</p>
+                      <label class="field">
+                        <span>Code à 6 chiffres</span>
+                        <input id="mfa-enable-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required />
+                      </label>
+                      <button class="primary-button" type="submit">Activer la double authentification</button>
+                      <button id="mfa-cancel" class="text-button" type="button">Annuler</button>
+                    </form>
+                  </div>
+
+                  <!-- Codes de secours, affichés une seule fois -->
+                  <div id="mfa-recovery-step" class="hidden">
+                    <p class="mfa-step-label">Garde ces codes de secours</p>
+                    <p class="security-note">Ils te permettent d’entrer si tu perds ton téléphone. <strong>Ils ne seront plus jamais affichés.</strong> Note-les sur papier ou mets-les dans ton gestionnaire de mots de passe.</p>
+                    <ul class="mfa-codes" id="mfa-codes"></ul>
+                    <button id="mfa-codes-copy" class="secondary-button" type="button">Copier les codes</button>
+                    <button id="mfa-codes-done" class="primary-button" type="button">J’ai noté mes codes</button>
+                  </div>
+
+                  <!-- Actions quand elle est active -->
+                  <div id="mfa-active-actions" class="hidden">
+                    <button id="mfa-disable" class="ghost-button danger-button" type="button">Désactiver la double authentification</button>
+                  </div>
+
+                  <!-- Désactivation : le serveur exige le mot de passe ET un code
+                       valide. Formulaire plutôt qu'une boîte de dialogue : deux
+                       champs à saisir, et un clavier numérique sur téléphone. -->
+                  <form id="mfa-disable-form" class="auth-form hidden" novalidate>
+                    <p class="mfa-step-label">Désactiver : confirme avec ton mot de passe et un code</p>
+                    <label class="field">
+                      <span>Ton mot de passe HAISSEL</span>
+                      <input id="mfa-disable-password" type="password" autocomplete="current-password" maxlength="128" required />
+                    </label>
+                    <label class="field">
+                      <span>Code à 6 chiffres de ton application</span>
+                      <input id="mfa-disable-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required />
+                    </label>
+                    <button class="primary-button danger-button" type="submit">Confirmer la désactivation</button>
+                    <button id="mfa-disable-cancel" class="text-button" type="button">Annuler</button>
+                  </form>
+
+                  <button id="mfa-enable-start" class="primary-button hidden" type="button">Activer la double authentification</button>
                 </div>
 
                 <div class="profile-card-box security-box">
@@ -702,6 +844,7 @@
       <div id="member-offers" class="offer-grid" aria-live="polite"></div>
     </dialog>
 
+    <script src="inert.js"></script>
     <script src="turnstile.js"></script>
     <script src="notifications.js"></script>
     <script src="mylead-guide.js"></script>
