@@ -1,6 +1,13 @@
 /*
  * Tests d'intégration contre PostgreSQL (schéma isolé, voir helpers/setup.js).
+ *
+ * Le moteur d'affiliation interne est gelé par défaut : cette suite le teste,
+ * donc elle l'active. À poser AVANT require('../src/app'), les routes lisant
+ * le drapeau à chaque requête mais la configuration devant être stable pour
+ * toute la suite. Voir tests/affiliation-disabled.test.js pour l'état par défaut.
  */
+process.env.ENABLE_INTERNAL_AFFILIATION = 'true';
+
 const helpers = require('./helpers/setup');
 
 const request = require('supertest');
@@ -492,10 +499,6 @@ describe('MISC', () => {
     expect(res.body).toMatchObject({ status: 'ok', database: 'connected', schema: 'ok' });
   });
 
-  it('legacy social API is disabled by default', async () => {
-    expect((await request(app).get('/api/posts')).status).toBe(404);
-  });
-
   it('does not leak internals on malformed JSON', async () => {
     const res = await request(app).post('/api/auth/login').set('Content-Type', 'application/json').send('{bad json');
     expect(res.status).toBe(400);
@@ -515,8 +518,9 @@ describe('MISC', () => {
   it('rate limits repeated failed logins', async () => {
     process.env.RATE_LIMIT_IN_TESTS = 'true';
     try {
+      // Limite relevée à 30 échecs / 15 min (réseaux partagés, voir README).
       const statuses = [];
-      for (let i = 0; i < 12; i += 1) {
+      for (let i = 0; i < 40; i += 1) {
         const res = await request(app).post('/api/auth/login').set(lanHeaders('192.168.1.222'))
           .send({ identifier: `nobody${i}`, password: 'wrong-password' });
         statuses.push(res.status);

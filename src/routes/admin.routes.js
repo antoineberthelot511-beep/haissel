@@ -9,6 +9,7 @@ const {
   authenticateToken,
   ensureAdmin,
 } = require('../middleware/auth.middleware');
+const { requireInternalAffiliation } = require('../middleware/feature.middleware');
 
 const router = express.Router();
 
@@ -22,19 +23,32 @@ router.get('/stats', admin.getAdminOverview);
 
 router.get('/users', admin.listUsers);
 router.patch('/users/:id/status', admin.updateUserStatus);
+// Remet la question sur l’âge à zéro : seul recours contre le délai de 30 jours.
+router.post('/users/:id/adult-declaration/reset', admin.resetAdultDeclaration);
 
+/*
+ * Catalogue des liens publiés et leurs clics : fonctionnalité ACTIVE du site
+ * (écrans « Liens » et « Clics », redirection /go/:id). Sans rapport avec le
+ * moteur d'affiliation interne gelé ci-dessous, qui porte sur les codes
+ * personnels HAI-XXXXXXXX.
+ */
 router.get('/affiliates', admin.listAffiliateLinks);
 router.post('/affiliates', admin.createAffiliateLink);
 router.patch('/affiliates/:id', admin.updateAffiliateLink);
 
 router.get('/clicks', admin.listClicks);
 
-router.get('/conversions', admin.listConversions);
-router.post('/conversions', admin.createManualConversion);
-router.patch('/conversions/:id/status', admin.changeConversionStatus);
+/*
+ * Conversions et gains : moteur d'affiliation interne, gelé par défaut
+ * (ENABLE_INTERNAL_AFFILIATION). Les tables conversions et earnings restent
+ * intactes ; seules ces routes cessent de répondre.
+ */
+router.get('/conversions', requireInternalAffiliation, admin.listConversions);
+router.post('/conversions', requireInternalAffiliation, admin.createManualConversion);
+router.patch('/conversions/:id/status', requireInternalAffiliation, admin.changeConversionStatus);
 
-router.get('/earnings', admin.listEarnings);
-router.patch('/earnings/:id/pay', admin.markEarningPaid);
+router.get('/earnings', requireInternalAffiliation, admin.listEarnings);
+router.patch('/earnings/:id/pay', requireInternalAffiliation, admin.markEarningPaid);
 
 router.get('/actions', admin.listAdminActions);
 
@@ -57,5 +71,14 @@ router.put('/learn/settings', learn.updateSettings);
 // Modération des offres publiées par les membres.
 router.get('/community/offers', community.adminListOffers);
 router.post('/community/offers/:id/moderate', community.adminModerateOffer);
+
+/*
+ * Catégories des offres (table offer_categories). L'identifiant n'est pas
+ * modifiable : il est inscrit dans les offres existantes.
+ */
+router.get('/community/categories', community.adminListCategories);
+router.post('/community/categories', community.adminCreateCategory);
+router.patch('/community/categories/:slug', community.adminUpdateCategory);
+router.delete('/community/categories/:slug', community.adminDeleteCategory);
 
 module.exports = router;
