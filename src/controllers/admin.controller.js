@@ -575,7 +575,48 @@ function getNetworkInfo(req, res) {
   return res.status(200).json({ success: true, data: { port, addresses } });
 }
 
+/*
+ * Remet la déclaration de majorité à NULL : la question sera reposée au
+ * membre à sa prochaine visite.
+ *
+ * Seul recours quand quelqu'un s'est trompé et se heurte au délai de 30 jours
+ * (voir adult.service). Journalisé dans admin_actions, car cela rouvre
+ * l'accès à ce qui est réservé aux majeurs.
+ *
+ * La contrainte users_adult_declaration_check impose que les deux colonnes
+ * soient nulles ensemble : on remet donc aussi adult_declared_at a NULL.
+ */
+async function resetAdultDeclaration(req, res, next) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return sendError(res, 400, 'INVALID_ID', 'Utilisateur invalide.');
+
+    const result = await pool.query(
+      `UPDATE users SET is_adult = NULL, adult_declared_at = NULL, updated_at = NOW()
+       WHERE id = $1 RETURNING id, username, is_adult`,
+      [id]
+    );
+    const user = result.rows[0];
+    if (!user) return sendError(res, 404, 'NOT_FOUND', 'Utilisateur introuvable.');
+
+    await pool.query(
+      `INSERT INTO admin_actions (admin_user_id, action, target_type, target_id, details)
+       VALUES ($1, 'user.adult_declaration_reset', 'user', $2, $3)`,
+      [req.user.id, id, JSON.stringify({ username: user.username })]
+    );
+    logger.info('Adult declaration reset', { adminId: req.user.id, userId: id });
+
+    return res.status(200).json({
+      success: true,
+      data: { message: `La question sur l’âge sera reposée à @${user.username} à sa prochaine visite.` },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
+  resetAdultDeclaration,
   getNetworkInfo,
   getAdminOverview,
   listUsers,

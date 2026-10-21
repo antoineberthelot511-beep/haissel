@@ -22,7 +22,7 @@ const state = {
   loadedAt: 0,
   resetToken: '',
   learn: { loaded: false, opportunities: [] },
-  community: { loaded: false, categories: {}, editing: null, reportId: null },
+  community: { loaded: false, categories: {}, editing: null, reportId: null, pendingCategory: '' },
 };
 
 const ui = {};
@@ -92,6 +92,8 @@ async function api(url, { method = 'GET', body } = {}) {
   if (!response.ok) {
     const message = typeof payload.error?.message === 'string' ? payload.error.message : 'Une erreur est survenue.';
     const error = new ApiError(response.status, payload.error?.code || 'ERROR', message);
+    // Nom du champ fautif, quand le serveur le précise (voir sendError).
+    error.field = typeof payload.error?.field === 'string' ? payload.error.field : null;
     const sessionLost = response.status === 401 && state.user && !url.startsWith('/api/auth/');
     if (sessionLost || (response.status === 403 && error.code === 'ADMIN_LOCAL_ONLY' && state.user)) {
       showLoggedOut();
@@ -185,11 +187,56 @@ function showLoggedOut() {
   state.user = null;
   state.links = [];
   state.learn = { loaded: false, opportunities: [] };
-  state.community = { loaded: false, categories: {}, editing: null, reportId: null };
+  state.community = {
+    loaded: false, categories: {}, editing: null, reportId: null, pendingCategory: '',
+  };
   ui.authScreen.classList.remove('hidden');
   ui.appScreen.classList.add('hidden');
   updateUserSummary();
   setActiveView('home');
+}
+
+/*
+ * Majorite declaree.
+ *
+ * Le masquage ci-dessous est un confort : il evite de proposer ce qui sera
+ * refuse. La regle reelle est appliquee par le serveur (403), qui ne transmet
+ * meme pas l'adresse des liens affiliés a un mineur.
+ */
+function isAdultMember() {
+  return state.user?.is_adult === true;
+}
+
+function needsAgeAnswer() {
+  return Boolean(state.user) && state.user.adult_declaration_required === true;
+}
+
+/** Montre ou cache tout ce qui suppose 18 ans. */
+function applyAgeRestrictions() {
+  const adult = isAdultMember();
+  const minor = Boolean(state.user) && state.user.is_adult === false;
+
+  // Onglet « Publier » : retire de la navigation et des raccourcis.
+  document.querySelectorAll('[data-view="publish"], [data-goto="publish"]').forEach((el) => {
+    el.classList.toggle('hidden', !adult);
+  });
+  // Parcours MyLead et Parrainage : rubriques de l'espace Apprendre.
+  document.querySelectorAll('[data-learn-tab="mylead"], [data-learn-tab="referral"]').forEach((el) => {
+    el.classList.toggle('hidden', !adult);
+  });
+
+  const notice = document.getElementById('minor-notice');
+  if (notice) notice.classList.toggle('hidden', !minor);
+
+  // Une rubrique masquée ne doit pas rester la rubrique active.
+  const activeTab = document.querySelector('.learn-tab.active');
+  if (!adult && activeTab && ['mylead', 'referral'].includes(activeTab.dataset.learnTab)) {
+    setLearnTab('guides');
+  }
+  // Idem pour la vue : un mineur ne reste pas sur « Publier ».
+  if (!adult && !document.getElementById('publish-view').classList.contains('hidden')) {
+    setActiveView('home');
+  }
 }
 
 function showLoggedIn(user) {
@@ -197,9 +244,69 @@ function showLoggedIn(user) {
   ui.authScreen.classList.add('hidden');
   ui.appScreen.classList.remove('hidden');
   updateUserSummary();
+  applyAgeRestrictions();
+  renderMfaState();
+  // Comptes anterieurs a la declaration : la question passe avant tout.
+  if (needsAgeAnswer()) openAgeGate();
   setActiveView('home');
   loadLinks();
   if (notificationCenter) notificationCenter.start();
+}
+
+// ---------------------------------------------------------------------------
+// Question de majorite (comptes existants)
+// ---------------------------------------------------------------------------
+
+/*
+ * Ecran bloquant : le contenu de dessous est rendu inerte, sinon la question
+ * serait contournable a la tabulation. Pas de bouton « fermer » : il n'y a
+ * pas de troisieme reponse possible.
+ */
+/*
+ * Contenu situé derrière l'écran : les deux enfants directs de <body>. Le lien
+ * « Aller au contenu » n'est PAS dans .app-shell ; l'oublier laissait la
+ * tabulation l'atteindre, puis repartir dans la page masquée.
+ */
+function setGateInert(on) {
+  for (const selector of ['.skip-link', '.app-shell']) {
+    window.HaisselInert.set(document.querySelector(selector), 'age-gate', on);
+  }
+}
+
+function openAgeGate() {
+  const gate = document.getElementById('age-gate');
+  if (!gate) return;
+  gate.hidden = false;
+  document.body.classList.add('age-gate-open');
+  setGateInert(true);
+  document.getElementById('age-gate-error').classList.add('hidden');
+  gate.focus({ preventScroll: true });
+}
+
+function closeAgeGate() {
+  const gate = document.getElementById('age-gate');
+  if (!gate) return;
+  gate.hidden = true;
+  document.body.classList.remove('age-gate-open');
+  setGateInert(false);
+}
+
+async function answerAgeGate(isAdultAnswer) {
+  const error = document.getElementById('age-gate-error');
+  error.classList.add('hidden');
+  try {
+    const data = await api('/api/auth/adult-declaration', { method: 'POST', body: { is_adult: isAdultAnswer } });
+    state.user = data.user;
+    closeAgeGate();
+    applyAgeRestrictions();
+    updateUserSummary();
+    setMessage('info', isAdultAnswer
+      ? 'Merci. Tu as acces a l\u2019ensemble du site.'
+      : 'Merci. Les guides de l\u2019espace Apprendre restent accessibles.');
+  } catch (err) {
+    error.textContent = err.message;
+    error.classList.remove('hidden');
+  }
 }
 
 function linkCard(link) {
@@ -386,8 +493,18 @@ async function loadLearn() {
     if (!list.childElementCount) list.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement…'));
   }
   try {
+    /*
+     * Le parrainage est refusé (403) aux membres non majeurs : son échec ne
+     * doit pas emporter les guides et les opportunités, qui leur restent
+     * ouverts. D'où le catch individuel plutôt qu'un Promise.all strict.
+     */
     const [content, opportunities, referral] = await Promise.all([
-      api('/api/learn/content'), api('/api/learn/opportunities'), api('/api/learn/referral'),
+      api('/api/learn/content'),
+      api('/api/learn/opportunities'),
+      api('/api/learn/referral').catch((error) => {
+        if (error.status === 403) return { available: false, restricted: true };
+        throw error;
+      }),
     ]);
     const items = content.items || [];
     state.learn = { loaded: true, opportunities: opportunities.items || [] };
@@ -449,13 +566,37 @@ function fillCategorySelect(select, categories, firstLabel) {
 }
 
 /** Ouvre un lien de membre après confirmation (domaine affiché, âge rappelé). */
+/*
+ * Ouverture d'une offre de la communauté.
+ *
+ * L'adresse de destination n'est PAS dans la liste reçue : le navigateur la
+ * demande au serveur au moment du clic, ce qui laisse au serveur le dernier
+ * mot (majorité déclarée, âge minimum de l'offre). Si elle est déjà connue
+ * (offre dont on est l'auteur), on l'utilise directement.
+ */
 function confirmLeave(offer) {
   ui.leaveDomain.textContent = offer.domain || 'site externe';
   ui.leaveAge.textContent = offer.min_age ? `Offre réservée aux ${offer.min_age} ans et plus : ne continuez que si vous avez cet âge.` : '';
   ui.leaveAge.classList.toggle('hidden', !offer.min_age);
   ui.leaveDialog.returnValue = '';
-  ui.leaveDialog.addEventListener('close', () => {
-    if (ui.leaveDialog.returnValue === 'confirm') window.open(offer.url, '_blank', 'noopener,noreferrer');
+  ui.leaveDialog.addEventListener('close', async () => {
+    if (ui.leaveDialog.returnValue !== 'confirm') return;
+    if (offer.url) {
+      window.open(offer.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    /*
+     * Fenêtre ouverte AVANT l'appel réseau : un onglet ouvert plus tard, hors
+     * du geste de l'utilisateur, serait bloqué par le navigateur.
+     */
+    const tab = window.open('', '_blank', 'noopener,noreferrer');
+    try {
+      const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}/open`);
+      if (tab) tab.location = data.url; else window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      if (tab) tab.close();
+      setMessage('error', error.message);
+    }
   }, { once: true });
   openDialog(ui.leaveDialog);
 }
@@ -471,14 +612,25 @@ function communityCard(offer, { preview = false } = {}) {
     h('div', { className: 'offer-body' },
       h('div', { className: 'offer-header-line' },
         h('h4', null, offer.title),
-        h('span', { className: 'pill ad', title: 'Lien affilié : son auteur peut toucher une commission.' }, 'Publicité'),
+        // Mention obligatoire, en toutes lettres : « Publicité » seul était trop vague.
+        h('span', { className: 'pill ad', title: 'Son auteur peut toucher une commission si tu réalises l’action.' }, 'Lien affilié'),
         h('span', { className: 'pill' }, offer.category_label),
         offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
       h('p', { className: 'community-description' }, offer.description),
       h('ul', { className: 'profile-list compact' },
         row('Action attendue', offer.expected_action),
         row('Pays', offer.countries),
-        row('Rémunération annoncée', offer.payout_text ? `${offer.payout_text} (non garantie)` : null)),
+        offer.min_age ? row('Âge minimum', `${offer.min_age} ans`) : null,
+        /*
+         * Aucun montant n'est inventé : la ligne n'apparaît que si l'auteur a
+         * saisi payout_text, et elle porte toujours la mise en garde.
+         */
+        offer.payout_text
+          ? h('li', { className: 'payout-row' },
+            h('span', null, 'Rémunération annoncée'),
+            h('strong', null, offer.payout_text),
+            h('em', { className: 'payout-note' }, 'indicatif, non garanti'))
+          : null),
       offer.conditions ? h('details', { className: 'community-conditions' },
         h('summary', null, 'Conditions et restrictions'), h('p', null, offer.conditions)) : null,
       h('p', { className: 'community-meta' },
@@ -492,11 +644,18 @@ function communityCard(offer, { preview = false } = {}) {
         h('div', { className: 'card-actions' },
           offer.is_mine || preview ? null : saveButton,
           offer.is_mine || preview ? null : h('button', { className: 'ghost-button small-button', type: 'button', onclick: () => openReport(offer) }, 'Signaler'),
-          h('button', {
-            className: 'offer-link-button', type: 'button', disabled: preview,
-            'aria-label': `Ouvrir « ${offer.title} » (site externe, nouvel onglet)`,
-            onclick: () => confirmLeave(offer),
-          }, 'Ouvrir ↗')))));
+          /*
+           * can_open vient du serveur. Un mineur, ou une offre dont l'âge
+           * minimum dépasse ce que HAISSEL peut certifier, n'affiche pas de
+           * bouton : la raison est dite, plutôt qu'un bouton qui échouerait.
+           */
+          offer.can_open === false
+            ? h('p', { className: 'offer-blocked' }, 'À partir de 18 ans')
+            : h('button', {
+              className: 'offer-link-button', type: 'button', disabled: preview,
+              'aria-label': `Ouvrir « ${offer.title} » (site externe, nouvel onglet)`,
+              onclick: () => confirmLeave(offer),
+            }, 'Ouvrir ↗')))));
 }
 
 function communityQuery() {
@@ -510,6 +669,38 @@ function communityQuery() {
   return params.toString();
 }
 
+/*
+ * Les filtres vivent dans l'adresse de la page : une recherche peut être
+ * partagée ou mise en favori, et le bouton « précédent » du téléphone
+ * retrouve l'état précédent. replaceState : on n'empile pas une entrée
+ * d'historique à chaque frappe dans le champ de recherche.
+ */
+function syncFiltersToUrl() {
+  const query = communityQuery();
+  const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+  try {
+    window.history.replaceState(null, '', url + window.location.hash);
+  } catch (error) { /* navigateur sans History API : sans conséquence */ }
+}
+
+/** Remplit les filtres depuis l'adresse au premier affichage. */
+function readFiltersFromUrl() {
+  let params;
+  try {
+    params = new URLSearchParams(window.location.search);
+  } catch (error) {
+    return;
+  }
+  const q = params.get('q');
+  const category = params.get('category');
+  const country = params.get('country');
+  if (q) ui.communityQ.value = q.slice(0, 80);
+  if (country && /^[A-Za-z]{2}$/.test(country)) ui.communityCountry.value = country.toUpperCase();
+  ui.communitySaved.checked = params.get('saved') === '1';
+  // La catégorie est appliquée après le remplissage de la liste déroulante.
+  state.community.pendingCategory = category || '';
+}
+
 async function loadCommunity() {
   ui.communityList.setAttribute('aria-busy', 'true');
   if (!ui.communityList.childElementCount) ui.communityList.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement des offres…'));
@@ -520,6 +711,18 @@ async function loadCommunity() {
     state.community.categories = data.categories || {};
     fillCategorySelect(ui.communityCategory, state.community.categories, 'Toutes');
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
+
+    /*
+     * La catégorie venant de l'adresse ne peut être appliquée qu'ici : la liste
+     * déroulante vient seulement d'être remplie. Une seule fois.
+     */
+    if (state.community.pendingCategory) {
+      if (state.community.categories[state.community.pendingCategory]) {
+        ui.communityCategory.value = state.community.pendingCategory;
+      }
+      state.community.pendingCategory = '';
+    }
+
     const items = data.items || [];
     ui.communityList.setAttribute('aria-busy', 'false');
     ui.communityList.replaceChildren(...(items.length
@@ -527,10 +730,17 @@ async function loadCommunity() {
       : [h('div', { className: 'panel-card' }, query
         ? 'Aucune offre ne correspond à ta recherche.'
         : 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
-    if (!query) {
-      widgetItems(ui.homeCommunity, items.slice(0, 5).map((offer) => h('li', null,
-        h('button', { className: 'widget-link', type: 'button', onclick: () => confirmLeave(offer) }, offer.title),
-        h('small', null, `@${offer.author.username}`))), 'Aucune offre publiée pour le moment.');
+
+    /*
+     * Accueil : les mêmes offres, en cartes, sans filtre. On ne le met à jour
+     * que lorsque la liste reçue n'est pas filtrée, sinon une recherche
+     * modifierait aussi la page d'accueil.
+     */
+    if (!query && ui.homeOffers) {
+      ui.homeOffers.replaceChildren(...(items.length
+        ? items.slice(0, 10).map((offer) => communityCard(offer))
+        : [h('div', { className: 'panel-card' },
+          'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
     }
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -538,14 +748,17 @@ async function loadCommunity() {
     ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
       h('p', null, `Impossible de charger les offres : ${error.message}`),
       h('button', { className: 'secondary-button', type: 'button', onclick: loadCommunity }, 'Réessayer')));
-    widgetItems(ui.homeCommunity, [], 'Offres indisponibles pour le moment.');
+    if (ui.homeOffers) {
+      ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+        'Offres indisponibles pour le moment.'));
+    }
   }
 }
 
 let communityTimer;
 function scheduleCommunityLoad() {
   clearTimeout(communityTimer);
-  communityTimer = setTimeout(loadCommunity, 300);
+  communityTimer = setTimeout(() => { syncFiltersToUrl(); loadCommunity(); }, 300);
 }
 
 async function toggleSave(offer, button) {
@@ -631,6 +844,50 @@ function readPublishForm() {
     conditions: ui.pubConditions.value.trim() || null,
     rights_confirmed: ui.pubRights.checked,
   };
+}
+
+/*
+ * Messages d'erreur : le serveur indique le champ fautif (error.field), ce qui
+ * permet de placer le message juste sous ce champ plutôt qu'en haut du
+ * formulaire, où il passe inaperçu sur un téléphone.
+ */
+const PUBLISH_FIELD_INPUTS = {
+  title: 'pubTitle',
+  url: 'pubUrl',
+  description: 'pubDescription',
+  category: 'pubCategory',
+  countries: 'pubCountries',
+  expected_action: 'pubAction',
+  payout_text: 'pubPayout',
+  min_age: 'pubMinAge',
+  conditions: 'pubConditions',
+  rights_confirmed: 'pubRights',
+};
+
+function clearFieldErrors() {
+  for (const field of Object.keys(PUBLISH_FIELD_INPUTS)) {
+    const slot = document.getElementById(`err-${field}`);
+    if (slot) {
+      slot.textContent = '';
+      slot.classList.add('hidden');
+    }
+    const input = ui[PUBLISH_FIELD_INPUTS[field]];
+    if (input) input.removeAttribute('aria-invalid');
+  }
+}
+
+/** Retourne true si le message a pu être placé sous un champ. */
+function showFieldError(field, message) {
+  const slot = field ? document.getElementById(`err-${field}`) : null;
+  if (!slot) return false;
+  slot.textContent = message;
+  slot.classList.remove('hidden');
+  const input = ui[PUBLISH_FIELD_INPUTS[field]];
+  if (input) {
+    input.setAttribute('aria-invalid', 'true');
+    input.focus({ preventScroll: false });
+  }
+  return true;
 }
 
 function publishFeedback(kind, message) {
@@ -741,12 +998,23 @@ async function loadMyOffers() {
 
 async function handlePublish(event) {
   event.preventDefault();
+  clearFieldErrors();
   const values = readPublishForm();
   const problem = checkPublishForm(values);
   if (problem) {
     publishFeedback('error', problem);
     return;
   }
+  /*
+   * Seule la création est vérifiée côté serveur (POST) : une modification
+   * (PATCH) vient d'un membre déjà connu, dont l'offre est déjà passée par la
+   * modération. On n'envoie donc le jeton que pour une nouvelle offre.
+   */
+  if (!state.community.editing && !attachTurnstile(ui.publishForm, values)) {
+    publishFeedback('error', 'Validez la vérification anti-robot avant de continuer.');
+    return;
+  }
+
   setBusy(ui.publishForm, true);
   try {
     const editing = state.community.editing;
@@ -754,11 +1022,17 @@ async function handlePublish(event) {
       method: editing ? 'PATCH' : 'POST', body: values,
     });
     resetPublishForm();
+    resetTurnstile(ui.publishForm);
     publishFeedback('info', data.offer?.status === 'published' ? 'Ton offre est publiée.' : data.message);
     ui.publishSuccess.focus?.();
     loadMyOffers();
   } catch (error) {
-    publishFeedback('error', error.message);
+    // Message sous le champ fautif quand le serveur l'indique, sinon en haut.
+    if (!showFieldError(error.field, error.message)) {
+      publishFeedback('error', error.message);
+    } else {
+      publishFeedback('', '');
+    }
   } finally {
     setBusy(ui.publishForm, false);
   }
@@ -805,11 +1079,18 @@ async function handleLogin(event) {
     return;
   }
 
+  const body = { identifier, password };
+  if (!attachTurnstile(form, body)) {
+    setMessage('error', 'Validez la vérification anti-robot avant de continuer.');
+    return;
+  }
+
   setBusy(form, true);
   try {
     setMessage('', '');
-    const data = await api('/api/auth/login', { method: 'POST', body: { identifier, password } });
+    const data = await api('/api/auth/login', { method: 'POST', body });
     ui.loginPassword.value = '';
+    resetTurnstile(form);
     if (data.mfa_required) {
       showAuthForm('mfa-form');
       return;
@@ -844,6 +1125,214 @@ async function handleMfa(event) {
   }
 }
 
+/*
+ * Ajoute le jeton anti-robot au corps d'une requête.
+ * Retourne false si le widget est actif mais pas encore validé : on affiche
+ * alors un message plutôt que d'envoyer une requête qui sera refusée.
+ */
+function attachTurnstile(form, body) {
+  if (!window.HaisselTurnstile || !window.HaisselTurnstile.enabled()) return true;
+  const token = window.HaisselTurnstile.tokenFor(form);
+  if (!token) return false;
+  body.cf_turnstile_response = token;
+  return true;
+}
+
+/** Un jeton ne sert qu'une fois : le widget est remis à zéro après envoi. */
+function resetTurnstile(form) {
+  if (window.HaisselTurnstile) window.HaisselTurnstile.reset(form);
+}
+
+// ---------------------------------------------------------------------------
+// Double authentification (facultative pour les membres)
+// ---------------------------------------------------------------------------
+
+/*
+ * Trois écrans successifs, un seul visible à la fois : mot de passe, clé à
+ * recopier, puis code de vérification. Les codes de secours s'affichent une
+ * seule fois, à la fin.
+ *
+ * Aucun secret n'est conservé dans l'application : la clé vit dans le DOM le
+ * temps de l'opération, et le serveur la garde en attente (chiffrée) jusqu'à
+ * la validation du premier code.
+ */
+const MFA_SCREENS = ['mfa-start-form', 'mfa-secret-step', 'mfa-recovery-step',
+  'mfa-active-actions', 'mfa-enable-start', 'mfa-disable-form'];
+
+function showMfaScreens(visible) {
+  for (const id of MFA_SCREENS) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', !visible.includes(id));
+  }
+}
+
+function mfaMessage(kind, text) {
+  const error = document.getElementById('mfa-error');
+  const info = document.getElementById('mfa-info');
+  error.textContent = kind === 'error' ? text : '';
+  error.classList.toggle('hidden', kind !== 'error');
+  info.textContent = kind === 'info' ? text : '';
+  info.classList.toggle('hidden', kind !== 'info');
+}
+
+/** État affiché d'après state.user, après chaque changement. */
+function renderMfaState() {
+  const box = document.getElementById('mfa-box');
+  if (!box || !state.user) return;
+  const pill = document.getElementById('mfa-state-pill');
+  const active = Boolean(state.user.mfa_enabled);
+
+  pill.textContent = active ? 'Activée' : 'Non activée';
+  pill.className = active ? 'pill ok' : 'pill';
+  document.getElementById('mfa-explain').classList.toggle('hidden', active);
+  showMfaScreens(active ? ['mfa-active-actions'] : ['mfa-enable-start']);
+  mfaMessage('', '');
+}
+
+async function startMfaSetup(event) {
+  event.preventDefault();
+  const password = document.getElementById('mfa-password').value;
+  if (!password) {
+    mfaMessage('error', 'Entre ton mot de passe pour continuer.');
+    return;
+  }
+  const form = event.currentTarget;
+  setBusy(form, true);
+  try {
+    const data = await api('/api/auth/mfa/setup', { method: 'POST', body: { password } });
+    document.getElementById('mfa-password').value = '';
+    document.getElementById('mfa-secret').textContent = data.secret;
+    showMfaScreens(['mfa-secret-step']);
+    mfaMessage('', '');
+    document.getElementById('mfa-enable-code').focus();
+  } catch (error) {
+    mfaMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function finishMfaSetup(event) {
+  event.preventDefault();
+  const input = document.getElementById('mfa-enable-code');
+  const code = input.value.replace(/\s/g, '');
+  if (code.length !== 6) {
+    mfaMessage('error', 'Le code comporte 6 chiffres.');
+    input.focus();
+    return;
+  }
+  const form = event.currentTarget;
+  setBusy(form, true);
+  /*
+   * Activer la double authentification change le niveau de sécurité : le
+   * serveur révoque toutes les sessions et en ouvre une nouvelle.
+   *
+   * Le flux temps réel ouvert avec l'ancienne session reçoit alors
+   * « session-ended » et vérifie la session ; cette vérification tombait sur
+   * un 401 avant que le nouveau cookie soit pris en compte, et déconnectait
+   * le membre au moment précis où il venait de sécuriser son compte.
+   * On ferme donc le canal avant l'opération, et on le rouvre après.
+   */
+  if (notificationCenter) notificationCenter.stop();
+  try {
+    const data = await api('/api/auth/mfa/enable', { method: 'POST', body: { code } });
+    input.value = '';
+    document.getElementById('mfa-secret').textContent = '';
+    if (state.user) state.user.mfa_enabled = true;
+
+    /*
+     * Pastille mise à jour tout de suite : sans cela, l'écran des codes de
+     * secours affichait encore « Non activée » juste sous le message
+     * d'activation réussie.
+     */
+    const pill = document.getElementById('mfa-state-pill');
+    pill.textContent = 'Activée';
+    pill.className = 'pill ok';
+    document.getElementById('mfa-explain').classList.add('hidden');
+
+    const list = document.getElementById('mfa-codes');
+    list.replaceChildren(...(data.recovery_codes || []).map((c) => h('li', null, c)));
+    showMfaScreens(['mfa-recovery-step']);
+    mfaMessage('info', 'Double authentification activée.');
+  } catch (error) {
+    mfaMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+    // Canal temps réel rouvert avec la session renouvelée.
+    if (notificationCenter) notificationCenter.start();
+  }
+}
+
+/*
+ * Désactivation : le serveur exige le mot de passe ET un code valide, pour
+ * qu'un téléphone laissé déverrouillé ne suffise pas à retirer la protection.
+ */
+async function disableMfa(event) {
+  event.preventDefault();
+  const password = document.getElementById('mfa-disable-password').value;
+  const code = document.getElementById('mfa-disable-code').value.replace(/\s/g, '');
+  if (!password || code.length !== 6) {
+    mfaMessage('error', 'Entre ton mot de passe et le code à 6 chiffres.');
+    return;
+  }
+  const form = event.currentTarget;
+  setBusy(form, true);
+  // Même précaution qu'à l'activation : la désactivation change aussi le
+  // niveau de sécurité du compte.
+  if (notificationCenter) notificationCenter.stop();
+  try {
+    await api('/api/auth/mfa/disable', { method: 'POST', body: { password, code } });
+    document.getElementById('mfa-disable-password').value = '';
+    document.getElementById('mfa-disable-code').value = '';
+    if (state.user) state.user.mfa_enabled = false;
+    renderMfaState();
+    mfaMessage('info', 'Double authentification désactivée. Ton compte n’est plus protégé que par son mot de passe.');
+  } catch (error) {
+    mfaMessage('error', error.message);
+  } finally {
+    setBusy(form, false);
+    if (notificationCenter) notificationCenter.start();
+  }
+}
+
+/** Copie dans le presse-papiers, avec repli si l'API est indisponible. */
+async function copyText(text, okMessage) {
+  try {
+    await navigator.clipboard.writeText(text);
+    mfaMessage('info', okMessage);
+  } catch (error) {
+    mfaMessage('error', 'Copie impossible sur ce navigateur : sélectionne le texte à la main.');
+  }
+}
+
+function wireMfa() {
+  const box = document.getElementById('mfa-box');
+  if (!box) return;
+  document.getElementById('mfa-enable-start').addEventListener('click', () => {
+    showMfaScreens(['mfa-start-form']);
+    mfaMessage('', '');
+    document.getElementById('mfa-password').focus();
+  });
+  document.getElementById('mfa-start-form').addEventListener('submit', startMfaSetup);
+  document.getElementById('mfa-enable-form').addEventListener('submit', finishMfaSetup);
+  document.getElementById('mfa-cancel').addEventListener('click', renderMfaState);
+  document.getElementById('mfa-disable').addEventListener('click', () => {
+    showMfaScreens(['mfa-disable-form']);
+    mfaMessage('', '');
+    document.getElementById('mfa-disable-password').focus();
+  });
+  document.getElementById('mfa-disable-form').addEventListener('submit', disableMfa);
+  document.getElementById('mfa-disable-cancel').addEventListener('click', renderMfaState);
+  document.getElementById('mfa-codes-done').addEventListener('click', renderMfaState);
+  document.getElementById('mfa-copy').addEventListener('click', () => {
+    copyText(document.getElementById('mfa-secret').textContent, 'Clé copiée.');
+  });
+  document.getElementById('mfa-codes-copy').addEventListener('click', () => {
+    const codes = [...document.querySelectorAll('#mfa-codes li')].map((li) => li.textContent).join('\n');
+    copyText(codes, 'Codes copiés. Range-les en lieu sûr.');
+  });
+}
+
 async function handleRegister(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -862,6 +1351,27 @@ async function handleRegister(event) {
     setMessage('error', 'Tous les champs sont obligatoires.');
     return;
   }
+
+  /*
+   * Majorité : traitée à part des champs texte, car « non » est une réponse
+   * valide dont la valeur est « false ». La ranger dans le test ci-dessus la
+   * ferait passer pour un champ vide.
+   */
+  const ageError = document.getElementById('err-register-adult');
+  const choice = document.querySelector('input[name="register-adult"]:checked');
+  ageError.classList.add('hidden');
+  if (!choice) {
+    ageError.textContent = 'Indique si tu as 18 ans ou plus : la réponse est obligatoire.';
+    ageError.classList.remove('hidden');
+    document.getElementById('register-adult-yes').focus();
+    return;
+  }
+  body.is_adult = choice.value === 'yes';
+
+  if (!attachTurnstile(form, body)) {
+    setMessage('error', 'Validez la vérification anti-robot avant de continuer.');
+    return;
+  }
   if ([...body.password].length < state.config.password_min_length) {
     setMessage('error', `Le mot de passe doit contenir au moins ${state.config.password_min_length} caractères.`);
     return;
@@ -875,6 +1385,7 @@ async function handleRegister(event) {
   try {
     const data = await api('/api/auth/register', { method: 'POST', body });
     form.reset();
+    resetTurnstile(form);
     if (data.verification_required) {
       showAuthForm('login-form');
       setMessage('info', 'Compte presque prêt : ouvrez le lien envoyé à votre adresse e-mail pour l’activer, puis connectez-vous.');
@@ -896,10 +1407,18 @@ async function handleForgot(event) {
     setMessage('error', 'Indiquez votre adresse e-mail.');
     return;
   }
+
+  const body = { email };
+  if (!attachTurnstile(form, body)) {
+    setMessage('error', 'Validez la vérification anti-robot avant de continuer.');
+    return;
+  }
+
   setBusy(form, true);
   try {
-    const data = await api('/api/auth/password/forgot', { method: 'POST', body: { email } });
+    const data = await api('/api/auth/password/forgot', { method: 'POST', body });
     form.reset();
+    resetTurnstile(form);
     showAuthForm('login-form');
     setMessage('info', data.message);
   } catch (error) {
@@ -1047,6 +1566,15 @@ async function init() {
     state.config = await api('/api/auth/config');
   } catch (error) { /* valeurs par défaut */ }
 
+  /*
+   * Widget anti-robot. Seule la clé PUBLIQUE arrive ici ; la clé secrète ne
+   * quitte jamais le serveur. Sans clé configurée, init() ne fait rien et les
+   * emplacements restent masqués.
+   */
+  if (window.HaisselTurnstile) {
+    window.HaisselTurnstile.init(state.config.turnstile_site_key);
+  }
+
   showLoggedOut();
   showAuthForm('login-form');
   if (await handleEmailLinks()) return;
@@ -1084,7 +1612,8 @@ document.addEventListener('DOMContentLoaded', () => {
     learnOpportunitiesList: 'learn-opportunities-list', oppAge: 'opp-age', oppCountry: 'opp-country',
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
-    homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date', homeCommunity: 'home-community',
+    homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date',
+    homeOffers: 'home-offers',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityCountry: 'community-country', communitySaved: 'community-saved', communityFilters: 'community-filters',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
@@ -1104,6 +1633,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   notificationCenter = window.createNotificationCenter({
     post: (url, body) => api(url, { method: 'POST', body }),
+    get: (url) => api(url),
+    /*
+     * « sse » en local et sous Docker, « poll » sur Vercel. Fonction et non
+     * valeur : la configuration est chargée dans init(), après ce câblage.
+     */
+    mode: () => state.config?.realtime_mode,
     // false = session invalide ; null = serveur injoignable (on réessaiera).
     checkSession: async () => {
       try {
@@ -1147,8 +1682,20 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.logoutButton.addEventListener('click', handleLogout);
   ui.profileLogout.addEventListener('click', handleLogout);
   ui.logoutAllButton.addEventListener('click', handleLogoutAll);
+  wireMfa();
+  document.getElementById('age-gate-yes').addEventListener('click', () => answerAgeGate(true));
+  document.getElementById('age-gate-no').addEventListener('click', () => answerAgeGate(false));
   ui.refreshLinks.addEventListener('click', loadLinks);
-  ui.homeDate.textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  /*
+   * Date du jour. Chrome capitalise le mois en français (« 20 Octobre ») ;
+   * l'usage français est la minuscule. On n'abaisse QUE la casse du mois,
+   * pour ne pas toucher au reste.
+   */
+  ui.homeDate.textContent = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  }).formatToParts(new Date())
+    .map((part) => (part.type === 'month' ? part.value.toLocaleLowerCase('fr-FR') : part.value))
+    .join('');
   mirrorText(document.getElementById('realtime-status'), document.getElementById('home-realtime'));
   mirrorText(document.getElementById('notif-permission-status'), document.getElementById('home-notif-permission'));
   document.querySelectorAll('[data-goto]').forEach((button) => {
@@ -1161,11 +1708,15 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.oppCountry.addEventListener('input', renderOpportunities);
 
   // Offres de la communauté
-  ui.communityFilters.addEventListener('submit', (event) => { event.preventDefault(); loadCommunity(); });
+  // Filtres : on recharge ET on reporte l'état dans l'adresse de la page.
+  const reloadCommunity = () => { syncFiltersToUrl(); loadCommunity(); };
+  ui.communityFilters.addEventListener('submit', (event) => { event.preventDefault(); reloadCommunity(); });
   ui.communityQ.addEventListener('input', scheduleCommunityLoad);
   ui.communityCountry.addEventListener('input', scheduleCommunityLoad);
-  ui.communityCategory.addEventListener('change', loadCommunity);
-  ui.communitySaved.addEventListener('change', loadCommunity);
+  ui.communityCategory.addEventListener('change', reloadCommunity);
+  ui.communitySaved.addEventListener('change', reloadCommunity);
+  // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
+  readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));

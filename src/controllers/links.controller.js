@@ -3,6 +3,7 @@ const { sendError, parseId } = require('../utils/http');
 const { getClientIp, anonymizeIp, hashIp } = require('../utils/network');
 const { loadSession } = require('../services/session.service');
 const { logger } = require('../utils/logger');
+const { refusalForAffiliateLink } = require('../services/adult.service');
 const { isSafeOfferUrl } = require('../services/affiliate.service');
 
 /*
@@ -59,6 +60,17 @@ async function goToLink(req, res, next) {
       return res.redirect(302, '/');
     }
     const userId = session.user.id;
+
+    /*
+     * Lien affilie : réservé aux membres majeurs déclarés. Le contrôle est ici
+     * et non dans un middleware, car cette route charge elle-meme la session
+     * (elle doit rediriger vers l'accueil, pas renvoyer un 401 JSON).
+     */
+    const refusal = refusalForAffiliateLink(session.user, null);
+    if (refusal) {
+      logger.info('Team link refused', { linkId, userId, reason: refusal.code });
+      return sendError(res, 403, refusal.code, refusal.message);
+    }
 
     const result = await pool.query(
       `

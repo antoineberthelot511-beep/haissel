@@ -3,8 +3,10 @@ const {
   isMailEnabled,
   isEmailVerificationRequired,
   isAdminMfaRequired,
+  isVercel,
 } = require('../config/security');
 const { sendError } = require('../utils/http');
+const { needsDeclaration, canDeclareAdult, ADULT_AGE } = require('../services/adult.service');
 const { isAdminAccessAllowed } = require('../utils/network');
 const throttle = require('../utils/login-throttle');
 const {
@@ -26,6 +28,7 @@ const {
 const { issueToken, consumeToken, peekToken } = require('../services/auth-token.service');
 const mail = require('../services/mail.service');
 const mfa = require('../services/mfa.service');
+const turnstile = require('../services/turnstile.service');
 const { logSecurityEvent } = require('../services/security-log.service');
 
 /*
@@ -63,6 +66,13 @@ function publicUser(user, role) {
     email_verified: Boolean(user.email_verified_at),
     mfa_enabled: Boolean(user.mfa_enabled),
     role: String(role || user.role || 'USER').toUpperCase(),
+    /*
+     * Déclaration de majorité. « null » signifie que la question n'a pas
+     * encore été posée : l'interface doit alors la poser avant toute autre
+     * chose. La date de naissance n'est jamais transmise : elle n'existe pas.
+     */
+    is_adult: user.is_adult === null || user.is_adult === undefined ? null : Boolean(user.is_adult),
+    adult_declaration_required: needsDeclaration(user),
   };
 }
 
@@ -72,7 +82,8 @@ async function getRole(userId) {
 }
 
 const USER_COLUMNS = `id, username, email, display_name, first_name, last_name, created_at,
-  is_active, is_banned, email_verified_at, mfa_enabled, password_hash`;
+  is_active, is_banned, email_verified_at, mfa_enabled, password_hash,
+  is_adult, adult_declared_at`;
 
 // ---------------------------------------------------------------------------
 // Configuration publique (le frontend n'affiche que ce qui fonctionne)
@@ -86,6 +97,16 @@ function getAuthConfig(req, res) {
       email_verification_required: isEmailVerificationRequired(),
       password_min_length: PASSWORD_MIN,
       password_max_length: PASSWORD_MAX,
+      // Clé PUBLIQUE uniquement : la clé secrète ne quitte jamais le serveur.
+      turnstile_site_key: turnstile.isTurnstileEnabled() ? turnstile.getSiteKey() : null,
+      /*
+       * Canal des notifications : « sse » (flux permanent) en local et sous
+       * Docker, « poll » sur Vercel où plusieurs instances répondent sans
+       * mémoire partagée. Le client choisit son mode d'après cette valeur.
+       */
+      realtime_mode: isVercel() ? 'poll' : 'sse',
+      // Âge minimum pour un compte éditeur MyLead (voir adult.service).
+      adult_age: ADULT_AGE,
     },
   });
 }
@@ -123,7 +144,22 @@ function validateRegistration(body) {
   const policyError = checkPasswordPolicy(password, { username, email });
   if (policyError) return { error: ['WEAK_PASSWORD', policyError] };
 
-  return { value: { firstName, lastName, username, email, password, displayName: `${firstName} ${lastName}` } };
+  /*
+   * Majorité : réponse obligatoire, et strictement booléenne. Une valeur
+   * absente, une chaîne ou un nombre sont refusés plutôt qu'interprétés :
+   * « non répondu » ne doit jamais devenir « oui » par accident.
+   */
+  if (source.is_adult !== true && source.is_adult !== false) {
+    return { error: ['ADULT_ANSWER_REQUIRED', `Indique si tu as ${ADULT_AGE} ans ou plus : la réponse est obligatoire.`] };
+  }
+
+  return {
+    value: {
+      firstName, lastName, username, email, password,
+      displayName: `${firstName} ${lastName}`,
+      isAdult: source.is_adult,
+    },
+  };
 }
 
 async function register(req, res, next) {
@@ -139,11 +175,12 @@ async function register(req, res, next) {
       const result = await pool.query(
         `
           INSERT INTO users (username, email, password_hash, display_name, first_name, last_name,
-                             password_changed_at, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NOW())
+                             is_adult, adult_declared_at, password_changed_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW(), NOW())
           RETURNING ${USER_COLUMNS}
         `,
-        [value.username, value.email, passwordHash, value.displayName, value.firstName, value.lastName]
+        [value.username, value.email, passwordHash, value.displayName, value.firstName, value.lastName,
+          value.isAdult]
       );
       user = result.rows[0];
     } catch (insertError) {
@@ -199,7 +236,7 @@ async function login(req, res, next) {
     const column = normalized.includes('@') ? 'email' : 'username';
     const throttleKey = `${column}:${normalized}`;
 
-    const delay = throttle.delayFor(throttleKey);
+    const delay = await throttle.delayFor(throttleKey);
     if (delay) await throttle.sleep(delay);
 
     const result = await pool.query(`SELECT ${USER_COLUMNS} FROM users WHERE ${column} = $1`, [normalized]);
@@ -207,11 +244,11 @@ async function login(req, res, next) {
     const { valid, needsRehash } = await verifyPassword(user ? user.password_hash : await getDummyHash(), password);
 
     if (!user || !valid) {
-      throttle.recordFailure(throttleKey);
+      await throttle.recordFailure(throttleKey);
       await logSecurityEvent('login_failed', { req, userId: user?.id || null, details: { by: column } });
       return sendError(res, 401, 'INVALID_CREDENTIALS', 'Identifiants incorrects.');
     }
-    throttle.recordSuccess(throttleKey);
+    await throttle.recordSuccess(throttleKey);
 
     // Statut révélé seulement après un mot de passe correct.
     if (user.is_banned) {
@@ -335,6 +372,56 @@ function me(req, res) {
       admin_mfa_required: req.userRole !== 'USER' && isAdminMfaRequired() && !req.user.mfa_enabled,
     },
   });
+}
+
+
+/*
+ * Déclaration de majorité des comptes existants.
+ *
+ * Les comptes créés avant la mise en place ont is_adult à NULL : l'interface
+ * pose la question à la connexion suivante et appelle cette route.
+ *
+ * La réponse reste modifiable : un membre qui avait 17 ans peut en avoir 18
+ * l'année suivante, et le bloquer définitivement n'apporterait rien — il
+ * s'agit d'une déclaration sur l'honneur, pas d'une vérification. Chaque
+ * réponse est horodatée et journalisée.
+ */
+async function declareAdult(req, res, next) {
+  try {
+    const value = (req.body || {}).is_adult;
+    if (value !== true && value !== false) {
+      return sendError(res, 400, 'ADULT_ANSWER_REQUIRED',
+        `Indique si tu as ${ADULT_AGE} ans ou plus : la réponse est obligatoire.`);
+    }
+
+    /*
+     * Passage de « non » à « oui » : soumis à un délai, sinon la question
+     * n'aurait aucune portée. L'inverse reste immédiat.
+     */
+    if (value === true) {
+      const check = canDeclareAdult(req.user);
+      if (!check.allowed) {
+        await logSecurityEvent('adult_upgrade_refused', { req, userId: req.user.id });
+        return sendError(res, 403, 'ADULT_CHANGE_TOO_SOON',
+          `Tu as déclaré avoir moins de 18 ans il y a peu. Cette réponse ne peut pas être modifiée `
+          + `avant ${check.daysLeft} jour(s). Si c'est une erreur, écris à l'administrateur du site `
+          + `depuis les mentions légales : il peut remettre la question à zéro.`);
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE users SET is_adult = $2, adult_declared_at = NOW(), updated_at = NOW()
+       WHERE id = $1 RETURNING ${USER_COLUMNS}`,
+      [req.user.id, value]
+    );
+    const user = result.rows[0];
+    if (!user) return sendError(res, 404, 'NOT_FOUND', 'Compte introuvable.');
+
+    await logSecurityEvent('adult_declared', { req, userId: req.user.id, details: { is_adult: value } });
+    return res.status(200).json({ success: true, data: { user: publicUser(user, req.userRole) } });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 async function logout(req, res, next) {
@@ -697,6 +784,7 @@ module.exports = {
   logout,
   logoutAll,
   verifyEmail,
+  declareAdult,
   resendVerification,
   forgotPassword,
   resetPassword,
