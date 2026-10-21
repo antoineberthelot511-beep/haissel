@@ -67,7 +67,6 @@ Le script est idempotent (aucun doublon s'il est relancé). Aucun compte n'est j
 | `PROXY_SHARED_SECRET` | Docker uniquement : authentifie Nginx auprès de l'application |
 | `PUBLIC_PORT`, `ADMIN_PORT` | Docker uniquement : ports publics / admin |
 | `CORS_ORIGINS` | origines supplémentaires autorisées (inutile en usage normal : même origine) |
-| `ENABLE_LEGACY_SOCIAL_API` | `true` pour réactiver les anciennes API du réseau social |
 
 `.env` n'est jamais versionné ; seuls `.env.example` et `.env.production.example` le sont.
 
@@ -182,7 +181,134 @@ En HTTP sur le réseau local, le cookie de session circule en clair : quelqu'un 
 
 Tables principales : `users`, `sessions` (hash SHA-256 du jeton), `admins`, `affiliate_links` (offres), `user_affiliate_codes`, `clicks`, `conversions`, `earnings`, `admin_actions` (journal). La table `stats` est conservée pour compatibilité mais n'est plus utilisée : toutes les statistiques sont calculées à partir des tables sources, elles ne peuvent donc pas diverger.
 
+## Limites de tentatives et réseaux partagés
+
+HAISSEL s'adresse à des lycéens. Le Wi-Fi d'un établissement, un partage de
+connexion ou un réseau mobile font sortir **des dizaines d'élèves par la même
+adresse IP**. Une limite basse par IP bloquait alors toute une classe à cause
+de l'usage normal de quelques-uns — un cours entier empêché de s'inscrire.
+
+Les rôles sont donc séparés :
+
+| Protection | Ce qu'elle suit | Valeur | Ce qu'elle arrête |
+|---|---|---|---|
+| Limite d'inscription | adresse IP | **30 par heure** | une inondation depuis une seule connexion |
+| Limite de connexion | adresse IP, **échecs uniquement** | **30 par 15 min** | un balayage grossier d'identifiants |
+| Ralentissement progressif | **le compte visé** | 0,5 s → 8 s après 3 échecs | le forçage d'un compte précis |
+
+**La limite par IP n'est pas la protection principale.** C'est le ralentissement
+progressif (`src/utils/login-throttle.js`) qui protège un compte donné : il suit
+l'identifiant visé, pas l'adresse, donc changer d'IP n'y échappe pas. La limite
+par IP ne sert qu'à écarter l'abus grossier, et elle peut donc rester large sans
+affaiblir la sécurité.
+
+Sur la connexion, seules les tentatives **échouées** sont comptées
+(`skipSuccessfulRequests`) : trente élèves qui se connectent correctement
+d'affilée ne consomment aucun crédit.
+
+Pas de verrouillage de compte : une victime ne peut pas être bloquée
+durablement par des tentatives malveillantes, elle subit au pire quelques
+secondes d'attente.
+
+## Âge des membres
+
+HAISSEL vise des lycéens : une partie du public est mineure. Or **MyLead exige
+18 ans pour ouvrir un compte éditeur**. Tout ce qui mène à ce compte, ou à un
+lien affilié, est donc réservé aux membres ayant déclaré leur majorité.
+
+> Référence du règlement MyLead : **à compléter** (date de la vérification).
+
+### Ce qui est demandé, et ce qui est enregistré
+
+Une seule question : **« As-tu 18 ans ou plus ? »**, oui ou non, obligatoire à
+l'inscription. Les comptes créés avant la mise en place la reçoivent à leur
+prochaine connexion, sur un écran qui couvre la page et n'offre pas de sortie.
+
+**Aucune date de naissance n'est enregistrée, ni aucun âge** (RGPD art. 5-1-c,
+minimisation). Deux colonnes seulement, ajoutées par la migration
+`20261020_0008_adult_declaration.sql` :
+
+| Colonne | Contenu |
+|---|---|
+| `users.is_adult` | `true`, `false`, ou `NULL` si la question n'a pas encore été posée |
+| `users.adult_declared_at` | date de la réponse |
+
+Une contrainte garantit que les deux vont toujours ensemble. La migration est
+non destructive : colonnes nullables, aucune donnée existante modifiée.
+
+C'est une **déclaration sur l'honneur**. Elle pose une limite nette et
+traçable, elle ne prouve pas l'âge réel.
+
+### Ce qui change selon la réponse
+
+| | A déclaré 18 ans ou plus | A déclaré moins de 18 ans | N'a pas répondu |
+|---|---|---|---|
+| Guides et tutoriels (Apprendre) | oui | **oui** | oui |
+| Opportunités (contenu pédagogique) | oui | **oui** | oui |
+| Voir la liste des offres | oui | **oui** | oui |
+| Parcours MyLead | oui | non | non |
+| Lien de parrainage | oui | non | non |
+| Publier ou modifier une offre | oui | non | non |
+| Ouvrir un lien affilié | oui | non | non |
+| Retirer sa propre offre | oui | **oui** | oui |
+
+Le retrait reste toujours possible : on ne piège personne avec son propre
+contenu.
+
+### Comment le refus est appliqué
+
+Le masquage dans l'interface n'est qu'un confort. La règle est tenue par le
+serveur :
+
+| Route | Refus |
+|---|---|
+| `POST /api/community/offers` | 403 `ADULT_REQUIRED` |
+| `PATCH /api/community/offers/:id` | 403 `ADULT_REQUIRED` |
+| `GET /api/learn/referral` | 403 `ADULT_REQUIRED` |
+| `GET /api/community/offers/:id/open` | 403 `ADULT_REQUIRED` |
+| `GET /go/:id` (lien de l'équipe) | 403 `ADULT_REQUIRED` |
+
+Un compte qui n'a pas encore répondu reçoit `ADULT_DECLARATION_REQUIRED` : un
+code distinct, pour que le message dise « réponds d'abord » et non « tu es
+trop jeune ».
+
+**L'adresse de destination n'est jamais envoyée à qui ne peut pas l'ouvrir.**
+`GET /api/community/offers` renvoie `url: null` et `can_open: false` : masquer
+un bouton ne suffirait pas, l'adresse serait lisible dans la réponse. Elle
+n'est délivrée que par `/offers/:id/open`, après contrôle.
+
+Le parcours MyLead (`frontend/mylead-guide.js`) est un contenu **statique**,
+sans route serveur : il n'est masqué que dans l'interface. Rien à refuser côté
+serveur, puisqu'il n'y a rien à demander.
+
+### Âge minimum des offres
+
+Une offre peut porter un `min_age`. La déclaration étant binaire, HAISSEL ne
+peut certifier que « au moins 18 » :
+
+- `min_age` de 18 ou moins : ouvrable par un majeur ;
+- `min_age` supérieur à 18 (21, 25…) : **refusé à tous**, code
+  `AGE_RESTRICTED`. Mieux vaut refuser que décider sur une donnée qu'on n'a
+  pas. Pour l'autoriser, il faudrait collecter un âge précis — ce que cette
+  conception évite délibérément.
+
+Un majeur peut rouvrir **sa propre** offre malgré cette limite, pour la
+relire. Cette dérogation ne s'applique pas à un mineur : il n'ouvre aucun lien
+affilié, pas même le sien.
+
+### Changer sa réponse
+
+`POST /api/auth/adult-declaration` accepte une nouvelle réponse à tout moment,
+horodatée et journalisée (`adult_declared` dans `security_events`). Un membre
+de 17 ans qui en a 18 l'année suivante ne reste pas bloqué — et puisqu'il
+s'agit déjà d'une déclaration sur l'honneur, la permettre n'affaiblit rien.
+
 ## Affiliation
+
+> **Gelé par défaut.** Tout ce qui suit décrit le moteur d'affiliation interne,
+> désactivé tant que `ENABLE_INTERNAL_AFFILIATION=true` n'est pas défini. Les
+> redirections `/r/:code` restent actives. Voir
+> [Moteur d'affiliation interne (gelé)](#moteur-daffiliation-interne-gelé).
 
 1. L'admin crée une offre (URL http/https validée).
 2. L'utilisateur clique sur **Obtenir mon lien** : un code `HAI-XXXXXXXX` unique est généré (`crypto.randomInt`, un seul code par utilisateur et par offre).
@@ -215,9 +341,77 @@ Test local : `node scripts/sign-webhook.js --provider partner --code HAI-XXXXXXX
 
 **Aucune route utilisateur ne peut créer de conversion.** L'ancien `POST /api/affiliate/conversion` a été supprimé. L'administration locale peut saisir une conversion confirmée hors webhook (fournisseur `manual`), avec les mêmes règles d'idempotence, et l'action est journalisée.
 
+### Moteur d'affiliation interne (gelé)
+
+**Pourquoi.** Le moteur décrit ci-dessus est complet côté code, mais **aucun
+annonceur réel n'y est branché**. Le format de postback qu'il attend — un corps
+JSON signé par l'en-tête `X-Haissel-Signature`, avec nos propres noms de champs —
+est un format maison. Aucun réseau d'affiliation ne l'émet : un réseau envoie le
+sien, généralement une requête **GET** avec ses propres variables
+(`?transaction_id=…&payout=…&status=…`), et il ne signera pas avec notre secret.
+Tant qu'aucun adaptateur ne traduit ces formats, les routes de conversion ne
+peuvent rien recevoir de légitime — elles n'offrent qu'une surface d'attaque et
+des écrans qui afficheraient toujours zéro.
+
+**Ce que le gel change.** `ENABLE_INTERNAL_AFFILIATION` vaut `false` par défaut.
+
+| Route | Gelée | Comportement |
+|---|---|---|
+| `GET /r/:code` | **non** | redirige et enregistre le clic, toujours |
+| `GET /api/affiliate/HAI-…` (alias historique) | **non** | idem |
+| `GET /api/affiliate/offers` | oui | 404 `FEATURE_DISABLED` |
+| `POST /api/affiliate/offers/:id/link` | oui | 404 `FEATURE_DISABLED` |
+| `GET /api/affiliate/stats` | oui | 404 `FEATURE_DISABLED` |
+| `GET /api/affiliate/conversions` | oui | 404 `FEATURE_DISABLED` |
+| `POST /api/webhooks/affiliate/:provider` | oui | 404 `FEATURE_DISABLED` |
+| `GET POST PATCH /api/admin/conversions…` | oui | 404 `FEATURE_DISABLED` |
+| `GET /api/admin/earnings`, `PATCH /api/admin/earnings/:id/pay` | oui | 404 `FEATURE_DISABLED` |
+| `GET /api/admin/affiliates`, `/api/admin/clicks`, `/go/:id`, `/api/links` | **non** | catalogue de liens publiés : fonctionnalité distincte, active |
+
+404 et non 403 : pour un appelant extérieur la fonctionnalité n'existe pas. Le
+code `FEATURE_DISABLED` la distingue du `NOT_FOUND` générique, pour qu'un
+administrateur lisant les journaux voie qu'il s'agit d'un drapeau à activer.
+
+Les redirections ne sont **jamais** gelées : des liens ont pu être partagés
+(message, réseau social, impression) et doivent continuer de mener à leur
+destination, même si plus aucun code ne peut être créé.
+
+**Aucune donnée n'est supprimée.** Les tables `user_affiliate_codes`, `clicks`,
+`conversions` et `earnings` restent intactes, avec leur contenu. Le gel ne
+s'accompagne d'aucune migration. Repasser le drapeau à `true` restaure l'état
+exact d'avant.
+
+**Pour le réactiver pour de bon**, il ne suffit pas de changer le drapeau : il
+faut d'abord écrire un **adaptateur par réseau**, qui lit le format de *ce*
+réseau au lieu de lui imposer le nôtre. Pour chaque réseau branché :
+
+1. **Lire son postback tel qu'il l'envoie.** Relever dans sa documentation la
+   méthode (le plus souvent `GET`), le nom de ses paramètres (identifiant de
+   transaction, montant, devise, statut, et la variable qui nous renvoie notre
+   `{code}` ou `{click_id}`), et ses valeurs de statut, qui ne sont pas les
+   nôtres (`confirmed`, `1`, `approved`…).
+2. **Authentifier à sa manière.** Presque aucun réseau ne signe en HMAC. Les
+   moyens usuels sont un jeton secret dans l'URL, une liste d'adresses IP
+   autorisées, ou un rappel sortant vers son API pour vérifier la transaction.
+   Choisir celui qu'il propose ; ne pas se contenter d'un paramètre devinable.
+3. **Traduire vers le modèle interne.** L'adaptateur produit la forme déjà
+   utilisée par `webhook.controller` : `{ external_reference, code, amount_cents,
+   currency, status, click_id }`. Les montants restent des entiers en centimes.
+4. **Garder l'idempotence.** La contrainte d'unicité `(fournisseur,
+   external_reference)` existe déjà : un même postback reçu deux fois ne doit
+   créer ni deuxième conversion ni deuxième gain.
+5. **Tester avec ses propres exemples**, pas avec notre format signé : reprendre
+   les requêtes réelles de sa documentation.
+
+La vérification de signature actuelle (`X-Haissel-Signature`) reste utilisable
+telle quelle pour un partenaire qui accepterait de s'y plier, et pour le
+fournisseur `manual` saisi depuis l'administration.
+
 ## Administration
 
-Sections disponibles : Dashboard (chiffres réels), Utilisateurs (recherche, suspendre/réactiver, bannir/débannir, avec confirmation ; la suspension révoque les sessions ; impossible de se suspendre soi-même), Offres (création, activation/désactivation ; aucune suppression, l'historique est conservé), Conversions (filtres par statut, offre, utilisateur et dates ; transitions contrôlées), Gains (totaux, marquer comme payé), Clics, Journal des actions admin, Notifications (diffusion temps réel, voir ci-dessous).
+Sections réellement présentes dans l'interface : Tableau de bord (chiffres réels), Liens (création, activation/désactivation ; aucune suppression, l'historique est conservé), Clics, Notifications (diffusion temps réel, voir ci-dessous), Offres membres (modération), Guides et tutoriels, Opportunités, Parrainage.
+
+Conversions et Gains **n'ont pas d'écran** : seules les routes HTTP existent (`/api/admin/conversions`, `/api/admin/earnings`), et elles font partie du moteur gelé. La gestion des utilisateurs (suspendre, bannir) n'a pas non plus d'écran dédié ; la route `/api/admin/users` existe et reste active.
 
 ## Notifications administrateur (temps réel)
 
@@ -288,6 +482,114 @@ docker compose up --build -d
 - Derrière Docker, l'adresse vue par Node est celle du proxy : Nginx s'authentifie avec `PROXY_SHARED_SECRET` et transmet l'IP réelle ; seul le bloc Nginx admin ajoute l'en-tête d'accès admin (les en-têtes envoyés par le client sont écrasés).
 - Promotion admin : `docker compose exec app node scripts/promote-admin.js --username votre_nom`.
 
+## Déploiement Vercel
+
+Sur Vercel, l'application ne tourne pas dans un processus permanent : **plusieurs
+instances répondent en parallèle, sans mémoire partagée et sans rien conserver
+entre deux requêtes**. Trois mécanismes qui supposaient un processus unique ont
+donc un fonctionnement différent en ligne. En local et sous Docker, rien ne
+change : un seul processus, comportement d'origine.
+
+Le mode est détecté par la variable `VERCEL=1`, que Vercel définit elle-même.
+
+### Limites de tentatives : compteurs en base
+
+| | Local / Docker | Vercel |
+|---|---|---|
+| `express-rate-limit` | mémoire du processus | table `rate_limit_counters` |
+| Ralentissement par compte (`login-throttle`) | mémoire du processus | table `login_throttle_failures` |
+
+En mémoire, chaque instance ne compte que les requêtes qu'elle a reçues : la
+limite réelle devient « limite × nombre d'instances », et le ralentissement
+progressif après 3 échecs se trouve divisé d'autant. Les deux tables sont
+créées par la migration `20261020_0007_distributed_counters.sql` et purgées par
+la tâche de rétention.
+
+Si PostgreSQL ne répond pas, les compteurs laissent passer la requête plutôt que
+de renvoyer une erreur : la limite générale s'applique à **toutes** les routes, y
+compris les pages statiques qui fonctionnent sans base, et une coupure ne doit
+pas rendre le site entièrement indisponible. Les routes sensibles lisent de
+toute façon la session en base, donc elles échouent d'elles-mêmes.
+
+### Notifications : interrogation régulière au lieu du flux SSE
+
+Le flux Server-Sent Events reste le canal en local et sous Docker. En ligne il
+ne peut pas fonctionner : l'instance qui tient le flux ouvert n'est pas celle
+qui reçoit la demande de diffusion, et elle n'en est pas informée.
+
+En ligne, le navigateur appelle donc `GET /api/notifications/poll?since=<curseur>`
+**toutes les 45 s, uniquement quand l'onglet est visible**. La réponse ne contient
+que les diffusions postérieures au curseur. Un premier appel sans `since`
+n'affiche rien : il fixe le point de départ, pour que l'ouverture d'un onglet ne
+déverse pas tout l'historique — même comportement que le SSE, qui ne délivre que
+ce qui passe pendant que la page est ouverte.
+
+Deux conséquences visibles dans la console d'administration :
+
+- **Le comptage des utilisateurs connectés n'est pas disponible.** Aucune
+  instance ne connaît les onglets ouverts par les autres. La console l'indique
+  explicitement au lieu d'afficher le compte partiel d'une instance, qui serait
+  faux.
+- **Les destinataires d'une diffusion sont les membres dont la session est
+  valide**, et non ceux qui ont un onglet ouvert. C'est le seul équivalent
+  calculable sans mémoire partagée, mais le périmètre est plus large :
+  quelqu'un dont l'onglet est fermé mais la session encore valide verra la
+  notification à sa prochaine visite, dans les 45 s.
+
+### Tâche de rétention : déclenchée par le planificateur
+
+`startRetentionJob()` (un `setInterval`) n'existe que dans le processus lancé par
+`npm start` ou Docker, donc la purge RGPD ne tournerait jamais en ligne. Elle est
+appelée par le planificateur de Vercel, déclaré dans `vercel.json` :
+
+```json
+"crons": [{ "path": "/api/internal/retention", "schedule": "0 3 * * *" }]
+```
+
+La route accepte `GET` et `POST` : les crons Vercel n'émettent que des `GET`,
+un appel manuel est plus naturel en `POST`. Elle est authentifiée par
+`Authorization: Bearer ${CRON_SECRET}` (comparaison à temps constant), en dehors
+de toute session. **Sans `CRON_SECRET` défini, elle répond 404** et ne révèle pas
+son existence — mais la purge ne tourne alors pas : la variable est obligatoire
+en ligne. Vercel ajoute l'en-tête de lui-même dès que la variable existe dans le
+projet.
+
+Vérification manuelle :
+
+```powershell
+curl -X POST https://votre-projet.vercel.app/api/internal/retention `
+  -H "Authorization: Bearer $env:CRON_SECRET"
+```
+
+### Variables à renseigner dans le tableau de bord Vercel
+
+| Variable | Obligatoire | Rôle |
+|---|---|---|
+| `DATABASE_URL` | oui | PostgreSQL géré (Neon, Supabase…), avec `sslmode=require` |
+| `APP_SECRET` | oui | secret maître, ≥ 32 octets aléatoires |
+| `CRON_SECRET` | oui | authentifie le cron de rétention ; sans elle, pas de purge RGPD |
+| `COOKIE_SECURE` | oui | `true` (Vercel sert toujours en HTTPS) |
+| `NODE_ENV` | oui | `production` |
+| `ADMIN_IP_ALLOWLIST` | fortement recommandé | restreint l'administration à vos adresses IP ; vide = toute adresse |
+| `APP_PUBLIC_URL` | si e-mails | base des liens de vérification et de réinitialisation |
+| `MAIL_TRANSPORT`, `MAIL_FROM`, `SMTP_*` | si e-mails | sans quoi vérification d'adresse et « mot de passe oublié » sont désactivés |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | recommandé | anti-robot ; les deux ou aucune |
+| `AFFILIATE_WEBHOOK_SECRET` | si webhooks | signature HMAC des webhooks partenaires |
+| `MFA_ENCRYPTION_KEY` | optionnel | clé de chiffrement TOTP distincte (dérivée d'`APP_SECRET` sinon) |
+
+`ADMIN_REQUIRE_MFA` est sans effet en ligne : la double authentification des
+administrateurs y est imposée. `PROXY_SHARED_SECRET`, `PUBLIC_PORT`,
+`ADMIN_PORT`, `HTTPS_CERT_FILE` et `HTTPS_KEY_FILE` ne servent qu'au
+déploiement local ou Docker.
+
+Après un premier déploiement, appliquer les migrations une fois (la base est
+externe, le conteneur `app` de Docker ne s'en charge pas ici) :
+
+```powershell
+$env:DATABASE_URL = "postgres://..."   # même valeur que sur Vercel
+npm run migrate
+```
+
 ## Tests
 
 ```powershell
@@ -301,4 +603,35 @@ Les tests d'intégration utilisent `DATABASE_URL` (ou `TEST_DATABASE_URL`), dans
 
 ## Anciennes fonctionnalités du réseau social
 
-Les contrôleurs, routes et tables `posts`, `comments`, `likes`, `follows`, `messages`, `notifications` et `reports` existent encore, mais l'interface ne les utilise plus. Leurs API sont désactivées par défaut (`ENABLE_LEGACY_SOCIAL_API=false`) ; aucune table n'a été supprimée.
+HAISSEL a d'abord été un réseau social (publications, commentaires, mentions
+« j'aime », abonnements, messagerie, profils publics, signalements). **Ce code a
+été supprimé** : contrôleurs, routes et drapeau `ENABLE_LEGACY_SOCIAL_API`.
+L'interface ne les appelait plus, et aucun module actif ne les importait.
+
+### Tables restées en base
+
+**Aucune table n'a été supprimée** et aucune migration ne les touche. Elles ne
+sont plus lues ni écrites par le code :
+
+| Table | Contenu d'origine |
+|---|---|
+| `posts` | publications |
+| `comments` | commentaires de publications |
+| `likes` | mentions « j'aime » |
+| `follows` | abonnements entre comptes |
+| `conversations` | fils de messagerie privée |
+| `conversation_members` | participants d'un fil |
+| `messages` | messages privés |
+| `notifications` | notifications de l'ancien réseau (à ne pas confondre avec `notification_broadcasts` / `notification_recipients`, qui servent au centre de notifications **actuel**) |
+| `reports` | signalements de publications (à ne pas confondre avec `member_offer_reports`, qui sert à la modération **actuelle** des offres membres) |
+
+La table `users` n'est pas dans cette liste : elle reste au cœur de
+l'authentification.
+
+Ces tables peuvent être conservées (elles ne coûtent qu'un peu d'espace) ou
+supprimées plus tard par une migration dédiée, après sauvegarde. Rien dans le
+code ne s'y oppose. Attention à l'ordre des clés étrangères si vous les
+supprimez : `comments`, `likes` et `messages` référencent `posts` et
+`conversations`.
+
+Pour retrouver ce code, consultez l'historique Git avant la suppression.
