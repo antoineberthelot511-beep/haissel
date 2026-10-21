@@ -32,3 +32,12 @@ Thumbs.db
 
 .vercel
 .env*
+
+# Exemples de configuration (versionnés, voir README)
+!.env.example
+!.env.production.example
+
+# Fichiers de travail locaux (captures, maquettes, images brutes)
+merde/
+frontend/image/
+haissel-accueil-redesign.html
