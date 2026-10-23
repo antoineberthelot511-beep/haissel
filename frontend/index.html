@@ -656,20 +656,28 @@
 
                 <section class="pub-step" aria-labelledby="pub-step-3">
                   <h4 id="pub-step-3" class="pub-step-title"><span class="pub-step-no" aria-hidden="true">3</span>Ce qu'il faut savoir</h4>
-                  <label class="field">
-                    <span>Ce qu'il faut faire <small>(ex. « inscription avec e-mail confirmé »)</small></span>
-                    <input id="pub-action" type="text" maxlength="300" required />
-                  </label>
+                  <fieldset id="pub-action-group" class="choice-group">
+                    <legend>Ce qu'il faut faire</legend>
+                    <div id="pub-action-chips" class="choice-chips"></div>
+                    <label id="pub-action-other-field" class="field" hidden>
+                      <span>Décris l'action <small>(5 à 300 caractères)</small></span>
+                      <input id="pub-action-other" type="text" maxlength="300" placeholder="ex. Valider son premier niveau" />
+                    </label>
+                  </fieldset>
                   <p class="field-error hidden" id="err-expected_action" role="alert"></p>
                   <label class="field">
                     <span>Description <small>(ce que c'est et pour qui, 20 caractères minimum)</small></span>
                     <textarea id="pub-description" rows="4" minlength="20" maxlength="1500" placeholder="Ce que c'est, pour qui, et pourquoi c'est utile." required></textarea>
                   </label>
                   <p class="field-error hidden" id="err-description" role="alert"></p>
-                  <label class="field">
-                    <span>Pays concernés <small>(codes : FR, BE…)</small></span>
-                    <input id="pub-countries" type="text" maxlength="200" placeholder="FR, BE" required />
-                  </label>
+                  <fieldset id="pub-countries-group" class="choice-group">
+                    <legend>Pays concernés <small>(au moins un)</small></legend>
+                    <div id="pub-country-chips" class="choice-chips"></div>
+                    <label class="field country-more">
+                      <span class="visually-hidden">Ajouter un autre pays</span>
+                      <select id="pub-country-more"><option value="">Autre pays…</option></select>
+                    </label>
+                  </fieldset>
                   <p class="field-error hidden" id="err-countries" role="alert"></p>
                 </section>
 
@@ -681,20 +689,19 @@
                     <svg class="icon pub-more-chevron" aria-hidden="true"><use href="#i-chevron-down" /></svg>
                   </summary>
                   <div class="pub-more-body">
-                    <label class="field">
-                      <span>Rémunération annoncée <small>(facultatif)</small></span>
-                      <input id="pub-payout" type="text" maxlength="160" placeholder="Seulement si elle figure dans ta campagne" />
-                    </label>
-                    <p class="field-error hidden" id="err-payout_text" role="alert"></p>
-                    <label class="field">
-                      <span>Âge minimum <small>(si la campagne en fixe un)</small></span>
-                      <input id="pub-min-age" type="number" inputmode="numeric" min="10" max="99" />
-                    </label>
+                    <fieldset id="pub-age-group" class="choice-group">
+                      <legend>Âge minimum <small>(si la campagne en fixe un)</small></legend>
+                      <div id="pub-age-chips" class="choice-chips"></div>
+                    </fieldset>
                     <p class="field-error hidden" id="err-min_age" role="alert"></p>
-                    <label class="field">
-                      <span>Conditions et restrictions <small>(facultatif)</small></span>
-                      <textarea id="pub-conditions" rows="3" maxlength="2000" placeholder="ex. pas de trafic incité, France uniquement…"></textarea>
-                    </label>
+                    <fieldset id="pub-conditions-group" class="choice-group">
+                      <legend>Conditions et restrictions <small>(facultatif)</small></legend>
+                      <div id="pub-condition-chips" class="choice-chips"></div>
+                      <label id="pub-conditions-other-field" class="field" hidden>
+                      <span>Autre condition <small id="pub-conditions-count"></small></span>
+                        <textarea id="pub-conditions-other" rows="3" maxlength="2000" placeholder="ex. réservé aux nouveaux clients"></textarea>
+                      </label>
+                    </fieldset>
                     <p class="field-error hidden" id="err-conditions" role="alert"></p>
                   </div>
                 </details>

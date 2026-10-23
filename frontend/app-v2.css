@@ -118,8 +118,9 @@ body:has(#app-screen:not(.hidden)) .app-shell { padding-bottom: var(--v2-dock-sp
   padding-top: env(safe-area-inset-top, 0px);
   /* Pas de backdrop-filter ici : il ferait de l'en-tête le repère de la
      barre du bas (position: fixed), qui est dans <header>. */
-  background: rgba(247, 248, 252, .97);
-  border-bottom: 0; box-shadow: 0 1px 8px rgba(0, 0, 0, .04);
+  /* Fond opaque : le contenu ne se voit pas au travers en défilant. */
+  background: var(--v2-bg);
+  border-bottom: 1px solid var(--v2-outline); box-shadow: 0 1px 8px rgba(0, 0, 0, .04);
   color: var(--v2-on-surface); font-family: var(--v2-font);
 }
 .topbar .topbar-inner {
@@ -618,6 +619,29 @@ button.fc-author:hover { color: var(--v2-primary); }
 .pub-more-chevron { margin-left: auto; transition: transform .2s ease; }
 .pub-more[open] .pub-more-chevron { transform: rotate(180deg); }
 .pub-more-body { display: grid; gap: 12px; padding: 0 var(--v2-md) var(--v2-md); }
+
+/* Choix en puces (pays, action, âge, conditions) */
+.choice-group { display: grid; gap: var(--v2-sm); min-width: 0; margin: 0; padding: 0; border: 0; }
+.choice-group legend { margin-bottom: 6px; padding: 0; font-size: 13px; font-weight: 700; color: var(--v2-on-surface); }
+.choice-chips { display: flex; flex-wrap: wrap; gap: var(--v2-sm); }
+.choice-chip {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 14px;
+  border: 1.5px solid var(--v2-outline); border-radius: var(--v2-r-full); background: var(--v2-surface); cursor: pointer;
+  font-size: 13.5px; font-weight: 700; line-height: 1.2; color: var(--v2-on-surface);
+}
+.choice-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.choice-chip:hover { background: var(--v2-surface-low); }
+.choice-flag { font-size: 16px; line-height: 1; }
+.choice-check { display: none; }
+.choice-chip:has(input:checked) {
+  border-color: var(--v2-primary-container); background: var(--v2-primary-container); color: #fff;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, .45);
+}
+.choice-chip:has(input:checked) .choice-check { display: inline; }
+.choice-chip:has(input:focus-visible) { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
+.choice-group[aria-invalid='true'] .choice-chip { border-color: var(--v2-error); }
+.country-more { max-width: 260px; }
+.country-more select { min-height: 44px; }
 
 .publish-preview { display: grid; gap: var(--v2-sm); margin: 0; scroll-margin-top: 5rem; }
 .publish-preview-head { display: flex; align-items: center; gap: var(--v2-sm); margin: 0; font-size: 13px; font-weight: 700; color: var(--v2-secondary); }

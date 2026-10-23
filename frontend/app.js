@@ -1065,19 +1065,176 @@ async function openMember(username) {
 // ---------------------------------------------------------------------------
 
 function readPublishForm() {
-  const minAge = ui.pubMinAge.value.trim();
-  return {
+  const minAge = ui.pubAgeChips.querySelector('input:checked')?.value || '';
+  const values = {
     title: ui.pubTitle.value.trim(),
     url: ui.pubUrl.value.trim(),
     description: ui.pubDescription.value.trim(),
     category: ui.pubCategory.value,
-    countries: ui.pubCountries.value.trim(),
-    expected_action: ui.pubAction.value.trim(),
-    payout_text: ui.pubPayout.value.trim() || null,
+    countries: readCountries(),
+    expected_action: readAction(),
     min_age: minAge === '' ? null : Number(minAge),
-    conditions: ui.pubConditions.value.trim() || null,
+    conditions: readConditions() || null,
     rights_confirmed: ui.pubRights.checked,
   };
+  /*
+   * La rémunération n'est plus saisie. Le serveur réécrit tous les champs
+   * lors d'une modification : on renvoie celle de l'offre telle quelle,
+   * pour qu'elle ne soit pas effacée.
+   */
+  if (state.community.editingPayout) values.payout_text = state.community.editingPayout;
+  return values;
+}
+
+// ---- Choix du formulaire Publier (puces) ---------------------------------
+// Les valeurs envoyées gardent le format d'avant : pays « FR, BE », action
+// et conditions en texte, âge en nombre ou null.
+
+const PUB_COUNTRIES = [['FR', 'France'], ['BE', 'Belgique'], ['CH', 'Suisse'], ['LU', 'Luxembourg'], ['CA', 'Canada']];
+const PUB_MORE_COUNTRIES = [
+  ['DE', 'Allemagne'], ['AT', 'Autriche'], ['ES', 'Espagne'], ['US', 'États-Unis'], ['IE', 'Irlande'],
+  ['IT', 'Italie'], ['MA', 'Maroc'], ['MC', 'Monaco'], ['NL', 'Pays-Bas'], ['PL', 'Pologne'],
+  ['PT', 'Portugal'], ['GB', 'Royaume-Uni'], ['SN', 'Sénégal'], ['CI', 'Côte d’Ivoire'], ['TN', 'Tunisie'], ['DZ', 'Algérie'],
+];
+const PUB_ACTIONS = [
+  'S\'inscrire avec un e-mail confirmé', 'Installer l\'appli', 'Installer et ouvrir l\'appli',
+  'Faire un premier achat', 'Remplir un formulaire',
+];
+const PUB_CONDITIONS = ['Pas de trafic incité', 'Pas d\'envoi en masse', 'Un seul compte par personne', 'France uniquement'];
+const CONDITIONS_SEPARATOR = ' · ';
+const CONDITIONS_MAX = 2000;
+const OTHER = '__autre__';
+
+/** Drapeau en émoji à partir du code pays (FR → 🇫🇷). */
+function countryFlag(code) {
+  return /^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map((c) => 0x1f1a5 + c.charCodeAt(0))) : '🌍';
+}
+
+function countryName(code) {
+  return [...PUB_COUNTRIES, ...PUB_MORE_COUNTRIES].find(([c]) => c === code)?.[1] || code;
+}
+
+/** Une puce : vraie case ou vrai bouton radio, donc utilisable au clavier. */
+function choiceChip({ type, name, value, label, checked = false, flag = '', onchange }) {
+  return h('label', { className: 'choice-chip' },
+    h('input', { type, name, value, checked, onchange }),
+    flag ? h('span', { className: 'choice-flag', 'aria-hidden': 'true' }, flag) : null,
+    h('span', null, label),
+    icon('i-check', 'icon sm choice-check'));
+}
+
+function addCountryChip(code, checked = true) {
+  const existing = [...ui.pubCountryChips.querySelectorAll('input')].find((input) => input.value === code);
+  if (existing) {
+    existing.checked = true;
+    return;
+  }
+  ui.pubCountryChips.append(choiceChip({
+    type: 'checkbox', name: 'pub-country', value: code, label: countryName(code), flag: countryFlag(code), checked,
+    onchange: updatePublishPreview,
+  }));
+}
+
+function readCountries() {
+  return [...ui.pubCountryChips.querySelectorAll('input:checked')].map((input) => input.value).join(', ');
+}
+
+function readAction() {
+  const choice = ui.pubActionChips.querySelector('input:checked')?.value || '';
+  return choice === OTHER ? ui.pubActionOther.value.trim() : choice;
+}
+
+function readConditions() {
+  const parts = [...ui.pubConditionChips.querySelectorAll('input:checked')]
+    .filter((input) => input.value !== OTHER).map((input) => input.value);
+  if (ui.pubConditionChips.querySelector(`input[value="${OTHER}"]`).checked) {
+    const other = ui.pubConditionsOther.value.trim();
+    if (other) parts.push(other);
+  }
+  return parts.join(CONDITIONS_SEPARATOR);
+}
+
+/** Champs « Autre » : visibles seulement quand leur puce est choisie. */
+function syncOtherFields() {
+  const actionOther = ui.pubActionChips.querySelector('input:checked')?.value === OTHER;
+  ui.pubActionOtherField.hidden = !actionOther;
+  ui.pubActionOther.required = actionOther;
+  const conditionsOther = ui.pubConditionChips.querySelector(`input[value="${OTHER}"]`).checked;
+  ui.pubConditionsOtherField.hidden = !conditionsOther;
+  // Limite de 2000 caractères pour le texte complet, séparateurs compris.
+  const fixed = [...ui.pubConditionChips.querySelectorAll('input:checked')]
+    .filter((input) => input.value !== OTHER).map((input) => input.value).join(CONDITIONS_SEPARATOR);
+  const room = CONDITIONS_MAX - fixed.length - (fixed ? CONDITIONS_SEPARATOR.length : 0);
+  ui.pubConditionsOther.maxLength = Math.max(0, room);
+  ui.pubConditionsCount.textContent = `${[...ui.pubConditionsOther.value].length}/${Math.max(0, room)}`;
+}
+
+function onChoiceChange() {
+  syncOtherFields();
+  updatePublishPreview();
+}
+
+function renderPublishChoices() {
+  ui.pubCountryChips.replaceChildren();
+  for (const [code] of PUB_COUNTRIES) addCountryChip(code, code === 'FR');
+  ui.pubCountryMore.replaceChildren(h('option', { value: '' }, 'Autre pays…'),
+    ...PUB_MORE_COUNTRIES.map(([code, name]) => h('option', { value: code }, `${countryFlag(code)} ${name}`)));
+
+  ui.pubActionChips.replaceChildren(...[...PUB_ACTIONS, OTHER].map((value) => choiceChip({
+    type: 'radio', name: 'pub-action', value, label: value === OTHER ? 'Autre…' : value, onchange: onChoiceChange,
+  })));
+  ui.pubAgeChips.replaceChildren(
+    choiceChip({ type: 'radio', name: 'pub-age', value: '', label: 'Pas d’âge précisé', checked: true, onchange: onChoiceChange }),
+    choiceChip({ type: 'radio', name: 'pub-age', value: '18', label: '18 ans et +', onchange: onChoiceChange }));
+  ui.pubConditionChips.replaceChildren(...[...PUB_CONDITIONS, OTHER].map((value) => choiceChip({
+    type: 'checkbox', name: 'pub-condition', value, label: value === OTHER ? 'Autre' : value, onchange: onChoiceChange,
+  })));
+  ui.pubActionOther.value = '';
+  ui.pubConditionsOther.value = '';
+  syncOtherFields();
+}
+
+/** Comparaison tolérante (apostrophes droites ou typographiques, casse). */
+function sameChoice(a, b) {
+  const norm = (value) => String(value).replace(/[’‘]/g, '\'').trim().toLowerCase();
+  return norm(a) === norm(b);
+}
+
+/*
+ * Modifier une offre : on recoche les choix à partir des valeurs
+ * enregistrées. Ce qui ne correspond à aucun choix va dans « Autre ».
+ */
+function fillPublishChoices(offer) {
+  renderPublishChoices();
+  ui.pubCountryChips.querySelectorAll('input').forEach((input) => { input.checked = false; });
+  for (const code of String(offer.countries || '').split(/[\s,;]+/).map((c) => c.trim().toUpperCase()).filter(Boolean)) {
+    addCountryChip(code);
+  }
+
+  const action = String(offer.expected_action || '').trim();
+  const known = PUB_ACTIONS.find((value) => sameChoice(value, action));
+  const actionInput = [...ui.pubActionChips.querySelectorAll('input')].find((input) => input.value === (known || OTHER));
+  if (action) actionInput.checked = true;
+  if (action && !known) ui.pubActionOther.value = action;
+
+  const age = offer.min_age;
+  if (age !== null && age !== undefined && age !== 18) {
+    // Âge fixé autrement par le passé : on le garde, proposé comme 3e choix.
+    ui.pubAgeChips.append(choiceChip({ type: 'radio', name: 'pub-age', value: String(age), label: `${age} ans et + (actuel)`, onchange: onChoiceChange }));
+  }
+  ui.pubAgeChips.querySelectorAll('input').forEach((input) => { input.checked = input.value === (age === null || age === undefined ? '' : String(age)); });
+
+  const others = [];
+  for (const part of String(offer.conditions || '').split(CONDITIONS_SEPARATOR).map((p) => p.trim()).filter(Boolean)) {
+    const input = [...ui.pubConditionChips.querySelectorAll('input')].find((i) => i.value !== OTHER && sameChoice(i.value, part));
+    if (input) input.checked = true;
+    else others.push(part);
+  }
+  if (others.length) {
+    ui.pubConditionChips.querySelector(`input[value="${OTHER}"]`).checked = true;
+    ui.pubConditionsOther.value = others.join(CONDITIONS_SEPARATOR);
+  }
+  syncOtherFields();
 }
 
 /*
@@ -1090,11 +1247,10 @@ const PUBLISH_FIELD_INPUTS = {
   url: 'pubUrl',
   description: 'pubDescription',
   category: 'pubCategory',
-  countries: 'pubCountries',
-  expected_action: 'pubAction',
-  payout_text: 'pubPayout',
-  min_age: 'pubMinAge',
-  conditions: 'pubConditions',
+  countries: 'pubCountriesGroup',
+  expected_action: 'pubActionGroup',
+  min_age: 'pubAgeGroup',
+  conditions: 'pubConditionsGroup',
   rights_confirmed: 'pubRights',
 };
 
@@ -1119,7 +1275,13 @@ function showFieldError(field, message) {
   const input = ui[PUBLISH_FIELD_INPUTS[field]];
   if (input) {
     input.setAttribute('aria-invalid', 'true');
-    const target = field === 'category' ? ui.pubCategoryTiles.querySelector('input') : input;
+    // Groupes de puces : le focus va sur le premier choix (ou le champ « Autre » ouvert).
+    let target = input;
+    if (field === 'category') target = ui.pubCategoryTiles.querySelector('input');
+    else if (input.tagName === 'FIELDSET') {
+      target = [...input.querySelectorAll('input:not([type=radio]):not([type=checkbox])')].find((el) => !el.closest('[hidden]'))
+        || input.querySelector('input');
+    }
     if (target) target.focus({ preventScroll: false });
   }
   return true;
@@ -1138,10 +1300,11 @@ function checkPublishForm(values) {
   if (!/^https:\/\//i.test(values.url)) return 'Le lien doit commencer par https://';
   if (values.description.length < 20) return 'La description doit contenir au moins 20 caractères.';
   if (!values.category) return 'Choisis une catégorie.';
-  if (values.countries.length < 2) return 'Indique les pays concernés (ex. FR).';
-  if (values.expected_action.length < 5) return 'Décris l’action attendue.';
-  if (values.min_age !== null && !(Number.isInteger(values.min_age) && values.min_age >= 10 && values.min_age <= 99)) {
-    return 'L’âge minimum doit être un nombre entre 10 et 99.';
+  if (values.countries.length < 2) return 'Choisis au moins un pays.';
+  if (!values.expected_action) return 'Choisis ce qu’il faut faire.';
+  if (values.expected_action.length < 5) return 'Décris l’action attendue (5 caractères minimum).';
+  if (values.conditions && values.conditions.length > CONDITIONS_MAX) {
+    return `Les conditions dépassent ${CONDITIONS_MAX} caractères : raccourcis le champ « Autre ».`;
   }
   if (!values.rights_confirmed) return 'Coche la confirmation avant d’envoyer.';
   return '';
@@ -1199,7 +1362,9 @@ function updatePublishPreview() {
 
 function resetPublishForm() {
   state.community.editing = null;
+  state.community.editingPayout = null;
   ui.publishForm.reset();
+  renderPublishChoices();
   ui.publishFormTitle.textContent = 'Nouvelle offre';
   ui.pubCancelEdit.classList.add('hidden');
   syncCategoryTiles();
@@ -1214,17 +1379,14 @@ function startOfferEdit(offer) {
   ui.pubUrl.value = offer.url;
   ui.pubDescription.value = offer.description;
   ui.pubCategory.value = offer.category;
-  ui.pubCountries.value = offer.countries;
-  ui.pubAction.value = offer.expected_action;
-  ui.pubPayout.value = offer.payout_text || '';
-  ui.pubMinAge.value = offer.min_age ?? '';
-  ui.pubConditions.value = offer.conditions || '';
+  state.community.editingPayout = offer.payout_text || null;
+  fillPublishChoices(offer);
   ui.pubRights.checked = false;
   syncCategoryTiles();
   updateTitleCount();
   updatePublishPreview();
   // Options facultatives déjà remplies : on les montre.
-  ui.publishForm.querySelector('.pub-more').open = Boolean(offer.payout_text || offer.min_age || offer.conditions);
+  ui.publishForm.querySelector('.pub-more').open = Boolean(offer.min_age || offer.conditions);
   ui.publishFormTitle.textContent = `Modifier : ${offer.title}`;
   ui.pubCancelEdit.classList.remove('hidden');
   publishFeedback('info', 'Une offre modifiée est de nouveau vérifiée avant d’être visible.');
@@ -1951,8 +2113,12 @@ document.addEventListener('DOMContentLoaded', () => {
     publishForm: 'publish-form', publishFormTitle: 'publish-form-title', publishError: 'publish-error',
     publishSuccess: 'publish-success', publishPreview: 'publish-preview', publishPreviewCard: 'publish-preview-card',
     pubTitle: 'pub-title', pubUrl: 'pub-url', pubDescription: 'pub-description', pubCategory: 'pub-category',
-    pubCountries: 'pub-countries', pubAction: 'pub-action', pubPayout: 'pub-payout', pubMinAge: 'pub-min-age',
-    pubConditions: 'pub-conditions', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
+    pubCountryChips: 'pub-country-chips', pubCountryMore: 'pub-country-more', pubCountriesGroup: 'pub-countries-group',
+    pubActionChips: 'pub-action-chips', pubActionOther: 'pub-action-other', pubActionOtherField: 'pub-action-other-field',
+    pubActionGroup: 'pub-action-group', pubAgeChips: 'pub-age-chips', pubAgeGroup: 'pub-age-group',
+    pubConditionChips: 'pub-condition-chips', pubConditionsOther: 'pub-conditions-other',
+    pubConditionsOtherField: 'pub-conditions-other-field', pubConditionsCount: 'pub-conditions-count',
+    pubConditionsGroup: 'pub-conditions-group', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
     myOffers: 'my-offers', myleadGuide: 'mylead-guide',
     pubCategoryTiles: 'pub-category-tiles', pubTitleCount: 'pub-title-count',
     myOffersFeedback: 'my-offers-feedback', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
@@ -2068,7 +2234,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Publier
   ui.publishForm.addEventListener('submit', handlePublish);
-  ui.publishForm.addEventListener('input', () => { updateTitleCount(); updatePublishPreview(); });
+  ui.publishForm.addEventListener('input', () => { updateTitleCount(); syncOtherFields(); updatePublishPreview(); });
+  renderPublishChoices();
+  ui.pubCountryMore.addEventListener('change', () => {
+    if (!ui.pubCountryMore.value) return;
+    addCountryChip(ui.pubCountryMore.value);
+    ui.pubCountryMore.value = '';
+    updatePublishPreview();
+  });
   updatePublishPreview();
   ui.pubCancelEdit.addEventListener('click', () => { resetPublishForm(); publishFeedback('', ''); });
   renderMyLeadGuide({ available: false });
