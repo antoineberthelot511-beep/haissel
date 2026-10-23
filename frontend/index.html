@@ -624,7 +624,14 @@
                 <h2 id="publish-title" class="section-title">Partager un bon plan 🚀</h2>
                 <p class="eyebrow">Partage ton lien d'affiliation avec la communauté.</p>
               </div>
-              <p class="ad-notice">Chaque offre est <strong>vérifiée par l'équipe</strong> avant d'être visible. Décris-la honnêtement : pas de promesse de gains, pas de fausse information. Les jeux d'argent, la crypto, le crédit, les rencontres, les contenus pour adultes, le tabac et l'alcool sont refusés. HAISSEL ne te demandera jamais ton mot de passe MyLead.</p>
+              <details class="pub-rules">
+                <summary>
+                  <svg class="icon" aria-hidden="true"><use href="#i-shield-check" /></svg>
+                  <span>Règles de publication</span>
+                  <svg class="icon pub-more-chevron" aria-hidden="true"><use href="#i-chevron-down" /></svg>
+                </summary>
+                <p>Chaque offre est <strong>vérifiée par l'équipe</strong> avant d'être visible. Décris-la honnêtement : pas de promesse de gains, pas de fausse information. Les jeux d'argent, la crypto, le crédit, les rencontres, les contenus pour adultes, le tabac et l'alcool sont refusés. HAISSEL ne te demandera jamais ton mot de passe MyLead.</p>
+              </details>
 
               <form id="publish-form" class="publish-form" novalidate>
                 <h3 id="publish-form-title" class="publish-form-title">Nouvelle offre</h3>
@@ -638,7 +645,11 @@
                     <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required />
                   </label>
                   <p class="field-error hidden" id="err-url" role="alert"></p>
-                  <p class="pub-hint"><svg class="icon sm" aria-hidden="true"><use href="#i-shield-check" /></svg>Le lien de ton propre compte éditeur, et rien d'autre.</p>
+                  <label class="toggle-row rights-check">
+                    <input id="pub-rights" type="checkbox" required />
+                    <span>Ce lien vient de <strong>mon propre compte éditeur</strong> et je respecte les conditions de la campagne.</span>
+                  </label>
+                  <p class="field-error hidden" id="err-rights_confirmed" role="alert"></p>
                 </section>
 
                 <section class="pub-step" aria-labelledby="pub-step-2">
@@ -714,18 +725,12 @@
                   <div id="publish-preview-card" class="offer-feed"></div>
                 </div>
 
-                <label class="toggle-row rights-check">
-                  <input id="pub-rights" type="checkbox" required />
-                  <span>Ce lien vient de <strong>mon propre compte éditeur</strong> et je respecte les conditions de la campagne.</span>
-                </label>
-                <p class="field-error hidden" id="err-rights_confirmed" role="alert"></p>
                 <div class="turnstile-slot hidden" data-turnstile-action="publish"></div>
                 <div class="publish-actions">
                   <button class="primary-button" type="submit">
                     <svg class="icon" aria-hidden="true"><use href="#i-send" /></svg>
                     Envoyer pour vérification
                   </button>
-                  <button id="pub-preview-button" class="secondary-button" type="button">Voir l'aperçu</button>
                   <button id="pub-cancel-edit" class="ghost-button hidden" type="button">Annuler la modification</button>
                 </div>
                 <p class="pub-note"><svg class="icon sm" aria-hidden="true"><use href="#i-clock" /></svg>L'équipe relit ton offre avant publication.</p>

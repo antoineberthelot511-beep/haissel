@@ -1195,11 +1195,6 @@ function updatePublishPreview() {
   ui.publishPreviewCard.replaceChildren(communityCard(preview, { preview: true }));
 }
 
-function showPublishPreview() {
-  updatePublishPreview();
-  ui.publishPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
 function resetPublishForm() {
   state.community.editing = null;
   ui.publishForm.reset();
@@ -1956,7 +1951,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pubTitle: 'pub-title', pubUrl: 'pub-url', pubDescription: 'pub-description', pubCategory: 'pub-category',
     pubCountries: 'pub-countries', pubAction: 'pub-action', pubPayout: 'pub-payout', pubMinAge: 'pub-min-age',
     pubConditions: 'pub-conditions', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
-    pubPreviewButton: 'pub-preview-button', myOffers: 'my-offers', myleadGuide: 'mylead-guide',
+    myOffers: 'my-offers', myleadGuide: 'mylead-guide',
     pubCategoryTiles: 'pub-category-tiles', pubTitleCount: 'pub-title-count',
     myOffersFeedback: 'my-offers-feedback', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
@@ -2071,7 +2066,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Publier
   ui.publishForm.addEventListener('submit', handlePublish);
-  ui.pubPreviewButton.addEventListener('click', showPublishPreview);
   ui.publishForm.addEventListener('input', () => { updateTitleCount(); updatePublishPreview(); });
   updatePublishPreview();
   ui.pubCancelEdit.addEventListener('click', () => { resetPublishForm(); publishFeedback('', ''); });

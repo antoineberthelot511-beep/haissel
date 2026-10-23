@@ -576,11 +576,21 @@ button.fc-author:hover { color: var(--v2-primary); }
 .icon-field { position: relative; }
 .icon-field > .icon { position: absolute; left: 16px; bottom: 16px; color: var(--v2-secondary); pointer-events: none; }
 .icon-field input { padding-left: 46px; }
-.pub-hint, .pub-note {
-  display: flex; align-items: center; gap: var(--v2-sm); margin: 0; font-size: 12.5px; font-weight: 600; color: var(--v2-verified-strong);
+.pub-note {
+  display: flex; align-items: center; justify-content: center; gap: var(--v2-sm); margin: 0;
+  font-size: 12.5px; font-weight: 600; color: var(--v2-secondary);
 }
-.pub-hint { padding: 10px 12px; border-radius: var(--v2-r); background: var(--v2-verified-soft); }
-.pub-note { justify-content: center; color: var(--v2-secondary); }
+
+/* Règles de publication : une ligne qui se déplie */
+.pub-rules { margin: 0 0 var(--v2-md); border: 1px solid var(--v2-outline); border-radius: var(--v2-r); background: var(--v2-surface); }
+.pub-rules summary {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; cursor: pointer; list-style: none;
+  font-size: 14px; font-weight: 700; color: var(--v2-on-surface);
+}
+.pub-rules summary::-webkit-details-marker { display: none; }
+.pub-rules summary > .icon:first-child { color: var(--v2-primary); }
+.pub-rules[open] .pub-more-chevron { transform: rotate(180deg); }
+.pub-rules p { padding: 0 14px 14px; font-size: 13px; line-height: 1.5; color: var(--v2-on-surface-variant); }
 
 .cat-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .cat-fieldset legend { margin-bottom: 6px; padding: 0; font-size: 13px; font-weight: 700; color: var(--v2-on-surface); }
