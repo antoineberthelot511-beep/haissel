@@ -710,21 +710,10 @@ body:has(#auth-screen:not(.hidden)) #main.layout { max-width: 480px; padding-top
 .trust-note { display: grid; gap: 6px; padding: var(--v2-md); border-radius: var(--v2-r-md); background: var(--v2-surface-low); text-align: center; }
 .trust-note-title { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--v2-secondary); }
 
-/* Présentation (sous le formulaire) */
-#auth-screen .auth-intro { display: grid; gap: var(--v2-md); padding-top: var(--v2-md); border-top: 1px solid var(--v2-outline); }
-#auth-screen .auth-intro h1 { font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -.02em; color: var(--v2-on-surface); }
-#auth-screen .lede { margin: -8px 0 0; font-size: 14px; color: var(--v2-on-surface-variant); }
-#auth-screen .steps { display: grid; gap: var(--v2-sm); margin: 0; padding: 0; list-style: none; }
-#auth-screen .steps li {
-  display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--v2-outline);
-  border-radius: var(--v2-r); background: var(--v2-surface); font-size: 14px;
-}
-#auth-screen .step-no { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--v2-primary-fixed); color: var(--v2-on-primary-fixed); font-weight: 800; }
-#auth-screen .trust-box {
-  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--v2-r);
-  background: var(--v2-primary-soft); color: var(--v2-on-primary-fixed); font-size: 13px; line-height: 1.5;
-}
-#auth-screen .trust-box .icon { flex: none; margin-top: 1px; color: var(--v2-primary); }
+/* Confidentialité : une phrase sous le formulaire */
+#auth-screen .auth-privacy { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--v2-secondary); text-align: center; }
+/* Inscription : la politique figure déjà dans l'encadré des conditions. */
+#auth-screen:has(#register-form:not(.hidden)) .auth-privacy { display: none; }
 
 /* ==========================================================================
    Écran d'accueil mobile (avant connexion) et question de majorité
@@ -757,8 +746,6 @@ body:has(#auth-screen:not(.hidden)) #main.layout { max-width: 480px; padding-top
 .splash-points .icon { color: var(--v2-primary); }
 .splash-actions, .age-gate-actions { gap: 10px; }
 .splash-button, .age-gate-actions button { width: 100%; min-height: 56px; font-family: var(--v2-font); font-size: 16px; }
-.splash-more { font-family: var(--v2-font); font-size: 14px; font-weight: 700; color: var(--v2-primary); border-radius: var(--v2-r-full); text-decoration: none; }
-.splash-more:hover { background: var(--v2-primary-soft); color: var(--v2-primary-strong); }
 .age-gate .age-why, .age-gate .age-consequence { font-size: 14px; }
 .age-gate .age-consequence { display: block; padding: 12px 14px; border-radius: var(--v2-r); background: var(--v2-surface); }
 
@@ -947,10 +934,6 @@ a.offer-link-button { display: inline-flex; }
 .splash-card, .age-gate-card { width: 100%; max-width: 420px; display: flex; flex-direction: column; }
 .splash-brand, .age-gate-brand { display: flex; align-items: center; flex-wrap: wrap; margin: 0; }
 .splash-actions, .age-gate-actions { display: flex; flex-direction: column; margin-top: 4px; }
-.splash-more {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center;
-  min-height: 44px; padding: 0 16px; border: 0; background: transparent; cursor: pointer;
-}
 
 /* Question de majorité des anciens comptes : couvre la page, sans sortie. */
 .age-gate:not([hidden]) {
