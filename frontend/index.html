@@ -133,30 +133,33 @@
               <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>
               Déconnexion
             </button>
+            <!-- Raccourcis de l'en-tête (espace membre) -->
+            <button class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Notifications">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-bell" /></svg>
+            </button>
+            <button class="topbar-avatar member-only" type="button" data-view="profile" aria-label="Mon profil">
+              <span id="topbar-avatar" class="avatar" aria-hidden="true">H</span>
+            </button>
           </div>
         </div>
 
-        <!-- Navigation principale (bas d'écran sur téléphone) -->
+        <!-- Navigation principale : barre flottante en bas d'écran.
+             « Apprendre » est accessible depuis l'accueil et le profil. -->
         <nav class="topbar-nav" aria-label="Navigation principale">
           <div class="topbar-nav-inner">
             <button class="nav-button active" type="button" data-view="home" aria-current="page">
-              <svg class="icon" aria-hidden="true"><use href="#i-home" /></svg>
+              <svg class="icon lg" aria-hidden="true"><use href="#i-home" /></svg>
               <span>Accueil</span>
             </button>
             <button class="nav-button" type="button" data-view="links">
-              <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
-              <span>Rechercher</span>
+              <svg class="icon lg" aria-hidden="true"><use href="#i-compass" /></svg>
+              <span>Chercher</span>
             </button>
-            <button class="nav-button" type="button" data-view="learn">
-              <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
-              <span>Apprendre</span>
-            </button>
-            <button class="nav-button" type="button" data-view="publish">
-              <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
-              <span>Publier</span>
+            <button class="nav-button nav-fab" type="button" data-view="publish" aria-label="Publier une offre">
+              <span class="nav-fab-circle" aria-hidden="true"><svg class="icon"><use href="#i-add" /></svg></span>
             </button>
             <button class="nav-button" type="button" data-view="profile">
-              <svg class="icon" aria-hidden="true"><use href="#i-user" /></svg>
+              <svg class="icon lg" aria-hidden="true"><use href="#i-user" /></svg>
               <span>Profil</span>
             </button>
           </div>
@@ -338,27 +341,42 @@
           <!-- ====================== ESPACE MEMBRE ====================== -->
           <div id="app-screen" class="app-screen hidden">
             <section id="home-view" class="view-panel" aria-labelledby="home-title">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Bonjour, <span id="home-name">utilisateur</span></p>
-                  <h2 id="home-title" class="section-title">Page d'accueil</h2>
-                </div>
+              <div class="home-greet">
+                <p class="eyebrow">Bonjour, <span id="home-name">utilisateur</span> 👋</p>
+                <h2 id="home-title" class="section-title">Les bons plans de la communauté</h2>
                 <p id="home-date" class="home-date"></p>
               </div>
-              <div class="home-note">
-                <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
-                <p>Les offres affichées sont des <strong>publicités</strong> de sites partenaires, signalées par le badge « Lien affilié ». Chaque offre est vérifiée par l'équipe avant d'être visible.</p>
-              </div>
-              <div class="home-offers-head">
-                <h3 class="subsection-title">Offres de la communauté</h3>
-                <button class="secondary-button small-button" type="button" data-goto="links">
-                  <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>
-                  Rechercher
-                </button>
-              </div>
-              <div id="home-offers" class="offer-grid" aria-live="polite"></div>
 
-              <div class="widget-grid">
+              <!-- « Apprendre » : carte de progression (remplie par app.js) -->
+              <aside id="home-learn-card" class="learn-progress-card" aria-labelledby="home-learn-title">
+                <p class="lp-tag"><span>Apprendre</span><span id="home-learn-step" class="lp-step"></span></p>
+                <h3 id="home-learn-title">Comprendre les bases de l'affiliation</h3>
+                <p id="home-learn-text" class="lp-text">Les règles à respecter et la transparence des liens.</p>
+                <div id="home-learn-progress" class="lp-progress hidden">
+                  <div class="lp-progress-head"><span>Ta progression</span><strong id="home-learn-count"></strong></div>
+                  <progress id="home-learn-bar" max="1" value="0" aria-labelledby="home-learn-title"></progress>
+                </div>
+                <button id="home-learn-go" class="lp-cta" type="button">
+                  <span id="home-learn-go-label">Lire les guides</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+                </button>
+              </aside>
+
+              <nav id="home-chips" class="chip-row" aria-label="Chercher par catégorie"></nav>
+
+              <p class="home-note">
+                <svg class="icon sm" aria-hidden="true"><use href="#i-info" /></svg>
+                <span>Ces offres sont des <strong>publicités</strong> publiées par des membres, signalées par le badge « Lien affilié ». L'équipe vérifie chaque offre avant qu'elle soit visible.</span>
+              </p>
+              <div id="home-offers" class="offer-feed" aria-live="polite"></div>
+              <div class="feed-end">
+                <p class="feed-end-title">Tu as tout vu pour l'instant ! 🎉</p>
+                <p data-adult-only>Partage ton propre bon plan pour aider la communauté.</p>
+              </div>
+
+              <!-- Anciens encadrés de l'accueil : masqués (un seul fil d'offres),
+                   conservés car app.js et notifications.js les remplissent. -->
+              <div class="widget-grid" hidden>
                 <article class="widget" aria-labelledby="w-links-title">
                   <header class="widget-head">
                     <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
@@ -387,7 +405,7 @@
                   <button class="widget-more" type="button" data-goto="notifications">Réglages des notifications</button>
                 </article>
               </div>
-              <section class="account-band" aria-labelledby="w-account-title">
+              <section class="account-band" aria-labelledby="w-account-title" hidden>
                 <div class="account-band-id">
                   <svg class="home-seal" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" /><circle class="seal-inner" cx="24" cy="24" r="14.5" /><path d="M17 24.5l5 5 9.5-10.5" /></svg>
                   <div>
@@ -403,38 +421,41 @@
               <div class="section-header">
                 <div>
                   <p class="eyebrow">Bonjour, <span id="welcome-name">utilisateur</span></p>
-                  <h2 id="links-title" class="section-title">Rechercher une offre</h2>
+                  <h2 id="links-title" class="section-title">Chercher une offre</h2>
                 </div>
-                <button id="refresh-links" class="secondary-button" type="button">
+                <button id="refresh-links" class="round-button" type="button" aria-label="Actualiser les liens">
                   <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
-                  Actualiser
                 </button>
               </div>
+
+              <form id="community-filters" class="filters-bar" role="search" aria-label="Chercher une offre">
+                <label class="search-field">
+                  <span class="visually-hidden">Rechercher</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+                  <input id="community-q" type="search" maxlength="80" placeholder="Une marque, une appli, un jeu…" />
+                </label>
+                <div class="filters-row">
+                  <label class="field">
+                    <span>Catégorie</span>
+                    <select id="community-category"><option value="">Toutes</option></select>
+                  </label>
+                  <label class="field">
+                    <span>Pays (2 lettres)</span>
+                    <input id="community-country" type="text" maxlength="2" placeholder="FR" autocomplete="off" />
+                  </label>
+                </div>
+                <label class="toggle-row filter-saved">
+                  <input id="community-saved" type="checkbox" />
+                  <span>Seulement mes offres sauvegardées</span>
+                </label>
+              </form>
               <p class="ad-notice">Toutes ces offres sont des <strong>liens affiliés</strong> (badge « Lien affilié ») : la personne qui a publié le lien (un membre ou l'équipe HAISSEL) peut toucher une commission si tu réalises l'action demandée. <strong>Aucun gain n'est garanti</strong>, ni pour toi ni pour elle. Rien ne t'oblige à cliquer.</p>
 
               <h3 class="subsection-title">Offres de la communauté</h3>
-              <form id="community-filters" class="filters-bar" role="search" aria-label="Rechercher une offre">
-                <label class="field">
-                  <span>Rechercher</span>
-                  <input id="community-q" type="search" maxlength="80" placeholder="ex. application, jeu…" />
-                </label>
-                <label class="field">
-                  <span>Catégorie</span>
-                  <select id="community-category"><option value="">Toutes</option></select>
-                </label>
-                <label class="field">
-                  <span>Pays (code à 2 lettres)</span>
-                  <input id="community-country" type="text" maxlength="2" placeholder="ex. FR, BE, CH" autocomplete="off" />
-                </label>
-                <label class="show-password filter-saved">
-                  <input id="community-saved" type="checkbox" />
-                  <span>Mes offres enregistrées</span>
-                </label>
-              </form>
-              <div id="community-list" class="offer-grid" aria-live="polite"></div>
+              <div id="community-list" class="offer-feed" aria-live="polite"></div>
 
               <h3 class="subsection-title">Liens de l'équipe HAISSEL</h3>
-              <div id="links-list" class="offer-grid" aria-live="polite"></div>
+              <div id="links-list" class="offer-feed" aria-live="polite"></div>
             </section>
 
             <section id="learn-view" class="view-panel hidden" aria-labelledby="learn-title">

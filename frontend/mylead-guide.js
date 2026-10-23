@@ -340,5 +340,10 @@
       ...items);
   }
 
-  window.HaisselMyLeadGuide = { render, STEPS };
+  /** Progression enregistrée dans ce navigateur (carte « Apprendre » de l'accueil). */
+  function progress() {
+    return { done: loadProgress().size, total: STEPS.length };
+  }
+
+  window.HaisselMyLeadGuide = { render, progress, STEPS };
 }());

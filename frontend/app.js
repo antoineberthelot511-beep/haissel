@@ -59,6 +59,46 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleDateString('fr-FR') : '—';
 }
 
+/** « il y a 3 h », « il y a 2 j » ; au-delà d'une semaine, la date. */
+function formatAgo(value) {
+  if (!value) return '';
+  const minutes = Math.floor((Date.now() - new Date(value).getTime()) / 60000);
+  if (!Number.isFinite(minutes)) return '';
+  if (minutes < 1) return 'à l’instant';
+  if (minutes < 60) return `il y a ${minutes} min`;
+  if (minutes < 24 * 60) return `il y a ${Math.floor(minutes / 60)} h`;
+  if (minutes < 7 * 24 * 60) return `il y a ${Math.floor(minutes / (24 * 60))} j`;
+  return `le ${formatDate(value)}`;
+}
+
+/** Icône du sprite de index.html (décorative). */
+function icon(name, className = 'icon') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', className);
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', `#${name}`);
+  svg.append(use);
+  return svg;
+}
+
+/*
+ * Icône par catégorie : les catégories sont gérées par l'administration, une
+ * catégorie inconnue d'ici prend l'étiquette générique. Aucune photo.
+ */
+const CATEGORY_ICONS = {
+  applications: 'i-cat-applications',
+  jeux: 'i-cat-jeux',
+  shopping: 'i-cat-shopping',
+  services: 'i-cat-services',
+  education: 'i-cat-education',
+  sondages: 'i-cat-sondages',
+};
+
+function categoryIcon(category, className = 'icon') {
+  return icon(CATEGORY_ICONS[category] || 'i-tag', className);
+}
+
 function initialsFromName(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
   return parts.map((part) => part[0].toUpperCase()).join('') || 'H';
@@ -156,6 +196,7 @@ function updateUserSummary() {
   ui.profileCreatedAt.textContent = formatDate(state.user?.created_at);
   ui.sidebarAvatar.textContent = initials;
   ui.profileAvatar.textContent = initials;
+  ui.topbarAvatar.textContent = initials;
 
   ui.homeName.textContent = ui.welcomeName.textContent;
   ui.homeUsername.textContent = state.user ? `@${state.user.username}` : '—';
@@ -176,6 +217,7 @@ function setActiveView(viewName) {
   document.querySelectorAll('.view-panel').forEach((panel) => {
     panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
   });
+  if (viewName === 'home' && state.user) renderHomeLearnCard();
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
   if ((viewName === 'links' || viewName === 'home') && state.user && !state.community.loaded) loadCommunity();
   if (viewName === 'publish' && state.user) loadMyOffers();
@@ -217,7 +259,8 @@ function applyAgeRestrictions() {
   const minor = Boolean(state.user) && state.user.is_adult === false;
 
   // Onglet « Publier » : retire de la navigation et des raccourcis.
-  document.querySelectorAll('[data-view="publish"], [data-goto="publish"]').forEach((el) => {
+  // [data-adult-only] : textes et blocs qui invitent à publier.
+  document.querySelectorAll('[data-view="publish"], [data-goto="publish"], [data-adult-only]').forEach((el) => {
     el.classList.toggle('hidden', !adult);
   });
   // Parcours MyLead et Parrainage : rubriques de l'espace Apprendre.
@@ -237,6 +280,52 @@ function applyAgeRestrictions() {
   if (!adult && !document.getElementById('publish-view').classList.contains('hidden')) {
     setActiveView('home');
   }
+  renderHomeLearnCard();
+}
+
+/*
+ * Carte « Apprendre » de l'accueil. Le seul chiffre affiché est la
+ * progression du parcours MyLead, enregistrée dans ce navigateur par
+ * mylead-guide.js ; le parcours n'existe que pour les majeurs. Un mineur
+ * voit une invitation aux guides, sans pourcentage.
+ */
+function renderHomeLearnCard() {
+  if (!ui.homeLearnCard) return;
+  const guide = window.HaisselMyLeadGuide;
+  const progress = isAdultMember() && guide?.progress ? guide.progress() : null;
+
+  ui.homeLearnProgress.classList.toggle('hidden', !progress);
+  if (progress) {
+    const finished = progress.done >= progress.total;
+    ui.homeLearnStep.textContent = finished ? 'Parcours terminé' : `Étape ${progress.done + 1} sur ${progress.total}`;
+    ui.homeLearnTitle.textContent = 'Débuter sur MyLead, pas à pas';
+    ui.homeLearnText.textContent = 'Coche chaque étape quand elle est faite. Ta progression reste dans ce navigateur.';
+    ui.homeLearnCount.textContent = `${progress.done}/${progress.total}`;
+    ui.homeLearnBar.max = progress.total;
+    ui.homeLearnBar.value = progress.done;
+    ui.homeLearnGoLabel.textContent = finished ? 'Revoir le parcours' : (progress.done ? 'Continuer le parcours' : 'Commencer le parcours');
+    ui.homeLearnGo.dataset.tab = 'mylead';
+  } else {
+    ui.homeLearnStep.textContent = 'Guides';
+    ui.homeLearnTitle.textContent = 'Comprendre les bases de l’affiliation';
+    ui.homeLearnText.textContent = 'Les règles à respecter et la transparence des liens, expliquées simplement.';
+    ui.homeLearnGoLabel.textContent = 'Lire les guides';
+    ui.homeLearnGo.dataset.tab = 'guides';
+  }
+}
+
+/** Puces de catégories de l'accueil : raccourcis vers « Chercher ». */
+function renderHomeChips() {
+  if (!ui.homeChips) return;
+  ui.homeChips.replaceChildren(...Object.entries(state.community.categories).map(([value, label]) => h('button', {
+    className: 'chip', type: 'button',
+    onclick: () => {
+      ui.communityCategory.value = value;
+      syncFiltersToUrl();
+      setActiveView('links');
+      loadCommunity();
+    },
+  }, categoryIcon(value, 'icon sm'), label)));
 }
 
 function showLoggedIn(user) {
@@ -316,7 +405,7 @@ function linkCard(link) {
       h('div', { className: 'offer-header-line' },
         h('h3', null, link.name),
         // Transparence commerciale (Code de la consommation L. 121-1, loi du 9 juin 2023).
-        h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut percevoir une commission si vous utilisez ce lien.' }, 'Publicité')),
+        h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut percevoir une commission si tu utilises ce lien.' }, icon('i-link', 'icon sm'), 'Lien affilié')),
       link.description ? h('p', null, link.description) : null,
       h('div', { className: 'offer-footer' },
         h('span', { className: 'offer-domain' }, link.domain ? `Site partenaire : ${link.domain}` : 'Site partenaire'),
@@ -611,61 +700,78 @@ function confirmLeave(offer) {
   openDialog(ui.leaveDialog);
 }
 
-function communityCard(offer, { preview = false } = {}) {
-  const row = (label, value) => (value ? h('li', null, h('span', null, label), h('strong', null, value)) : null);
-  const saveButton = h('button', {
-    className: 'ghost-button small-button', type: 'button', 'aria-pressed': String(offer.saved), disabled: preview,
-    onclick: () => toggleSave(offer, saveButton),
-  }, offer.saved ? '★ Enregistrée' : '☆ Enregistrer');
+/*
+ * Bouton « Sauvegarder ». Deux présentations : icône seule (carte du fil)
+ * ou icône et texte (détail d'une offre), choisies par data-variant.
+ */
+function paintSaveButton(button, saved) {
+  const label = saved ? 'Sauvegardée' : 'Sauvegarder';
+  button.setAttribute('aria-pressed', String(saved));
+  if (button.dataset.variant === 'text') {
+    button.replaceChildren(icon(saved ? 'i-bookmark-fill' : 'i-bookmark'), label);
+  } else {
+    button.replaceChildren(icon(saved ? 'i-bookmark-fill' : 'i-bookmark', 'icon lg'), h('span', { className: 'visually-hidden' }, label));
+  }
+}
 
+function saveButtonFor(offer, { variant = 'icon', disabled = false } = {}) {
+  const button = h('button', {
+    className: variant === 'text' ? 'save-button text' : 'save-button', type: 'button', disabled,
+    'data-variant': variant, title: 'Sauvegarder pour plus tard',
+    onclick: () => toggleSave(offer, button),
+  });
+  paintSaveButton(button, offer.saved);
+  return button;
+}
+
+/*
+ * Carte du fil d'offres (accueil, recherche, profil d'un membre, aperçu).
+ * Elle résume l'offre ; la description, les conditions et le signalement
+ * sont dans le détail (openOffer). Aucune photo : une icône de catégorie.
+ */
+function communityCard(offer, { preview = false } = {}) {
+  const author = `@${offer.author.username}`;
   return h('article', { className: 'offer-card community-card' },
-    h('div', { className: 'offer-body' },
-      h('div', { className: 'offer-header-line' },
-        h('h4', null, offer.title),
-        // Mention obligatoire, en toutes lettres : « Publicité » seul était trop vague.
-        h('span', { className: 'pill ad', title: 'Son auteur peut toucher une commission si tu réalises l’action.' }, 'Lien affilié'),
-        h('span', { className: 'pill' }, offer.category_label),
-        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
-      h('p', { className: 'community-description' }, offer.description),
-      h('ul', { className: 'profile-list compact' },
-        row('Action attendue', offer.expected_action),
-        row('Pays', offer.countries),
-        offer.min_age ? row('Âge minimum', `${offer.min_age} ans`) : null,
-        /*
-         * Aucun montant n'est inventé : la ligne n'apparaît que si l'auteur a
-         * saisi payout_text, et elle porte toujours la mise en garde.
-         */
-        offer.payout_text
-          ? h('li', { className: 'payout-row' },
-            h('span', null, 'Rémunération annoncée'),
-            h('strong', null, offer.payout_text),
-            h('em', { className: 'payout-note' }, 'indicatif, non garanti'))
-          : null),
-      offer.conditions ? h('details', { className: 'community-conditions' },
-        h('summary', null, 'Conditions et restrictions'), h('p', null, offer.conditions)) : null,
-      h('p', { className: 'community-meta' },
-        'Publiée par ',
+    h('div', { className: 'fc-head' },
+      h('span', { className: 'fc-avatar', 'aria-hidden': 'true' }, categoryIcon(offer.category)),
+      h('div', { className: 'fc-who' },
         preview
-          ? h('strong', null, `@${offer.author.username}`)
-          : h('button', { className: 'widget-link', type: 'button', onclick: () => openMember(offer.author.username) }, `@${offer.author.username}`),
-        ` · ${formatDate(offer.published_at || offer.created_at)}`),
-      h('div', { className: 'offer-footer' },
-        h('span', { className: 'offer-domain' }, offer.domain ? `Site : ${offer.domain}` : ''),
-        h('div', { className: 'card-actions' },
-          offer.is_mine || preview ? null : saveButton,
-          offer.is_mine || preview ? null : h('button', { className: 'ghost-button small-button', type: 'button', onclick: () => openReport(offer) }, 'Signaler'),
-          /*
-           * can_open vient du serveur. Un mineur, ou une offre dont l'âge
-           * minimum dépasse ce que HAISSEL peut certifier, n'affiche pas de
-           * bouton : la raison est dite, plutôt qu'un bouton qui échouerait.
-           */
-          offer.can_open === false
-            ? h('p', { className: 'offer-blocked' }, 'À partir de 18 ans')
-            : h('button', {
-              className: 'offer-link-button', type: 'button', disabled: preview,
-              'aria-label': `Ouvrir « ${offer.title} » (site externe, nouvel onglet)`,
-              onclick: () => confirmLeave(offer),
-            }, 'Ouvrir ↗')))));
+          ? h('strong', { className: 'fc-author' }, author)
+          : h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(offer.author.username) }, author),
+        h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.published_at || offer.created_at))),
+      // Mention obligatoire, en toutes lettres : « Publicité » seul était trop vague.
+      h('span', { className: 'pill ad', title: 'Son auteur peut toucher une commission si tu réalises l’action.' },
+        icon('i-link', 'icon sm'), 'Lien affilié')),
+    h('div', { className: 'fc-body' },
+      h('p', { className: 'fc-meta' },
+        offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
+        h('span', null, offer.category_label),
+        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
+      h('h3', { className: 'fc-title' }, offer.title),
+      offer.domain ? h('p', { className: 'fc-domain' }, offer.domain) : null,
+      h('p', { className: 'fc-todo' },
+        icon('i-check-circle'),
+        h('span', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action))),
+    h('div', { className: 'fc-actions' },
+      h('button', {
+        className: 'offer-link-button', type: 'button', disabled: preview,
+        'aria-label': `Voir l’offre « ${offer.title} »`,
+        onclick: () => openOffer(offer),
+      }, 'Voir l’offre', icon('i-arrow-right')),
+      offer.is_mine || preview ? null : saveButtonFor(offer)));
+}
+
+/*
+ * Ouverture d'une offre depuis une carte. can_open vient du serveur : un
+ * mineur, ou une offre dont l'âge minimum dépasse ce que HAISSEL peut
+ * certifier, voit la raison plutôt qu'un bouton qui échouerait.
+ */
+function openOffer(offer) {
+  if (offer.can_open === false) {
+    window.alert('Cette offre est accessible à partir de 18 ans.');
+    return;
+  }
+  confirmLeave(offer);
 }
 
 function communityQuery() {
@@ -721,6 +827,7 @@ async function loadCommunity() {
     state.community.categories = data.categories || {};
     fillCategorySelect(ui.communityCategory, state.community.categories, 'Toutes');
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
+    renderHomeChips();
 
     /*
      * La catégorie venant de l'adresse ne peut être appliquée qu'ici : la liste
@@ -742,13 +849,13 @@ async function loadCommunity() {
         : 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
 
     /*
-     * Accueil : les mêmes offres, en cartes, sans filtre. On ne le met à jour
-     * que lorsque la liste reçue n'est pas filtrée, sinon une recherche
-     * modifierait aussi la page d'accueil.
+     * Accueil : le fil complet, sans filtre. On ne le met à jour que lorsque
+     * la liste reçue n'est pas filtrée, sinon une recherche modifierait aussi
+     * la page d'accueil.
      */
     if (!query && ui.homeOffers) {
       ui.homeOffers.replaceChildren(...(items.length
-        ? items.slice(0, 10).map((offer) => communityCard(offer))
+        ? items.map((offer) => communityCard(offer))
         : [h('div', { className: 'panel-card' },
           'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
     }
@@ -776,8 +883,7 @@ async function toggleSave(offer, button) {
   try {
     await api(`/api/community/offers/${encodeURIComponent(offer.id)}/save`, { method: offer.saved ? 'DELETE' : 'POST' });
     offer.saved = !offer.saved;
-    button.textContent = offer.saved ? '★ Enregistrée' : '☆ Enregistrer';
-    button.setAttribute('aria-pressed', String(offer.saved));
+    paintSaveButton(button, offer.saved);
     if (ui.communitySaved.checked && !offer.saved) loadCommunity();
   } catch (error) {
     window.alert(error.message);
@@ -1623,7 +1729,10 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date',
-    homeOffers: 'home-offers',
+    homeOffers: 'home-offers', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar',
+    homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step', homeLearnTitle: 'home-learn-title',
+    homeLearnText: 'home-learn-text', homeLearnProgress: 'home-learn-progress', homeLearnCount: 'home-learn-count',
+    homeLearnBar: 'home-learn-bar', homeLearnGo: 'home-learn-go', homeLearnGoLabel: 'home-learn-go-label',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityCountry: 'community-country', communitySaved: 'community-saved', communityFilters: 'community-filters',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
@@ -1713,6 +1822,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelectorAll('.learn-tab').forEach((tab) => {
     tab.addEventListener('click', () => setLearnTab(tab.dataset.learnTab));
+  });
+  ui.homeLearnGo.addEventListener('click', () => {
+    setActiveView('learn');
+    setLearnTab(ui.homeLearnGo.dataset.tab || 'guides');
   });
   ui.oppAge.addEventListener('input', renderOpportunities);
   ui.oppCountry.addEventListener('input', renderOpportunities);
