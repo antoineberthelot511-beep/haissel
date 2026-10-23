@@ -362,31 +362,30 @@
             <section id="home-view" class="view-panel" aria-labelledby="home-title">
               <div class="home-greet">
                 <p class="eyebrow">Bonjour, <span id="home-name">utilisateur</span> 👋</p>
-                <h2 id="home-title" class="section-title">Les bons plans de la communauté</h2>
-                <p id="home-date" class="home-date"></p>
+                <h2 id="home-title" class="section-title">Les bons plans</h2>
               </div>
 
-              <!-- « Apprendre » : carte de progression (remplie par app.js) -->
-              <aside id="home-learn-card" class="learn-progress-card" aria-labelledby="home-learn-title">
-                <p class="lp-tag"><span>Apprendre</span><span id="home-learn-step" class="lp-step"></span></p>
-                <h3 id="home-learn-title">Comprendre les bases de l'affiliation</h3>
-                <p id="home-learn-text" class="lp-text">Les règles à respecter et la transparence des liens.</p>
-                <div id="home-learn-progress" class="lp-progress hidden">
-                  <div class="lp-progress-head"><span>Ta progression</span><strong id="home-learn-count"></strong></div>
-                  <progress id="home-learn-bar" max="1" value="0" aria-labelledby="home-learn-title"></progress>
-                </div>
-                <button id="home-learn-go" class="lp-cta" type="button">
-                  <span id="home-learn-go-label">Lire les guides</span>
+              <!-- « Apprendre » : bandeau d'une ligne (rempli par app.js), masquable -->
+              <aside id="home-learn-card" class="learn-banner" aria-label="Apprendre">
+                <button id="home-learn-go" class="lb-go" type="button">
+                  <span class="lb-icon" aria-hidden="true"><svg class="icon"><use href="#i-book" /></svg></span>
+                  <span class="lb-text"><strong id="home-learn-step">Guides</strong> <span id="home-learn-text">Les bases de l'affiliation</span></span>
                   <svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>
+                </button>
+                <button id="home-learn-close" class="lb-close" type="button" aria-label="Masquer ce bandeau">
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-close" /></svg>
                 </button>
               </aside>
 
               <nav id="home-chips" class="chip-row" aria-label="Chercher par catégorie"></nav>
 
-              <p class="home-note">
-                <svg class="icon sm" aria-hidden="true"><use href="#i-info" /></svg>
-                <span>Ces offres sont des <strong>publicités</strong> publiées par des membres, signalées par le badge « Lien affilié ». L'équipe vérifie chaque offre avant qu'elle soit visible.</span>
-              </p>
+              <details class="home-note">
+                <summary aria-label="Des liens affiliés publiés par des membres : en savoir plus">
+                  <span>Des liens affiliés publiés par des membres</span>
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-info" /></svg>
+                </summary>
+                <p>Ces offres sont des <strong>publicités</strong> publiées par des membres, signalées par le badge « Lien affilié ». L'équipe vérifie chaque offre avant qu'elle soit visible.</p>
+              </details>
               <div id="home-offers" class="offer-feed" aria-live="polite"></div>
               <div class="feed-end">
                 <p class="feed-end-title">Tu as tout vu pour l'instant ! 🎉</p>

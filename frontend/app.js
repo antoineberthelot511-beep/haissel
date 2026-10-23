@@ -307,32 +307,26 @@ function setProfileTab(name) {
 }
 
 /*
- * Carte « Apprendre » de l'accueil. Le seul chiffre affiché est la
- * progression du parcours MyLead, enregistrée dans ce navigateur par
+ * Bandeau « Apprendre » de l'accueil, sur une ligne. Le seul chiffre affiché
+ * est la progression du parcours MyLead, enregistrée dans ce navigateur par
  * mylead-guide.js ; le parcours n'existe que pour les majeurs. Un mineur
- * voit une invitation aux guides, sans pourcentage.
+ * voit une invitation aux guides, sans chiffre. Le bandeau se masque ;
+ * Apprendre reste accessible depuis le profil.
  */
 function renderHomeLearnCard() {
   if (!ui.homeLearnCard) return;
   const guide = window.HaisselMyLeadGuide;
+  ui.homeLearnCard.hidden = Boolean(guide?.bannerHidden?.());
   const progress = isAdultMember() && guide?.progress ? guide.progress() : null;
 
-  ui.homeLearnProgress.classList.toggle('hidden', !progress);
   if (progress) {
     const finished = progress.done >= progress.total;
     ui.homeLearnStep.textContent = finished ? 'Parcours terminé' : `Étape ${progress.done + 1} sur ${progress.total}`;
-    ui.homeLearnTitle.textContent = 'Débuter sur MyLead, pas à pas';
-    ui.homeLearnText.textContent = 'Coche chaque étape quand elle est faite. Ta progression reste dans ce navigateur.';
-    ui.homeLearnCount.textContent = `${progress.done}/${progress.total}`;
-    ui.homeLearnBar.max = progress.total;
-    ui.homeLearnBar.value = progress.done;
-    ui.homeLearnGoLabel.textContent = finished ? 'Revoir le parcours' : (progress.done ? 'Continuer le parcours' : 'Commencer le parcours');
+    ui.homeLearnText.textContent = 'Débuter sur MyLead';
     ui.homeLearnGo.dataset.tab = 'mylead';
   } else {
     ui.homeLearnStep.textContent = 'Guides';
-    ui.homeLearnTitle.textContent = 'Comprendre les bases de l’affiliation';
-    ui.homeLearnText.textContent = 'Les règles à respecter et la transparence des liens, expliquées simplement.';
-    ui.homeLearnGoLabel.textContent = 'Lire les guides';
+    ui.homeLearnText.textContent = 'Les bases de l’affiliation';
     ui.homeLearnGo.dataset.tab = 'guides';
   }
 }
@@ -1947,11 +1941,10 @@ document.addEventListener('DOMContentLoaded', () => {
     learnOpportunitiesList: 'learn-opportunities-list', oppAge: 'opp-age', oppCountry: 'opp-country',
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
-    homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date',
+    homeLinks: 'home-links', homeLearn: 'home-learn',
     homeOffers: 'home-offers', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
-    homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step', homeLearnTitle: 'home-learn-title',
-    homeLearnText: 'home-learn-text', homeLearnProgress: 'home-learn-progress', homeLearnCount: 'home-learn-count',
-    homeLearnBar: 'home-learn-bar', homeLearnGo: 'home-learn-go', homeLearnGoLabel: 'home-learn-go-label',
+    homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
+    homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityCountry: 'community-country', communitySaved: 'community-saved', communityFilters: 'community-filters',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
@@ -2026,16 +2019,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('age-gate-yes').addEventListener('click', () => answerAgeGate(true));
   document.getElementById('age-gate-no').addEventListener('click', () => answerAgeGate(false));
   ui.refreshLinks.addEventListener('click', loadLinks);
-  /*
-   * Date du jour. Chrome capitalise le mois en français (« 20 Octobre ») ;
-   * l'usage français est la minuscule. On n'abaisse QUE la casse du mois,
-   * pour ne pas toucher au reste.
-   */
-  ui.homeDate.textContent = new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }).formatToParts(new Date())
-    .map((part) => (part.type === 'month' ? part.value.toLocaleLowerCase('fr-FR') : part.value))
-    .join('');
   mirrorText(document.getElementById('realtime-status'), document.getElementById('home-realtime'));
   mirrorText(document.getElementById('notif-permission-status'), document.getElementById('home-notif-permission'));
   document.querySelectorAll('[data-goto]').forEach((button) => {
@@ -2047,6 +2030,10 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.homeLearnGo.addEventListener('click', () => {
     setActiveView('learn');
     setLearnTab(ui.homeLearnGo.dataset.tab || 'guides');
+  });
+  document.getElementById('home-learn-close').addEventListener('click', () => {
+    window.HaisselMyLeadGuide?.hideBanner?.();
+    ui.homeLearnCard.hidden = true;
   });
   ui.oppAge.addEventListener('input', renderOpportunities);
   ui.oppCountry.addEventListener('input', renderOpportunities);

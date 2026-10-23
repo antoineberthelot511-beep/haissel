@@ -345,5 +345,23 @@
     return { done: loadProgress().size, total: STEPS.length };
   }
 
-  window.HaisselMyLeadGuide = { render, progress, STEPS };
+  /*
+   * Bandeau « Apprendre » de l'accueil : le choix de le masquer reste dans
+   * ce navigateur. Stockage indisponible : le bandeau reste visible.
+   */
+  const BANNER_KEY = 'haissel_learn_banner_hidden';
+  function bannerHidden() {
+    try {
+      return localStorage.getItem(BANNER_KEY) === '1';
+    } catch (error) {
+      return false;
+    }
+  }
+  function hideBanner() {
+    try {
+      localStorage.setItem(BANNER_KEY, '1');
+    } catch (error) { /* stockage indisponible : masqué pour cette visite seulement */ }
+  }
+
+  window.HaisselMyLeadGuide = { render, progress, bannerHidden, hideBanner, STEPS };
 }());
