@@ -225,6 +225,10 @@ function setActiveView(viewName) {
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
   if ((viewName === 'links' || viewName === 'home') && state.user && !state.community.loaded) loadCommunity();
   if (viewName === 'publish' && state.user) loadMyOffers();
+  if (viewName === 'profile' && state.user) {
+    if (isAdultMember()) loadMyOffers();
+    loadSavedOffers();
+  }
   window.scrollTo({ top: 0 });
 }
 
@@ -285,6 +289,21 @@ function applyAgeRestrictions() {
     setActiveView('home');
   }
   renderHomeLearnCard();
+  // « Mes offres » n'existe que pour les majeurs : un mineur arrive sur « Sauvegardées ».
+  const tab = document.querySelector('.profile-tab[aria-selected="true"]');
+  if (!tab || (!adult && tab.dataset.profileTab === 'offers')) setProfileTab(adult ? 'offers' : 'saved');
+}
+
+/** Onglets du profil : Mes offres, Sauvegardées, Sécurité. */
+function setProfileTab(name) {
+  document.querySelectorAll('.profile-tab').forEach((tab) => {
+    const active = tab.dataset.profileTab === name;
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  for (const key of ['offers', 'saved', 'security']) {
+    document.getElementById(`ppanel-${key}`).hidden = key !== name;
+  }
 }
 
 /*
@@ -636,7 +655,7 @@ function setLearnTab(name) {
 // ---------------------------------------------------------------------------
 
 const OFFER_STATUS_LABELS = {
-  pending: ['En attente de vérification', 'pending'],
+  pending: ['En attente', 'pending'],
   published: ['Publiée', 'published'],
   rejected: ['Refusée', 'rejected'],
 };
@@ -1198,6 +1217,7 @@ function resetPublishForm() {
 }
 
 function startOfferEdit(offer) {
+  setActiveView('publish');
   state.community.editing = offer.id;
   ui.pubTitle.value = offer.title;
   ui.pubUrl.value = offer.url;
@@ -1220,15 +1240,76 @@ function startOfferEdit(offer) {
   ui.publishForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+/** Message au-dessus de la liste « Mes offres » (profil). */
+function myOffersFeedback(kind, message) {
+  ui.myOffersFeedback.textContent = message || '';
+  ui.myOffersFeedback.className = kind === 'error' ? 'auth-error' : 'auth-info';
+  ui.myOffersFeedback.classList.toggle('hidden', !message);
+}
+
 async function removeMyOffer(offer) {
   if (!window.confirm(`Retirer « ${offer.title} » ? Elle ne sera plus visible.`)) return;
   try {
     const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}`, { method: 'DELETE' });
-    publishFeedback('info', data.message);
+    myOffersFeedback('info', data.message);
     loadMyOffers();
     state.community.loaded = false;
   } catch (error) {
-    publishFeedback('error', error.message);
+    myOffersFeedback('error', error.message);
+  }
+}
+
+const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected: 'i-alert' };
+
+/*
+ * Une offre de l'auteur : statut, et message de l'équipe quand il existe
+ * (motif de refus, ou masquage après signalements). Aucun compteur : le
+ * serveur n'en fournit pas.
+ */
+function myOfferCard(offer) {
+  const [label, kind] = OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending'];
+  const sent = offer.status === 'published' && offer.published_at
+    ? `Publiée ${formatAgo(offer.published_at)}`
+    : `Envoyée ${formatAgo(offer.created_at)}`;
+  let note = null;
+  if (offer.moderation_note) {
+    note = h('div', { className: `mo-note ${kind === 'rejected' ? 'is-rejected' : ''}` },
+      h('strong', null, icon('i-alert', 'icon sm'), kind === 'rejected' ? 'Motif du refus' : 'Message de l’équipe'),
+      h('p', null, offer.moderation_note));
+  } else if (kind === 'pending') {
+    note = h('p', { className: 'mo-note' }, icon('i-clock', 'icon sm'), 'L’équipe relit ton offre avant publication.');
+  }
+  return h('article', { className: 'my-offer-card my-offer' },
+    h('div', { className: 'mo-head' },
+      h('span', { className: 'fc-avatar', 'aria-hidden': 'true' }, categoryIcon(offer.category)),
+      h('div', { className: 'mo-id' },
+        h('h4', null, offer.title),
+        h('p', null, [sent, offer.domain].filter(Boolean).join(' · '))),
+      h('span', { className: `status-tag ${kind}` }, icon(STATUS_ICONS[kind] || 'i-clock', 'icon sm'), label)),
+    note,
+    h('div', { className: 'mo-actions' },
+      h('button', { className: 'secondary-button small-button', type: 'button', onclick: () => startOfferEdit(offer) }, icon('i-edit', 'icon sm'), 'Modifier'),
+      h('button', {
+        className: 'round-button mo-remove', type: 'button', 'aria-label': `Retirer « ${offer.title} »`, onclick: () => removeMyOffer(offer),
+      }, icon('i-trash'))));
+}
+
+/** Offres sauvegardées (profil). */
+async function loadSavedOffers() {
+  ui.savedOffers.setAttribute('aria-busy', 'true');
+  if (!ui.savedOffers.childElementCount) ui.savedOffers.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement…'));
+  try {
+    const data = await api('/api/community/offers?saved=1');
+    const items = data.items || [];
+    ui.savedCount.textContent = `(${items.length})`;
+    ui.savedOffers.setAttribute('aria-busy', 'false');
+    ui.savedOffers.replaceChildren(...(items.length
+      ? items.map((offer) => communityCard(offer))
+      : [h('div', { className: 'panel-card' }, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.')]));
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    ui.savedOffers.setAttribute('aria-busy', 'false');
+    ui.savedOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, `Impossible de charger tes offres sauvegardées : ${error.message}`));
   }
 }
 
@@ -1240,18 +1321,9 @@ async function loadMyOffers() {
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
     renderCategoryTiles();
     ui.myOffers.setAttribute('aria-busy', 'false');
-    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map((offer) => {
-      const [label, kind] = OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending'];
-      return h('article', { className: 'learn-card my-offer' },
-        h('div', { className: 'offer-header-line' },
-          h('h4', null, offer.title),
-          h('span', { className: `status-tag ${kind}` }, label)),
-        h('p', { className: 'offer-domain' }, offer.domain),
-        offer.moderation_note ? h('p', { className: 'guide-warning' }, `Message de l’équipe : ${offer.moderation_note}`) : null,
-        h('div', { className: 'card-actions' },
-          h('button', { className: 'secondary-button small-button', type: 'button', onclick: () => startOfferEdit(offer) }, 'Modifier'),
-          h('button', { className: 'ghost-button small-button danger-button', type: 'button', onclick: () => removeMyOffer(offer) }, 'Retirer')));
-    }) : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (onglet Apprendre) t’explique comment obtenir ton lien.')]));
+    ui.myOffersCount.textContent = `(${data.items.length})`;
+    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferCard)
+      : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.')]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.myOffers.setAttribute('aria-busy', 'false');
@@ -1893,6 +1965,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pubConditions: 'pub-conditions', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
     pubPreviewButton: 'pub-preview-button', myOffers: 'my-offers', myleadGuide: 'mylead-guide',
     pubCategoryTiles: 'pub-category-tiles', pubTitleCount: 'pub-title-count',
+    myOffersFeedback: 'my-offers-feedback', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -1995,6 +2068,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Bouton « retour » du téléphone : ferme le détail d'une offre.
   window.addEventListener('popstate', () => {
     if (!document.getElementById('offer-view').classList.contains('hidden')) closeOffer();
+  });
+  document.querySelectorAll('.profile-tab').forEach((tab) => {
+    tab.addEventListener('click', () => setProfileTab(tab.dataset.profileTab));
+  });
+  document.getElementById('publish-my-offers').addEventListener('click', () => {
+    setActiveView('profile');
+    setProfileTab('offers');
   });
   document.getElementById('profile-saved').addEventListener('click', () => {
     ui.communitySaved.checked = true;

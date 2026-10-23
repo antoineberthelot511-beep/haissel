@@ -737,41 +737,87 @@
                 <div id="publish-success" class="auth-info hidden" role="status" aria-live="polite" tabindex="-1"></div>
               </form>
 
-              <h3 class="subsection-title">Mes offres</h3>
-              <div id="my-offers" class="learn-list" aria-live="polite"></div>
+              <button id="publish-my-offers" class="profile-link publish-my-offers" type="button">
+                <svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg><span>Voir mes offres et leur statut</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+              </button>
             </section>
 
             <section id="profile-view" class="view-panel hidden" aria-labelledby="profile-title">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Mon compte</p>
-                  <h2 id="profile-title" class="section-title">Profil et sécurité</h2>
+              <h2 id="profile-title" class="visually-hidden">Mon profil</h2>
+
+              <div class="profile-hero">
+                <div class="avatar large" id="profile-avatar" aria-hidden="true">H</div>
+                <div class="profile-hero-id">
+                  <p id="profile-username" class="profile-handle">@username</p>
+                  <p id="profile-display-name" class="profile-name">Utilisateur</p>
+                  <p class="profile-since">Membre depuis le <span id="profile-created-at">-</span></p>
                 </div>
               </div>
 
-              <div class="profile-shortcuts">
-                <button class="secondary-button" type="button" data-goto="notifications"><svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>Notifications</button>
-                <button class="secondary-button" type="button" data-goto="publish"><svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>Mes offres publiées</button>
-                <button id="profile-saved" class="secondary-button" type="button"><svg class="icon" aria-hidden="true"><use href="#i-tag" /></svg>Offres enregistrées</button>
+              <div class="profile-tabs" role="tablist" aria-label="Rubriques du profil">
+                <button class="profile-tab" type="button" role="tab" id="ptab-offers" aria-controls="ppanel-offers" aria-selected="false" data-profile-tab="offers" data-adult-only>
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-tag" /></svg><span>Mes offres <span id="my-offers-count"></span></span>
+                </button>
+                <button class="profile-tab" type="button" role="tab" id="ptab-saved" aria-controls="ppanel-saved" aria-selected="false" data-profile-tab="saved">
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-bookmark" /></svg><span>Sauvegardées <span id="saved-count"></span></span>
+                </button>
+                <button class="profile-tab" type="button" role="tab" id="ptab-security" aria-controls="ppanel-security" aria-selected="false" data-profile-tab="security">
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-shield" /></svg><span>Sécurité</span>
+                </button>
               </div>
 
-              <div class="profile-grid">
-                <div class="profile-card-box">
-                  <div class="profile-top">
-                    <div class="avatar large" id="profile-avatar" aria-hidden="true">H</div>
-                    <div>
-                      <h3 id="profile-display-name">Utilisateur</h3>
-                      <p id="profile-username">@username</p>
-                    </div>
-                  </div>
+              <!-- Mes offres : statut et message de l'équipe (motif de refus) -->
+              <div id="ppanel-offers" class="profile-panel" role="tabpanel" aria-labelledby="ptab-offers" data-adult-only hidden>
+                <div class="profile-panel-head">
+                  <h3>Gestion de tes offres</h3>
+                  <button class="primary-button small-button" type="button" data-goto="publish">
+                    <svg class="icon sm" aria-hidden="true"><use href="#i-add" /></svg>Publier
+                  </button>
+                </div>
+                <div id="my-offers-feedback" class="auth-info hidden" role="status" aria-live="polite"></div>
+                <div id="my-offers" class="my-offers-list" aria-live="polite"></div>
+              </div>
 
+              <!-- Offres sauvegardées -->
+              <div id="ppanel-saved" class="profile-panel" role="tabpanel" aria-labelledby="ptab-saved" hidden>
+                <div class="profile-panel-head">
+                  <h3>Tes offres sauvegardées</h3>
+                </div>
+                <div id="saved-offers" class="offer-feed" aria-live="polite"></div>
+                <button id="profile-saved" class="secondary-button" type="button">
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-search" /></svg>Filtrer dans Chercher
+                </button>
+              </div>
+
+              <!-- Sécurité : compte, sessions, mot de passe, double authentification, données -->
+              <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-labelledby="ptab-security" hidden>
+                <div class="profile-card-box">
+                  <h3 class="card-title">Mon compte</h3>
                   <ul class="profile-list">
                     <li><span>Nom complet</span><strong id="profile-full-name">-</strong></li>
                     <li><span>E-mail</span><strong id="profile-email">-</strong></li>
-                    <li><span>Inscription</span><strong id="profile-created-at">-</strong></li>
                   </ul>
+                  <div class="profile-links">
+                    <button class="profile-link" type="button" data-goto="learn">
+                      <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg><span>Apprendre l'affiliation</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+                    </button>
+                    <button class="profile-link" type="button" data-goto="notifications">
+                      <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg><span>Notifications</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+                    </button>
+                  </div>
+                </div>
 
-                  <button id="profile-logout" class="ghost-button" type="button">Se déconnecter</button>
+                <div class="profile-card-box security-box">
+                  <h3 class="card-title">Sessions</h3>
+                  <p class="session-row">
+                    <span class="session-icon" aria-hidden="true"><svg class="icon"><use href="#i-devices" /></svg></span>
+                    <span><strong>Cet appareil</strong><small>Session ouverte en ce moment</small></span>
+                  </p>
+                  <button id="profile-logout" class="secondary-button" type="button">
+                    <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>Se déconnecter
+                  </button>
+                  <p class="security-note">Un doute sur un appareil (téléphone perdu, ordinateur partagé) ? Ferme toutes tes sessions d'un coup.</p>
+                  <button id="logout-all-button" class="ghost-button danger-button" type="button">Se déconnecter de tous les appareils</button>
                 </div>
 
                 <div class="profile-card-box security-box">
@@ -785,7 +831,7 @@
                     </label>
                     <div class="grid-2">
                       <label class="field">
-                        <span>Nouveau mot de passe</span>
+                        <span>Nouveau mot de passe <small>(10 caractères minimum)</small></span>
                         <input id="new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
                       </label>
                       <label class="field">
@@ -795,8 +841,7 @@
                     </div>
                     <button class="primary-button" type="submit">Changer le mot de passe</button>
                   </form>
-                  <p class="security-note">Changer le mot de passe ferme toutes vos autres sessions.</p>
-                  <button id="logout-all-button" class="ghost-button danger-button" type="button">Se déconnecter de tous les appareils</button>
+                  <p class="security-note">Changer le mot de passe ferme toutes tes autres sessions.</p>
                 </div>
 
                 <!-- Double authentification : facultative pour les membres,
@@ -879,8 +924,8 @@
 
                 <div class="profile-card-box security-box">
                   <h3 class="card-title">Mes données personnelles</h3>
-                  <p class="security-note">Vos droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
-                  <a class="ghost-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
+                  <p class="security-note">Tes droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
+                  <a class="secondary-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
                   <details class="danger-zone">
                     <summary>Supprimer mon compte</summary>
                     <form id="delete-account-form" class="auth-form" novalidate>
@@ -891,13 +936,18 @@
                         <input id="delete-account-password" type="password" autocomplete="current-password" maxlength="128" required />
                       </label>
                       <label class="field">
-                        <span>Tapez SUPPRIMER pour confirmer</span>
+                        <span>Tape SUPPRIMER pour confirmer</span>
                         <input id="delete-account-confirm" type="text" autocomplete="off" maxlength="20" required />
                       </label>
                       <button class="ghost-button danger-button" type="submit">Supprimer définitivement mon compte</button>
                     </form>
                   </details>
                 </div>
+              </div>
+
+              <div class="charter-card">
+                <span class="charter-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-shield-check" /></svg></span>
+                <p><strong>Charte de confiance HAISSEL</strong><span>Des offres relues par l'équipe, des liens affiliés toujours signalés, aucune promesse de gains. Un doute sur une offre ? Signale-la.</span></p>
               </div>
             </section>
           </div>
