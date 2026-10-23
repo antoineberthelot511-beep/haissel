@@ -193,6 +193,7 @@ const FONT_PACKAGES = {
   'ibm-plex-mono': '@fontsource/ibm-plex-mono',
   'ibm-plex-sans': '@fontsource/ibm-plex-sans',
   orbitron: '@fontsource/orbitron',
+  'plus-jakarta-sans': '@fontsource-variable/plus-jakarta-sans',
   'space-grotesk': '@fontsource/space-grotesk',
 };
 for (const [name, pkg] of Object.entries(FONT_PACKAGES)) {

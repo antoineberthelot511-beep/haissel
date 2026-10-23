@@ -1,0 +1,104 @@
+/* ==========================================================================
+   HAISSEL — espace membre, refonte « Stitch » (design/stitch/…/haissel/DESIGN.md)
+
+   - Une seule police, Plus Jakarta Sans, hébergée sur le serveur
+     (/vendor/fonts, voir FONT_PACKAGES dans src/app.js) : aucune requête
+     vers un tiers, la CSP n'autorise que 'self'.
+   - Couleur de marque : bleu. Vert réservé à « vérifié / publiée », ambre à
+     « Lien affilié », rouge aux erreurs et refus.
+   - Mobile d'abord : une colonne, barre de navigation flottante en bas.
+     Les cibles tactiles font au moins 44 px.
+   - Apparence uniquement : aucune règle ne masque une fonctionnalité, sauf
+     les blocs explicitement retirés de l'accueil (attribut hidden).
+   ========================================================================== */
+
+@import url('/vendor/fonts/plus-jakarta-sans/wght.css');
+
+:root {
+  /* Marque (bleu) */
+  --v2-primary: #1d4ed8;            /* texte et liens : 6,7:1 sur blanc */
+  --v2-primary-strong: #1e40af;
+  --v2-primary-container: #2563eb;  /* fonds des boutons principaux */
+  --v2-on-primary: #ffffff;
+  --v2-primary-fixed: #dbeafe;
+  --v2-primary-soft: #eff4ff;
+  --v2-on-primary-fixed: #1e3a8a;
+
+  /* Surfaces */
+  --v2-bg: #f7f8fc;
+  --v2-surface: #ffffff;
+  --v2-surface-low: #f3f5fb;
+  --v2-surface-container: #eceff7;
+  --v2-surface-high: #e4e8f2;
+  --v2-on-surface: #1a1b22;
+  --v2-on-surface-variant: #4a5263;
+  --v2-secondary: #565e74;
+  --v2-outline: #e4e7eb;
+  --v2-outline-strong: #c9ced8;
+  --v2-inverse: #1a1b22;
+
+  /* Statuts */
+  --v2-verified: #006947;
+  --v2-verified-strong: #00563a;
+  --v2-verified-soft: #d8f5e8;
+  --v2-ad: #92400e;
+  --v2-ad-soft: #fef3c7;
+  --v2-ad-line: #f6d98b;
+  --v2-pending: #475569;
+  --v2-pending-soft: #f1f5f9;
+  --v2-error: #ba1a1a;
+  --v2-error-soft: #ffdad6;
+  --v2-on-error-soft: #93000a;
+
+  /* Formes */
+  --v2-r-sm: .5rem;
+  --v2-r: 1rem;
+  --v2-r-md: 1.5rem;
+  --v2-r-lg: 2rem;
+  --v2-r-full: 9999px;
+
+  /* Espacements */
+  --v2-xs: .25rem;
+  --v2-sm: .5rem;
+  --v2-md: 1rem;
+  --v2-lg: 1.5rem;
+  --v2-xl: 2rem;
+  --v2-margin: 1rem;
+
+  /* Profondeur */
+  --v2-shadow-1: 0 4px 20px -2px rgba(37, 56, 120, .07);
+  --v2-shadow-2: 0 10px 30px -4px rgba(37, 56, 120, .12);
+  --v2-shadow-3: 0 12px 28px -6px rgba(37, 99, 235, .4);
+  --v2-shadow-dock: 0 12px 36px -6px rgba(26, 27, 34, .16);
+
+  --v2-font: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --v2-focus: #f59e0b;
+  --v2-dock-space: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------- Base ---------- */
+html { background: var(--v2-bg); }
+body {
+  font-family: var(--v2-font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--v2-on-surface);
+  background: var(--v2-bg);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+body:has(#app-screen:not(.hidden)) { background: var(--v2-bg); }
+::selection { background: var(--v2-primary-fixed); color: var(--v2-on-primary-fixed); }
+button, input, select, textarea { font-family: inherit; }
+a { color: var(--v2-primary); }
+a:hover { color: var(--v2-primary-strong); }
+:focus-visible { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
+
+.icon { width: 20px; height: 20px; stroke-width: 1.9; }
+.icon.sm { width: 16px; height: 16px; }
+.icon.lg { width: 24px; height: 24px; }
+
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
