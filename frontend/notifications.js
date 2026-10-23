@@ -99,14 +99,14 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     } else if (!window.isSecureContext) {
       status = 'Indisponibles : HTTPS requis';
       help = `Le navigateur bloque les notifications Windows sur ${window.location.origin} (connexion non sécurisée). `
-        + 'Ouvrez Haissel via son adresse https:// (voir l’administrateur). Les messages s’affichent dans la page en attendant.';
+        + 'Ouvre Haissel via son adresse https:// (voir l’administrateur). Les messages s’affichent dans la page en attendant.';
     } else if (Notification.permission === 'granted') {
       status = 'Autorisées';
       help = 'Pour les désactiver : icône à gauche de l’adresse du site › Notifications › Bloquer. '
-        + 'Si rien n’apparaît, vérifiez aussi Windows : Paramètres › Système › Notifications (navigateur autorisé, mode « Ne pas déranger » désactivé).';
+        + 'Si rien n’apparaît, vérifie aussi Windows : Paramètres › Système › Notifications (navigateur autorisé, mode « Ne pas déranger » désactivé).';
     } else if (Notification.permission === 'denied') {
       status = 'Refusées';
-      help = 'Vous avez refusé les notifications. Pour changer d’avis : icône à gauche de l’adresse du site › Notifications › Autoriser, puis rechargez la page.';
+      help = 'Tu as refusé les notifications. Pour changer d’avis : icône à gauche de l’adresse du site › Notifications › Autoriser, puis recharge la page.';
     } else {
       status = 'Non configurées';
       canAsk = true;
@@ -179,7 +179,7 @@ window.createNotificationCenter = function createNotificationCenter(options) {
       setLastResult(result === 'shown'
         ? `Test ${timeNow()} : Chrome a transmis la notification à Windows. Si aucune bulle n’apparaît en bas à droite de l’écran, `
           + 'les notifications sont masquées par Windows (Paramètres › Système › Notifications, ou « Ne pas déranger »).'
-        : `Test ${timeNow()} : notification créée, mais Chrome n’a pas confirmé son affichage. Vérifiez les paramètres de notification de Windows.`,
+        : `Test ${timeNow()} : notification créée, mais Chrome n’a pas confirmé son affichage. Vérifie les paramètres de notification de Windows.`,
       result !== 'shown');
     } catch (error) {
       setLastResult(`Test ${timeNow()} : échec, aucune notification n’a été créée (${error.message}).`, true);

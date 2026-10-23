@@ -187,7 +187,7 @@ function updateUserSummary() {
   const initials = initialsFromName(displayName);
 
   ui.sidebarName.textContent = state.user ? displayName : 'Bonjour';
-  ui.sidebarEmail.textContent = state.user?.email || 'Connectez-vous';
+  ui.sidebarEmail.textContent = state.user?.email || 'Connecte-toi';
   ui.welcomeName.textContent = state.user?.first_name || displayName.split(' ')[0];
   ui.profileDisplayName.textContent = displayName;
   ui.profileUsername.textContent = `@${state.user?.username || ''}`;
@@ -452,7 +452,7 @@ function widgetItems(container, items, emptyMessage) {
 function renderHomeLinks() {
   widgetItems(ui.homeLinks, state.links.slice(0, 5).map((link) => h('li', null,
     h('a', { href: link.go_url, target: '_blank', rel: 'noopener noreferrer' }, link.name),
-    h('span', { className: 'pill ad' }, 'Publicité'))), 'Aucun lien publié pour le moment.');
+    h('span', { className: 'pill ad' }, 'Lien affilié'))), 'Aucun lien publié pour le moment.');
 }
 
 function renderHomeLearn(items) {
@@ -548,7 +548,7 @@ function opportunityCard(item, { age, country }) {
   return h('article', { className: 'learn-card opportunity-card' },
     h('div', { className: 'offer-header-line' },
       h('h3', null, item.name),
-      item.is_affiliate ? h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut percevoir une commission.' }, 'Publicité') : null,
+      item.is_affiliate ? h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut percevoir une commission.' }, 'Lien affilié') : null,
       h('span', { className: 'pill' }, `${item.min_age} ans et +`)),
     h('ul', { className: 'profile-list' },
       row('Annonceur', item.advertiser),

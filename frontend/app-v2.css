@@ -480,7 +480,7 @@ button.fc-author:hover { color: var(--v2-primary); }
   background: var(--v2-verified-soft); color: var(--v2-verified-strong); font-size: 13px; font-weight: 700;
 }
 .od-verified small { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--v2-verified-strong); }
-.od-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--v2-sm); margin: 0; }
+.od-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row dense; gap: var(--v2-sm); margin: 0; }
 .od-fact { padding: 10px 12px; border-radius: var(--v2-r); background: var(--v2-surface-low); min-width: 0; }
 .od-fact.wide { grid-column: 1 / -1; }
 .od-fact dt { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--v2-secondary); }
@@ -883,3 +883,177 @@ p.mo-note { display: flex; align-items: center; gap: var(--v2-sm); }
 .charter-card strong { font-size: 14px; }
 .charter-icon { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--v2-primary-fixed); color: var(--v2-primary); }
 #password-form .grid-2 { grid-template-columns: minmax(0, 1fr); }
+
+/* ==========================================================================
+   Socle repris des anciennes feuilles (styles.css, redesign.css,
+   mobile-splash.css, community-mobile.css), qui ne sont plus chargées par
+   index.html : remise à zéro, écrans superposés, Apprendre, Notifications.
+   ========================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+html { min-width: 320px; -webkit-text-size-adjust: 100%; color-scheme: light; }
+body { margin: 0; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; }
+p { margin: 0; }
+small { font-weight: 500; color: var(--v2-secondary); }
+.hidden { display: none !important; }
+.icon-sprite { display: none; }
+.icon { flex: none; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+.skip-link {
+  position: absolute; left: 1rem; top: -5rem; z-index: 2000; padding: 0 1rem;
+  background: var(--v2-surface); color: var(--v2-on-surface); font-weight: 700; box-shadow: var(--v2-shadow-2);
+}
+.skip-link:focus { top: 1rem; }
+
+.app-shell { display: flex; flex-direction: column; }
+#main.layout { flex: 1; width: 100%; }
+.topbar-inner { display: flex; align-items: center; justify-content: space-between; }
+.wordmark { display: inline-flex; align-items: center; text-decoration: none; }
+.topbar-actions { display: flex; align-items: center; justify-content: flex-end; }
+.status-pill { align-items: center; gap: .4rem; font-weight: 700; }
+.status-pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--v2-verified); }
+.status-pill.offline::before { background: var(--v2-outline-strong); }
+.avatar { display: grid; place-items: center; flex: none; border-radius: 50%; }
+.topbar-nav-inner { display: flex; }
+
+.view-panel:not(.hidden) { animation: v2-rise .2s ease-out both; }
+@keyframes v2-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes v2-shimmer { to { background-position: -200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--v2-surface) 25%, var(--v2-surface-low) 50%, var(--v2-surface) 75%);
+  background-size: 200% 100%; animation: v2-shimmer 1.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Liens de l'équipe : structure de la carte */
+.offer-card:not(.community-card) .offer-logo { display: grid; place-items: center; flex: none; }
+.offer-body { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.offer-header-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.offer-body > p { font-size: 14px; color: var(--v2-on-surface-variant); overflow-wrap: anywhere; }
+.offer-footer { display: flex; margin-top: auto; }
+a.offer-link-button { display: inline-flex; }
+
+/* Écran d'accueil mobile : seulement sous 760 px (voir mobile-splash.js) */
+.mobile-splash { display: none; }
+@media (max-width: 760px) {
+  .mobile-splash:not([hidden]) {
+    display: flex; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+  body.splash-open { overflow: hidden; }
+}
+.splash-card, .age-gate-card { width: 100%; max-width: 420px; display: flex; flex-direction: column; }
+.splash-brand, .age-gate-brand { display: flex; align-items: center; flex-wrap: wrap; margin: 0; }
+.splash-actions, .age-gate-actions { display: flex; flex-direction: column; margin-top: 4px; }
+.splash-more {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center;
+  min-height: 44px; padding: 0 16px; border: 0; background: transparent; cursor: pointer;
+}
+
+/* Question de majorité des anciens comptes : couvre la page, sans sortie. */
+.age-gate:not([hidden]) {
+  position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+.age-gate:focus { outline: none; }
+body.age-gate-open { overflow: hidden; }
+
+/* ==========================================================================
+   Apprendre
+   ========================================================================== */
+#learn-view .learn-tabs {
+  display: flex; gap: var(--v2-sm); margin: 0 calc(-1 * var(--v2-margin)) var(--v2-md); padding: 2px var(--v2-margin) 4px;
+  overflow-x: auto; scrollbar-width: none; border: 0;
+}
+#learn-view .learn-tabs::-webkit-scrollbar { display: none; }
+.learn-tab {
+  flex: 0 0 auto; min-height: 44px; padding: 0 var(--v2-md); border: 1px solid var(--v2-outline); border-radius: var(--v2-r-full);
+  background: var(--v2-surface); color: var(--v2-on-surface); cursor: pointer; box-shadow: var(--v2-shadow-1);
+  font-family: inherit; font-size: 13px; font-weight: 700;
+}
+.learn-tab:hover { background: var(--v2-surface-low); }
+.learn-tab.active { background: var(--v2-primary-container); border-color: transparent; color: #fff; }
+.learn-panel { display: grid; gap: 12px; }
+.learn-list { display: grid; gap: 12px; }
+.learn-card {
+  display: grid; gap: 10px; padding: var(--v2-md); border: 1px solid var(--v2-outline);
+  border-radius: var(--v2-r-md); background: var(--v2-surface); box-shadow: var(--v2-shadow-1);
+}
+.learn-card summary { display: grid; gap: 2px; min-height: 44px; align-content: center; cursor: pointer; list-style: none; }
+.learn-card summary::-webkit-details-marker { display: none; }
+.learn-card-title { font-size: 16px; line-height: 22px; font-weight: 700; color: var(--v2-on-surface); }
+.learn-card-summary { font-size: 13px; color: var(--v2-on-surface-variant); }
+.learn-card-body { display: grid; gap: 10px; margin-top: 4px; font-size: 14px; line-height: 1.55; }
+.learn-card h4 { font-size: 15px; margin-top: 4px; }
+.learn-card p { overflow-wrap: anywhere; }
+.learn-warning { font-size: 13px; font-weight: 700; color: var(--v2-ad); }
+.opportunity-card .profile-list li { padding: 6px 0; }
+#learn-view .profile-card-box, #notifications-view .profile-card-box {
+  display: grid; gap: 12px; padding: var(--v2-md); border: 1px solid var(--v2-outline);
+  border-radius: var(--v2-r-lg); background: var(--v2-surface); box-shadow: var(--v2-shadow-1);
+}
+#learn-view .profile-grid { display: grid; gap: 12px; }
+#learn-view .offer-footer { flex-direction: column; align-items: stretch; gap: var(--v2-sm); }
+#learn-view .offer-link-button, #learn-view .guide-actions a, #learn-view .guide-actions button {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 var(--v2-md);
+  border-radius: var(--v2-r-full); font-family: inherit; font-size: 14px; font-weight: 700; text-decoration: none; text-align: center;
+}
+#learn-view .offer-link-button { background: var(--v2-primary-container); color: #fff; border: 0; }
+
+/* Parcours MyLead (mylead-guide.js) */
+.guide-head { display: grid; gap: 10px; }
+.guide-progress {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 10px; border: 0; border-radius: var(--v2-r-full);
+  background: var(--v2-surface-high); overflow: hidden;
+}
+.guide-progress::-webkit-progress-bar { background: var(--v2-surface-high); border-radius: var(--v2-r-full); }
+.guide-progress::-webkit-progress-value { background: var(--v2-primary-container); border-radius: var(--v2-r-full); }
+.guide-progress::-moz-progress-bar { background: var(--v2-primary-container); border-radius: var(--v2-r-full); }
+.guide-progress-text { font-size: 13px; font-weight: 700; color: var(--v2-primary); }
+.guide-step summary { display: flex; align-items: center; gap: 12px; }
+.guide-step-no {
+  flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--v2-primary-fixed); color: var(--v2-on-primary-fixed); font-weight: 800;
+}
+.guide-step.is-done .guide-step-no { background: var(--v2-verified); color: #fff; }
+.guide-step.is-done .learn-card-title { color: var(--v2-verified-strong); }
+.guide-step-body { gap: 12px; }
+.guide-checklist { display: grid; gap: 4px; margin: 0; padding: 10px 14px; border: 1px solid var(--v2-outline); border-radius: var(--v2-r); }
+.guide-checklist legend { padding: 0 4px; font-size: 13px; font-weight: 700; }
+.guide-figure { display: grid; justify-items: center; gap: 4px; margin: 0; }
+.guide-figure-svg { width: min(240px, 80%); height: auto; font-family: var(--v2-font); }
+.guide-figure figcaption { font-size: 12px; color: var(--v2-secondary); text-align: center; }
+.guide-actions { display: grid; gap: var(--v2-sm); }
+.guide-done { width: 100%; }
+.guide-done[aria-pressed='true'] { background: var(--v2-verified); }
+.guide-step, #publish-form, #publish-preview { scroll-margin-top: 5.5rem; }
+
+/* ==========================================================================
+   Notifications
+   ========================================================================== */
+.profile-list span, .notif-box .profile-list span { color: var(--v2-secondary); }
+.notif-box-actions { display: grid; gap: var(--v2-sm); }
+.notif-diagnostic { font-family: ui-monospace, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.notif-error { color: var(--v2-error); }
+.notif-stack {
+  position: fixed; left: var(--v2-margin); right: var(--v2-margin); bottom: calc(var(--v2-dock-space) + .25rem); z-index: 60;
+  display: grid; gap: var(--v2-sm); max-width: 420px; margin: 0 auto;
+}
+.notif-card {
+  position: relative; padding: 14px 48px 14px 16px; border: 1px solid var(--v2-outline); border-radius: var(--v2-r-md);
+  background: var(--v2-surface); box-shadow: var(--v2-shadow-2); animation: v2-rise .25s ease-out both;
+}
+.notif-card-title { font-weight: 800; }
+.notif-card-message { margin-top: 2px; font-size: 14px; white-space: pre-line; overflow-wrap: anywhere; }
+.notif-card-origin, .notif-card-time { display: block; margin-top: 4px; font-size: 12px; color: var(--v2-secondary); }
+.notif-card-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
+.notif-card-close {
+  position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; border-radius: var(--v2-r-full);
+  background: none; cursor: pointer; color: var(--v2-secondary); font-size: 18px;
+}
+.notif-card-close:hover { background: var(--v2-surface-low); color: var(--v2-on-surface); }
+body:has(#auth-screen:not(.hidden)) .notif-stack { bottom: var(--v2-margin); }

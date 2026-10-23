@@ -6,10 +6,6 @@
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
     <meta name="theme-color" content="#2563eb" />
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="redesign.css" />
-    <link rel="stylesheet" href="mobile-splash.css" />
-    <link rel="stylesheet" href="community-mobile.css" />
     <link rel="stylesheet" href="app-v2.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
@@ -172,13 +168,13 @@
 
       <main id="main" class="layout">
         <!-- Carte membre (visible une fois connecté) -->
-        <aside class="sidebar" aria-label="Votre compte">
+        <aside class="sidebar" aria-label="Ton compte">
           <div class="member-card">
             <div class="profile-header">
               <div class="avatar" id="sidebar-avatar" aria-hidden="true">H</div>
               <div class="member-id">
                 <h2 id="sidebar-name">Bonjour</h2>
-                <p id="sidebar-email">Connectez-vous</p>
+                <p id="sidebar-email">Connecte-toi</p>
               </div>
             </div>
             <ul class="side-menu" aria-label="Raccourcis">
@@ -512,26 +508,26 @@
               </div>
 
               <div id="learn-guides" class="learn-panel hidden" role="tabpanel" aria-label="Guides pour débutants">
-                <p class="security-note">Les bases : affiliation, CPL (coût par lead : vous êtes payé quand quelqu'un remplit un formulaire, pas forcément quand il achète) et commissions. Chaque guide est relu par l'équipe avant publication.</p>
+                <p class="security-note">Les bases : affiliation, CPL (coût par lead : tu es payé quand quelqu'un remplit un formulaire, pas forcément quand il achète) et commissions. Chaque guide est relu par l'équipe avant publication.</p>
                 <div id="learn-guides-list" class="learn-list" aria-live="polite"></div>
               </div>
 
               <div id="learn-opportunities" class="learn-panel hidden" role="tabpanel" aria-label="Opportunités">
                 <div class="profile-card-box">
-                  <h3 class="card-title">Filtrer selon votre situation</h3>
-                  <p class="security-note">Ces filtres restent dans votre navigateur : votre âge et votre pays ne sont ni envoyés ni enregistrés.</p>
+                  <h3 class="card-title">Filtrer selon ta situation</h3>
+                  <p class="security-note">Ces filtres restent dans ton navigateur : ton âge et ton pays ne sont ni envoyés ni enregistrés.</p>
                   <div class="grid-2">
                     <label class="field">
-                      <span>Votre âge</span>
+                      <span>Ton âge</span>
                       <input id="opp-age" type="number" inputmode="numeric" min="10" max="99" placeholder="ex. 16" />
                     </label>
                     <label class="field">
-                      <span>Votre pays (code, ex. FR)</span>
+                      <span>Ton pays (code, ex. FR)</span>
                       <input id="opp-country" type="text" maxlength="2" placeholder="FR" autocomplete="off" />
                     </label>
                   </div>
                 </div>
-                <p class="ad-notice">Les liens de ces fiches peuvent être des <strong>liens affiliés</strong> (mention « Publicité ») : HAISSEL peut alors percevoir une commission. La rémunération indiquée est celle annoncée par l'annonceur. Elle n'est pas garantie et peut changer à tout moment.</p>
+                <p class="ad-notice">Les liens de ces fiches peuvent être des <strong>liens affiliés</strong> (badge « Lien affilié ») : HAISSEL peut alors percevoir une commission. La rémunération indiquée est celle annoncée par l'annonceur. Elle n'est pas garantie et peut changer à tout moment.</p>
                 <div id="learn-opportunities-list" class="learn-list" aria-live="polite"></div>
               </div>
 
@@ -545,12 +541,12 @@
                   <h3 class="card-title">Le programme de parrainage MyLead</h3>
                   <p>MyLead est une plateforme d'affiliation. Son programme de parrainage permet à un membre de MyLead d'inviter d'autres personnes à s'inscrire avec son lien. Le parrain peut ensuite toucher une part des gains de ses filleuls, versée par MyLead.</p>
                   <ul class="learn-points">
-                    <li><strong>Vous inscrire ne vous rapporte rien.</strong> L'inscription n'est pas rémunérée : un filleul ne gagne que ce qu'il obtient lui-même en faisant la promotion d'offres.</li>
+                    <li><strong>T’inscrire ne te rapporte rien.</strong> L'inscription n'est pas rémunérée : un filleul ne gagne que ce qu'il obtient lui-même en faisant la promotion d'offres.</li>
                     <li><strong>Ce que touche le parrain :</strong> <span id="referral-rate">une part des gains de ses filleuls, selon les conditions en vigueur</span>. C'est MyLead qui la verse, et uniquement sur des gains réels et validés.</li>
-                    <li><strong>Âge :</strong> <span id="referral-age">vérifiez l'âge minimum dans les conditions officielles de MyLead avant de vous inscrire.</span></li>
+                    <li><strong>Âge :</strong> <span id="referral-age">vérifie l'âge minimum dans les conditions officielles de MyLead avant de t'inscrire.</span></li>
                     <li><strong>Interdit :</strong> créer plusieurs comptes, se parrainer soi-même ou pousser des personnes à s'inscrire sans réelle intention d'utiliser la plateforme.</li>
                   </ul>
-                  <p class="ad-notice"><strong>Intérêt de HAISSEL :</strong> le lien ci-dessous est le lien de parrainage personnel de l'éditeur de HAISSEL. Si vous l'utilisez, l'éditeur peut recevoir une part de vos futurs gains, versée par MyLead. Cela ne réduit pas vos gains. Vous pouvez aussi vous inscrire directement sur le site de MyLead, sans passer par ce lien.</p>
+                  <p class="ad-notice"><strong>Intérêt de HAISSEL :</strong> le lien ci-dessous est le lien de parrainage personnel de l'éditeur de HAISSEL. Si tu l'utilises, l'éditeur peut recevoir une part de tes futurs gains, versée par MyLead. Cela ne réduit pas tes gains. Tu peux aussi t'inscrire directement sur le site de MyLead, sans passer par ce lien.</p>
                   <div id="referral-box" aria-live="polite"></div>
                 </div>
               </div>
@@ -574,8 +570,8 @@
                     <ul class="learn-points">
                       <li><strong>Signaler la publicité :</strong> un lien affilié doit toujours être présenté clairement comme tel (« lien affilié », « #publicité »). Voir les articles L. 121-1 et suivants du Code de la consommation et la loi n° 2023-451 du 9 juin 2023.</li>
                       <li><strong>Pas de promesse trompeuse :</strong> annoncer des gains garantis, ou présenter une inscription comme rémunérée alors qu'elle ne l'est pas, est une pratique commerciale trompeuse.</li>
-                      <li><strong>Données personnelles :</strong> ne collectez jamais les coordonnées d'autres personnes pour les transmettre à un annonceur sans leur accord éclairé (RGPD).</li>
-                      <li><strong>Âge :</strong> la plupart des plateformes exigent d'être majeur. Si vous êtes mineur, parlez-en à vos parents et vérifiez les conditions avant toute démarche.</li>
+                      <li><strong>Données personnelles :</strong> ne collecte jamais les coordonnées d'autres personnes pour les transmettre à un annonceur sans leur accord éclairé (RGPD).</li>
+                      <li><strong>Âge :</strong> la plupart des plateformes exigent d'être majeur. Si tu es mineur, parles-en à tes parents et vérifie les conditions avant toute démarche.</li>
                       <li><strong>Impôts :</strong> les revenus d'affiliation doivent être déclarés.</li>
                     </ul>
                   </div>
@@ -586,11 +582,11 @@
                 <div class="profile-card-box">
                   <h3 class="card-title">Comment HAISSEL peut gagner de l'argent</h3>
                   <ul class="learn-points">
-                    <li>Les liens marqués <span class="pill ad">Publicité</span> sont des liens affiliés : si vous réalisez l'action prévue, l'annonceur peut verser une commission à HAISSEL. Cela ne vous coûte rien de plus.</li>
-                    <li>Le lien de parrainage MyLead est celui de l'éditeur : si vous l'utilisez, l'éditeur peut toucher une part de vos gains MyLead, versée par MyLead.</li>
-                    <li>Les membres de HAISSEL <strong>ne touchent aucune commission</strong> de la part de HAISSEL. Seuls les programmes officiels auxquels vous vous inscrivez vous-même peuvent vous rémunérer, selon leurs propres conditions.</li>
+                    <li>Les liens marqués <span class="pill ad">Lien affilié</span> sont des liens affiliés : si tu réalises l'action prévue, l'annonceur peut verser une commission à HAISSEL. Cela ne te coûte rien de plus.</li>
+                    <li>Le lien de parrainage MyLead est celui de l'éditeur : si tu l'utilises, l'éditeur peut toucher une part de tes gains MyLead, versée par MyLead.</li>
+                    <li>Les membres de HAISSEL <strong>ne touchent aucune commission</strong> de la part de HAISSEL. Seuls les programmes officiels auxquels tu t’inscris toi-même peuvent te rémunérer, selon leurs propres conditions.</li>
                     <li>Les guides ne sont pas sponsorisés. Une offre n'est publiée qu'une fois ses conditions vérifiées (âge, pays, action rémunérée, restrictions).</li>
-                    <li>HAISSEL ne transmet ni votre nom ni votre e-mail aux annonceurs, et n'enregistre pas vos clics sur les fiches d'opportunités.</li>
+                    <li>HAISSEL ne transmet ni ton nom ni ton e-mail aux annonceurs, et n'enregistre pas tes clics sur les fiches d'opportunités.</li>
                   </ul>
                   <a class="secondary-button" href="transparence.html">Lire la page Transparence complète</a>
                 </div>
@@ -607,7 +603,7 @@
 
               <div class="profile-card-box notif-box">
                 <h3 class="card-title">Réception des messages</h3>
-                <p class="security-note">Les messages de l'administration s'affichent dans cette page tant qu'elle est ouverte. Vous pouvez aussi recevoir des notifications système de votre ordinateur.</p>
+                <p class="security-note">Les messages de l'administration s'affichent dans cette page tant qu'elle est ouverte. Tu peux aussi recevoir des notifications système de ton ordinateur.</p>
                 <ul class="profile-list">
                   <li><span>Canal temps réel</span><strong id="realtime-status">Hors ligne</strong></li>
                   <li><span>Notifications Windows</span><strong id="notif-permission-status">Non configuré</strong></li>
