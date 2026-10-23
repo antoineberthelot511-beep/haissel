@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HAISSEL — Espace membre</title>
-    <meta name="description" content="HAISSEL : créez votre compte et retrouvez les liens et offres partenaires publiés par l'équipe." />
-    <meta name="theme-color" content="#008673" />
+    <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
+    <meta name="theme-color" content="#2563eb" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="redesign.css" />
     <link rel="stylesheet" href="mobile-splash.css" />
@@ -79,11 +79,15 @@
         <p class="splash-brand">
           <span class="splash-logo" aria-hidden="true">H</span>
           <span class="splash-name">HAISSEL</span>
-          <span class="splash-tag">Espace membre</span>
         </p>
 
-        <h1 id="splash-title" class="splash-title">Les liens et offres partenaires, réunis au même endroit</h1>
-        <p class="splash-lede">Les membres partagent leurs liens d'affiliation, vérifiés par l'équipe avant d'être visibles. Créez votre compte pour les consulter et apprendre à publier les vôtres.</p>
+        <h1 id="splash-title" class="splash-title">Les bons plans de la communauté, réunis au même endroit</h1>
+        <p class="splash-lede">Les membres partagent leurs liens d'affiliation, vérifiés par l'équipe avant d'être visibles. Crée ton compte pour les consulter et apprendre à publier les tiens.</p>
+        <ul class="splash-points">
+          <li><svg class="icon" aria-hidden="true"><use href="#i-shield-check" /></svg>Chaque offre est relue par l'équipe</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>Les liens affiliés sont toujours signalés</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>Des guides pour comprendre l'affiliation</li>
+        </ul>
 
         <div class="splash-actions">
           <button type="button" class="primary-button splash-button" data-splash-form="register">Créer un compte</button>
@@ -191,24 +195,11 @@
         <section class="content-panel">
           <!-- ====================== ACCUEIL / AUTHENTIFICATION ====================== -->
           <div id="auth-screen" class="auth-layout">
-            <div class="auth-intro" id="auth-intro">
-              <h1>Bienvenue sur HAISSEL</h1>
-              <p class="lede">Connectez-vous pour retrouver les liens et offres partenaires publiés par l'équipe.</p>
-              <ol class="steps">
-                <li><span class="step-no" aria-hidden="true">1</span><span><strong>Créez votre compte</strong> avec une adresse e-mail et un pseudo.</span></li>
-                <li><span class="step-no" aria-hidden="true">2</span><span><strong>Consultez la liste</strong> des liens, mise à jour par l'équipe.</span></li>
-                <li><span class="step-no" aria-hidden="true">3</span><span><strong>Cliquez sur « Ouvrir »</strong> : le site partenaire s'ouvre dans un nouvel onglet.</span></li>
-              </ol>
-              <div class="trust-box">
-                <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
-                <p><strong>Votre compte reste privé.</strong> Votre mot de passe est stocké de façon sécurisée : personne, pas même nous, ne peut le lire ou le retrouver. Vos données : <a href="confidentialite.html">politique de confidentialité</a>.</p>
-              </div>
-            </div>
-
             <div class="auth-card">
               <div class="auth-card-head">
-                <span class="wordmark-logo" aria-hidden="true">H</span>
-                <h2 id="auth-title">Identification</h2>
+                <span class="wordmark-logo auth-logo" aria-hidden="true">H</span>
+                <h2 id="auth-title">HAISSEL</h2>
+                <p class="auth-tagline">Rejoins les bons plans de la communauté et découvre l'affiliation, en toute transparence.</p>
               </div>
 
               <div class="auth-tabs" role="tablist" aria-label="Choix d'authentification">
@@ -220,28 +211,33 @@
               <div id="auth-info" class="auth-info hidden" role="status" aria-live="polite"></div>
 
               <form id="login-form" class="auth-form active" novalidate>
-                <label class="field">
-                  <span>Adresse e-mail ou pseudo</span>
+                <label class="field icon-field">
+                  <span>Ton e-mail ou ton pseudo</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-at" /></svg>
                   <input id="login-identifier" type="text" placeholder="ex. camille_b" autocomplete="username" maxlength="254" required />
                 </label>
-                <label class="field">
+                <label class="field icon-field">
                   <span>Mot de passe</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
                   <input id="login-password" type="password" autocomplete="current-password" maxlength="128" required />
                 </label>
                 <div class="turnstile-slot hidden" data-turnstile-action="login"></div>
                 <button class="primary-button" type="submit">Se connecter</button>
                 <button id="forgot-link" class="text-button hidden" type="button">Mot de passe oublié ?</button>
+                <p class="auth-switch">Pas encore de compte ? <button class="text-button" type="button" data-switch-form="register">Crée-le</button></p>
               </form>
 
               <!-- Double authentification -->
               <form id="mfa-form" class="auth-form hidden" novalidate>
-                <p class="form-intro">Saisissez le code à 6 chiffres affiché par votre application d'authentification.</p>
-                <label class="field" id="mfa-code-field">
+                <p class="form-intro">Saisis le code à 6 chiffres affiché par ton application d'authentification.</p>
+                <label class="field icon-field" id="mfa-code-field">
                   <span>Code de vérification</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg>
                   <input id="mfa-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" />
                 </label>
-                <label class="field hidden" id="mfa-recovery-field">
+                <label class="field icon-field hidden" id="mfa-recovery-field">
                   <span>Code de récupération</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg>
                   <input id="mfa-recovery" type="text" maxlength="20" autocomplete="off" placeholder="XXXXX-XXXXX" />
                 </label>
                 <button class="primary-button" type="submit">Valider</button>
@@ -251,9 +247,10 @@
 
               <!-- Mot de passe oublié -->
               <form id="forgot-form" class="auth-form hidden" novalidate>
-                <p class="form-intro">Indiquez l'adresse e-mail du compte : si elle existe, un lien de réinitialisation valable 30 minutes vous sera envoyé.</p>
-                <label class="field">
-                  <span>Adresse e-mail</span>
+                <p class="form-intro">Indique l'adresse e-mail du compte : si elle existe, tu recevras un lien de réinitialisation valable 30 minutes.</p>
+                <label class="field icon-field">
+                  <span>Ton adresse e-mail</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-mail" /></svg>
                   <input id="forgot-email" type="email" autocomplete="email" maxlength="254" required />
                 </label>
                 <div class="turnstile-slot hidden" data-turnstile-action="forgot-password"></div>
@@ -263,13 +260,15 @@
 
               <!-- Nouveau mot de passe (lien reçu par e-mail) -->
               <form id="reset-form" class="auth-form hidden" novalidate>
-                <p class="form-intro">Choisissez un nouveau mot de passe. Toutes vos sessions seront fermées.</p>
-                <label class="field">
+                <p class="form-intro">Choisis un nouveau mot de passe. Toutes tes sessions seront fermées.</p>
+                <label class="field icon-field">
                   <span>Nouveau mot de passe <small>(10 caractères minimum)</small></span>
-                  <input id="reset-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                  <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
+                  <input id="reset-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="10 caractères minimum" required />
                 </label>
-                <label class="field">
-                  <span>Confirmation</span>
+                <label class="field icon-field">
+                  <span>Confirme ton mot de passe</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
                   <input id="reset-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
                 </label>
                 <button class="primary-button" type="submit">Enregistrer</button>
@@ -278,63 +277,87 @@
 
               <form id="register-form" class="auth-form hidden" novalidate>
                 <div class="grid-2">
-                  <label class="field">
-                    <span>Prénom</span>
-                    <input id="register-first-name" type="text" autocomplete="given-name" maxlength="60" required />
+                  <label class="field icon-field">
+                    <span>Ton prénom</span>
+                    <svg class="icon" aria-hidden="true"><use href="#i-id" /></svg>
+                    <input id="register-first-name" type="text" autocomplete="given-name" maxlength="60" placeholder="ex. Thomas" required />
                   </label>
-                  <label class="field">
-                    <span>Nom</span>
-                    <input id="register-last-name" type="text" autocomplete="family-name" maxlength="60" required />
-                  </label>
-                </div>
-
-                <label class="field">
-                  <span>Pseudo <small>(unique, 3 à 30 caractères)</small></span>
-                  <input id="register-username" type="text" placeholder="ex. camille_b" autocomplete="username" minlength="3" maxlength="30" required />
-                </label>
-
-                <label class="field">
-                  <span>Adresse e-mail</span>
-                  <input id="register-email" type="email" placeholder="prenom@mail.com" autocomplete="email" maxlength="254" required />
-                </label>
-
-                <div class="grid-2">
-                  <label class="field">
-                    <span>Mot de passe <small>(10 caractères min.)</small></span>
-                    <input id="register-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
-                  </label>
-                  <label class="field">
-                    <span>Confirmation</span>
-                    <input id="register-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required />
+                  <label class="field icon-field">
+                    <span>Ton nom</span>
+                    <svg class="icon" aria-hidden="true"><use href="#i-id" /></svg>
+                    <input id="register-last-name" type="text" autocomplete="family-name" maxlength="60" placeholder="ex. Dupont" required />
                   </label>
                 </div>
 
-                <label class="show-password">
+                <label class="field icon-field">
+                  <span>Choisis ton pseudo <small>(unique, 3 à 30 caractères)</small></span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-at" /></svg>
+                  <input id="register-username" type="text" placeholder="ton_pseudo" autocomplete="username" minlength="3" maxlength="30" required />
+                </label>
+
+                <label class="field icon-field">
+                  <span>Ton adresse e-mail</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-mail" /></svg>
+                  <input id="register-email" type="email" placeholder="nom@exemple.com" autocomplete="email" maxlength="254" required />
+                </label>
+
+                <label class="field icon-field">
+                  <span>Mot de passe</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
+                  <input id="register-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="10 caractères minimum" required />
+                </label>
+                <label class="field icon-field">
+                  <span>Confirme ton mot de passe</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
+                  <input id="register-confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" placeholder="Répète ton mot de passe" required />
+                </label>
+
+                <label class="toggle-row show-password">
                   <input id="register-show-password" type="checkbox" />
                   <span>Afficher les mots de passe</span>
                 </label>
 
                 <fieldset class="age-fieldset">
-                  <legend>As-tu 18 ans ou plus ?</legend>
+                  <legend>As-tu 18 ans ou plus ? <span class="pill adult">Obligatoire</span></legend>
                   <p class="age-why">MyLead exige 18 ans pour ouvrir un compte éditeur. Ta réponse décide de ce que tu peux faire sur HAISSEL. <strong>Nous n'enregistrons pas ta date de naissance</strong>, seulement cette réponse.</p>
                   <div class="age-choices">
                     <label class="age-choice">
                       <input type="radio" name="register-adult" id="register-adult-yes" value="yes" required />
-                      <span>Oui, j'ai 18 ans ou plus</span>
+                      <span class="age-choice-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-check-circle" /></svg></span>
+                      <span class="age-choice-text"><strong>Oui, j'ai 18 ans ou plus</strong><small>Accès complet aux offres et à l'affiliation</small></span>
                     </label>
                     <label class="age-choice">
                       <input type="radio" name="register-adult" id="register-adult-no" value="no" required />
-                      <span>Non, j'ai moins de 18 ans</span>
+                      <span class="age-choice-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-book" /></svg></span>
+                      <span class="age-choice-text"><strong>Non, j'ai moins de 18 ans</strong><small>Accès aux guides uniquement (affiliation désactivée)</small></span>
                     </label>
                   </div>
                   <p class="field-error hidden" id="err-register-adult" role="alert"></p>
-                  <p class="age-consequence">Avec moins de 18 ans, tu gardes l'accès aux guides de l'espace Apprendre. Le parcours MyLead, le parrainage, la publication d'offres et l'ouverture des liens affiliés ne sont pas accessibles.</p>
+                  <p class="age-consequence"><svg class="icon sm" aria-hidden="true"><use href="#i-shield-check" /></svg><span>Avec moins de 18 ans, tu gardes l'accès aux guides de l'espace Apprendre. Le parcours MyLead, le parrainage, la publication d'offres et l'ouverture des liens affiliés ne sont pas accessibles.</span></p>
                 </fieldset>
 
-                <p class="security-note">En créant un compte, vous acceptez les <a href="cgu.html" target="_blank">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>. Inscription dès 15 ans (avant : accord d'un parent).</p>
                 <div class="turnstile-slot hidden" data-turnstile-action="register"></div>
                 <button class="primary-button" type="submit">Créer mon compte</button>
+                <p class="auth-switch">Déjà un compte ? <button class="text-button" type="button" data-switch-form="login">Connecte-toi</button></p>
+                <div class="trust-note">
+                  <p class="trust-note-title"><svg class="icon sm" aria-hidden="true"><use href="#i-shield" /></svg>Confiance et déontologie</p>
+                  <p class="security-note">En créant un compte, tu acceptes les <a href="cgu.html" target="_blank">conditions d'utilisation</a> et la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>. Inscription dès 15 ans (avant : accord d'un parent).</p>
+                </div>
               </form>
+            </div>
+
+            <div class="auth-intro" id="auth-intro">
+              <h1>Bienvenue sur HAISSEL</h1>
+              <p class="lede">Connecte-toi pour retrouver les bons plans partagés par la communauté.</p>
+              <ol class="steps">
+                <li><span class="step-no" aria-hidden="true">1</span><span><strong>Crée ton compte</strong> avec une adresse e-mail et un pseudo.</span></li>
+                <li><span class="step-no" aria-hidden="true">2</span><span><strong>Parcours les offres</strong>, vérifiées par l'équipe avant d'être visibles.</span></li>
+                <li><span class="step-no" aria-hidden="true">3</span><span><strong>Ouvre une offre</strong> : le site partenaire s'ouvre dans un nouvel onglet, après confirmation.</span></li>
+              </ol>
+              <div class="trust-box">
+                <svg class="icon" aria-hidden="true"><use href="#i-lock" /></svg>
+                <p><strong>Ton compte reste privé.</strong> Ton mot de passe est stocké de façon sécurisée : personne, pas même nous, ne peut le lire ou le retrouver. Tes données : <a href="confidentialite.html">politique de confidentialité</a>.</p>
+              </div>
             </div>
           </div>
 

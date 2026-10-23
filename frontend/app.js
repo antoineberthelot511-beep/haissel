@@ -125,7 +125,7 @@ async function api(url, { method = 'GET', body } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (error) {
-    throw new ApiError(0, 'NETWORK', 'Serveur injoignable. Vérifiez votre connexion.');
+    throw new ApiError(0, 'NETWORK', 'Serveur injoignable. Vérifie ta connexion.');
   }
 
   const payload = await response.json().catch(() => ({}));
@@ -137,7 +137,7 @@ async function api(url, { method = 'GET', body } = {}) {
     const sessionLost = response.status === 401 && state.user && !url.startsWith('/api/auth/');
     if (sessionLost || (response.status === 403 && error.code === 'ADMIN_LOCAL_ONLY' && state.user)) {
       showLoggedOut();
-      setMessage('error', response.status === 401 ? 'Votre session a expiré. Veuillez vous reconnecter.' : message);
+      setMessage('error', response.status === 401 ? 'Ta session a expiré. Reconnecte-toi.' : message);
     }
     throw error;
   }
@@ -208,6 +208,10 @@ function updateUserSummary() {
 
 function setActiveView(viewName) {
   // Barre principale et raccourcis de la colonne latérale.
+  // « Déjà un compte ? Connecte-toi » et l'inverse, sous les formulaires.
+  document.querySelectorAll('[data-switch-form]').forEach((button) => {
+    button.addEventListener('click', () => showAuthForm(`${button.dataset.switchForm}-form`));
+  });
   document.querySelectorAll('[data-view]').forEach((button) => {
     const active = button.dataset.view === viewName;
     button.classList.toggle('active', active);
@@ -450,7 +454,7 @@ function renderLinks() {
   ui.linksList.setAttribute('aria-busy', 'false');
   ui.linksList.replaceChildren(...(state.links.length
     ? state.links.map(linkCard)
-    : [h('div', { className: 'panel-card' }, 'Aucun lien publié pour le moment. Revenez plus tard !')]));
+    : [h('div', { className: 'panel-card' }, 'Aucun lien publié pour le moment. Reviens plus tard !')]));
 }
 
 function renderLinksLoading() {
@@ -511,7 +515,7 @@ function opportunityCard(item, { age, country }) {
   let action;
   if (!item.url) action = null;
   else if (tooYoung) action = h('p', { className: 'learn-warning' }, `Réservé aux ${item.min_age} ans et plus : lien masqué selon l'âge indiqué.`);
-  else if (wrongCountry) action = h('p', { className: 'learn-warning' }, 'Votre pays ne fait pas partie des pays acceptés : lien masqué.');
+  else if (wrongCountry) action = h('p', { className: 'learn-warning' }, 'Ton pays ne fait pas partie des pays acceptés : lien masqué.');
   else {
     action = h('a', {
       className: 'offer-link-button',
@@ -598,9 +602,9 @@ async function loadLearn() {
     const items = content.items || [];
     state.learn = { loaded: true, opportunities: opportunities.items || [] };
     renderLearnList(ui.learnGuidesList, items.filter((item) => item.kind === 'guide'), contentCard,
-      'Les guides sont en cours de relecture. Revenez bientôt !');
+      'Les guides sont en cours de relecture. Reviens bientôt !');
     renderLearnList(ui.learnTutorialsList, items.filter((item) => item.kind === 'tutorial'), contentCard,
-      'Les tutoriels sont en cours de relecture. Revenez bientôt !');
+      'Les tutoriels sont en cours de relecture. Reviens bientôt !');
     renderOpportunities();
     renderReferral(referral);
     renderHomeLearn(items);
@@ -1270,7 +1274,7 @@ async function handlePublish(event) {
    * modération. On n'envoie donc le jeton que pour une nouvelle offre.
    */
   if (!state.community.editing && !attachTurnstile(ui.publishForm, values)) {
-    publishFeedback('error', 'Validez la vérification anti-robot avant de continuer.');
+    publishFeedback('error', 'Valide la vérification anti-robot avant de continuer.');
     return;
   }
 
@@ -1334,13 +1338,13 @@ async function handleLogin(event) {
   const identifier = ui.loginIdentifier.value.trim();
   const password = ui.loginPassword.value;
   if (!identifier || !password) {
-    setMessage('error', 'Remplissez tous les champs.');
+    setMessage('error', 'Remplis tous les champs.');
     return;
   }
 
   const body = { identifier, password };
   if (!attachTurnstile(form, body)) {
-    setMessage('error', 'Validez la vérification anti-robot avant de continuer.');
+    setMessage('error', 'Valide la vérification anti-robot avant de continuer.');
     return;
   }
 
@@ -1628,7 +1632,7 @@ async function handleRegister(event) {
   body.is_adult = choice.value === 'yes';
 
   if (!attachTurnstile(form, body)) {
-    setMessage('error', 'Validez la vérification anti-robot avant de continuer.');
+    setMessage('error', 'Valide la vérification anti-robot avant de continuer.');
     return;
   }
   if ([...body.password].length < state.config.password_min_length) {
@@ -1647,7 +1651,7 @@ async function handleRegister(event) {
     resetTurnstile(form);
     if (data.verification_required) {
       showAuthForm('login-form');
-      setMessage('info', 'Compte presque prêt : ouvrez le lien envoyé à votre adresse e-mail pour l’activer, puis connectez-vous.');
+      setMessage('info', 'Compte presque prêt : ouvre le lien envoyé à ton adresse e-mail pour l’activer, puis connecte-toi.');
       return;
     }
     showLoggedIn(data.user);
@@ -1663,13 +1667,13 @@ async function handleForgot(event) {
   const form = event.currentTarget;
   const email = ui.forgotEmail.value.trim();
   if (!email) {
-    setMessage('error', 'Indiquez votre adresse e-mail.');
+    setMessage('error', 'Indique ton adresse e-mail.');
     return;
   }
 
   const body = { email };
   if (!attachTurnstile(form, body)) {
-    setMessage('error', 'Validez la vérification anti-robot avant de continuer.');
+    setMessage('error', 'Valide la vérification anti-robot avant de continuer.');
     return;
   }
 
@@ -1733,7 +1737,7 @@ async function handlePasswordChange(event) {
       },
     });
     form.reset();
-    feedback('info', 'Mot de passe modifié. Vos autres sessions ont été fermées.');
+    feedback('info', 'Mot de passe modifié. Tes autres sessions ont été fermées.');
   } catch (error) {
     feedback('error', error.message);
   } finally {
@@ -1761,7 +1765,7 @@ async function handleLogoutAll() {
   state.csrf = '';
   showLoggedOut();
   showAuthForm('login-form');
-  setMessage('info', 'Toutes vos sessions ont été fermées.');
+  setMessage('info', 'Toutes tes sessions ont été fermées.');
 }
 
 async function handleDeleteAccount(event) {
@@ -1772,7 +1776,7 @@ async function handleDeleteAccount(event) {
   const confirm = document.getElementById('delete-account-confirm').value.trim();
   errorBox.classList.add('hidden');
   if (confirm !== 'SUPPRIMER') {
-    errorBox.textContent = 'Tapez SUPPRIMER pour confirmer.';
+    errorBox.textContent = 'Tape SUPPRIMER pour confirmer.';
     errorBox.classList.remove('hidden');
     return;
   }
@@ -1783,7 +1787,7 @@ async function handleDeleteAccount(event) {
     state.csrf = '';
     showLoggedOut();
     showAuthForm('login-form');
-    setMessage('info', 'Votre compte et vos données ont été supprimés.');
+    setMessage('info', 'Ton compte et tes données ont été supprimés.');
   } catch (error) {
     errorBox.textContent = error.message;
     errorBox.classList.remove('hidden');
@@ -1917,7 +1921,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.csrf = '';
       showLoggedOut();
       showAuthForm('login-form');
-      setMessage('error', 'Votre session a pris fin. Veuillez vous reconnecter.');
+      setMessage('error', 'Ta session a pris fin. Reconnecte-toi.');
     },
   });
 
