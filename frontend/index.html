@@ -458,6 +458,11 @@
               <div id="links-list" class="offer-feed" aria-live="polite"></div>
             </section>
 
+            <!-- Détail d'une offre (rempli par app.js, voir openOffer) -->
+            <section id="offer-view" class="view-panel hidden" aria-labelledby="offer-title">
+              <div id="offer-detail" class="offer-detail"></div>
+            </section>
+
             <section id="learn-view" class="view-panel hidden" aria-labelledby="learn-title">
               <div class="section-header">
                 <div>
@@ -857,10 +862,11 @@
     <!-- Avant d'ouvrir un lien publié par un membre -->
     <dialog id="leave-dialog" class="app-dialog" aria-labelledby="leave-title">
       <form method="dialog">
-        <h2 id="leave-title">Vous allez quitter HAISSEL</h2>
+        <span class="dialog-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-external" /></svg></span>
+        <h2 id="leave-title">Tu vas quitter HAISSEL</h2>
         <p>Ce lien ouvre le site <strong id="leave-domain"></strong> dans un nouvel onglet. C'est un <strong>lien affilié</strong> : son auteur peut toucher une commission.</p>
         <p id="leave-age" class="guide-warning hidden"></p>
-        <p class="security-note">HAISSEL n'a pas vérifié ce site lui-même. Ne donnez jamais vos mots de passe et méfiez-vous des promesses de gains.</p>
+        <p class="security-note">HAISSEL n'a pas vérifié ce site lui-même. Ne donne jamais tes mots de passe et méfie-toi des promesses de gains.</p>
         <div class="dialog-actions">
           <button value="cancel" class="ghost-button" type="submit">Annuler</button>
           <button value="confirm" id="leave-confirm" class="primary-button" type="submit">Continuer</button>

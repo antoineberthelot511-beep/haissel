@@ -665,7 +665,7 @@ function fillCategorySelect(select, categories, firstLabel) {
  */
 function confirmLeave(offer) {
   ui.leaveDomain.textContent = offer.domain || 'site externe';
-  ui.leaveAge.textContent = offer.min_age ? `Offre réservée aux ${offer.min_age} ans et plus : ne continuez que si vous avez cet âge.` : '';
+  ui.leaveAge.textContent = offer.min_age ? `Offre réservée aux ${offer.min_age} ans et plus : ne continue que si tu as cet âge.` : '';
   ui.leaveAge.classList.toggle('hidden', !offer.min_age);
   ui.leaveDialog.returnValue = '';
   ui.leaveDialog.addEventListener('close', async () => {
@@ -761,17 +761,115 @@ function communityCard(offer, { preview = false } = {}) {
       offer.is_mine || preview ? null : saveButtonFor(offer)));
 }
 
+// ---------------------------------------------------------------------------
+// Détail d'une offre
+// ---------------------------------------------------------------------------
+
 /*
- * Ouverture d'une offre depuis une carte. can_open vient du serveur : un
- * mineur, ou une offre dont l'âge minimum dépasse ce que HAISSEL peut
- * certifier, voit la raison plutôt qu'un bouton qui échouerait.
+ * Vue plein écran, ouverte depuis une carte. Elle reprend l'offre déjà reçue
+ * (aucun appel réseau) ; le lien lui-même passe toujours par confirmLeave,
+ * qui le demande au serveur au moment du clic.
+ *
+ * Une entrée d'historique est ajoutée : le bouton « retour » du téléphone
+ * ferme le détail au lieu de quitter le site.
  */
 function openOffer(offer) {
-  if (offer.can_open === false) {
-    window.alert('Cette offre est accessible à partir de 18 ans.');
-    return;
+  if (ui.memberDialog.open) closeDialog(ui.memberDialog);
+  const current = document.querySelector('.view-panel:not(.hidden)');
+  if (current && current.id !== 'offer-view') {
+    state.community.returnView = current.id.replace(/-view$/, '');
+    state.community.returnScroll = window.scrollY;
   }
-  confirmLeave(offer);
+  ui.offerDetail.replaceChildren(...offerDetail(offer));
+  setActiveView('offer');
+  try {
+    if (!window.history.state?.haisselOffer) window.history.pushState({ haisselOffer: offer.id }, '', window.location.href);
+  } catch (error) { /* navigateur sans History API : le bouton « retour » de la vue suffit */ }
+  document.getElementById('offer-title')?.focus({ preventScroll: true });
+}
+
+function closeOffer() {
+  setActiveView(state.community.returnView || 'home');
+  window.scrollTo({ top: state.community.returnScroll || 0 });
+}
+
+function leaveOfferView() {
+  if (window.history.state?.haisselOffer) window.history.back(); // → popstate → closeOffer
+  else closeOffer();
+}
+
+function offerDetail(offer) {
+  const fact = (label, value, note) => (value ? h('div', { className: note ? 'od-fact wide' : 'od-fact' },
+    h('dt', null, label), h('dd', null, value, note ? h('small', null, note) : null)) : null);
+  const step = (n, title, text) => h('li', null,
+    h('span', { className: 'od-step-no', 'aria-hidden': 'true' }, String(n)),
+    h('div', null, h('strong', null, title), h('span', null, text)));
+  const author = offer.author.username;
+  const published = offer.status === 'published';
+
+  return [
+    h('div', { className: 'od-top' },
+      h('button', { className: 'round-button', type: 'button', 'aria-label': 'Retour', onclick: leaveOfferView }, icon('i-arrow-left')),
+      h('div', { className: 'od-badges' },
+        offer.countries ? h('span', { className: 'pill' }, icon('i-globe', 'icon sm'), offer.countries) : null,
+        h('span', { className: 'pill ad', title: 'Son auteur peut toucher une commission si tu réalises l’action.' }, icon('i-link', 'icon sm'), 'Lien affilié'))),
+
+    h('article', { className: 'od-card od-hero' },
+      h('div', { className: 'od-hero-head' },
+        h('span', { className: 'od-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+        h('div', null,
+          h('span', { className: 'pill' }, offer.category_label),
+          h('h2', { id: 'offer-title', tabindex: '-1' }, offer.title))),
+      published ? h('p', { className: 'od-verified' },
+        icon('i-shield-check'), h('span', null, 'Vérifiée par l’équipe HAISSEL'),
+        h('small', null, formatAgo(offer.published_at))) : null,
+      h('dl', { className: 'od-facts' },
+        fact('Catégorie', offer.category_label),
+        fact('Pays', offer.countries),
+        offer.min_age ? fact('Âge minimum', `${offer.min_age} ans`) : null,
+        // Aucun montant inventé : seulement ce que l'auteur a saisi, avec la mise en garde.
+        fact('Rémunération annoncée', offer.payout_text, 'indicatif, non garanti'),
+        fact('Site', offer.domain))),
+
+    h('section', { className: 'od-card', 'aria-labelledby': 'offer-todo-title' },
+      h('h3', { id: 'offer-todo-title', className: 'od-title-dot' }, 'Ce qu’il faut faire'),
+      h('p', { className: 'od-description' }, offer.description),
+      h('ol', { className: 'od-steps' },
+        step(1, 'Clique sur « Ouvrir le lien » ci-dessous', 'HAISSEL te demande de confirmer avant de quitter le site.'),
+        step(2, offer.expected_action, 'C’est l’action attendue par le site partenaire.'),
+        step(3, 'Lis les conditions du site partenaire', 'Elles priment toujours sur ce résumé.'))),
+
+    h('section', { className: 'od-card', 'aria-labelledby': 'offer-terms-title' },
+      h('h3', { id: 'offer-terms-title' }, 'Conditions claires'),
+      h('p', { className: 'od-muted' }, 'Ce lien est un lien affilié : le membre qui l’a publié peut toucher une commission. Ça ne te coûte rien de plus, et aucun gain n’est garanti.'),
+      offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
+      h('div', { className: 'od-tags' },
+        offer.min_age ? h('span', { className: 'pill' }, icon('i-shield', 'icon sm'), `Réservé aux ${offer.min_age} ans et +`) : null,
+        h('a', { className: 'pill pill-link', href: 'transparence.html' }, icon('i-info', 'icon sm'), 'Transparence affiliation'))),
+
+    h('section', { className: 'od-card od-author' },
+      h('span', { className: 'avatar', 'aria-hidden': 'true' }, initialsFromName(author)),
+      h('div', null,
+        h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(author) }, `@${author}`),
+        h('p', null, `Membre de la communauté · publiée ${formatAgo(offer.published_at || offer.created_at)}`))),
+
+    h('div', { className: 'od-actions' },
+      /*
+       * can_open vient du serveur. Un mineur, ou une offre dont l'âge minimum
+       * dépasse ce que HAISSEL peut certifier, voit la raison plutôt qu'un
+       * bouton qui échouerait.
+       */
+      offer.can_open === false
+        ? h('p', { className: 'offer-blocked' }, icon('i-lock'), 'Accessible à partir de 18 ans : le lien n’est pas affiché.')
+        : h('button', {
+          className: 'offer-link-button od-open', type: 'button',
+          'aria-label': `Ouvrir « ${offer.title} » (site externe, nouvel onglet)`,
+          onclick: () => confirmLeave(offer),
+        }, 'Ouvrir le lien (site officiel)', icon('i-external')),
+      offer.is_mine ? null : saveButtonFor(offer, { variant: 'text' }),
+      offer.is_mine ? null : h('button', { className: 'text-button od-report', type: 'button', onclick: () => openReport(offer) },
+        icon('i-flag', 'icon sm'), 'Un problème ? Signaler cette offre')),
+  ];
 }
 
 function communityQuery() {
@@ -1729,7 +1827,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn', homeDate: 'home-date',
-    homeOffers: 'home-offers', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar',
+    homeOffers: 'home-offers', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step', homeLearnTitle: 'home-learn-title',
     homeLearnText: 'home-learn-text', homeLearnProgress: 'home-learn-progress', homeLearnCount: 'home-learn-count',
     homeLearnBar: 'home-learn-bar', homeLearnGo: 'home-learn-go', homeLearnGoLabel: 'home-learn-go-label',
@@ -1843,6 +1941,10 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.reportForm.addEventListener('submit', handleReport);
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
+  });
+  // Bouton « retour » du téléphone : ferme le détail d'une offre.
+  window.addEventListener('popstate', () => {
+    if (!document.getElementById('offer-view').classList.contains('hidden')) closeOffer();
   });
   document.getElementById('profile-saved').addEventListener('click', () => {
     ui.communitySaved.checked = true;
