@@ -41,3 +41,6 @@ Thumbs.db
 merde/
 frontend/image/
 haissel-accueil-redesign.html
+
+# Archives des maquettes Stitch
+design/stitch/*.zip
