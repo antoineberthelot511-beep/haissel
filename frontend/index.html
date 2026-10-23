@@ -601,81 +601,118 @@
             </section>
 
             <section id="publish-view" class="view-panel hidden" aria-labelledby="publish-title">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Partager ton lien d'affiliation</p>
-                  <h2 id="publish-title" class="section-title">Publier une offre</h2>
-                </div>
+              <div class="publish-hero">
+                <span class="publish-hero-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-send" /></svg></span>
+                <h2 id="publish-title" class="section-title">Partager un bon plan 🚀</h2>
+                <p class="eyebrow">Partage ton lien d'affiliation avec la communauté.</p>
               </div>
               <p class="ad-notice">Chaque offre est <strong>vérifiée par l'équipe</strong> avant d'être visible. Décris-la honnêtement : pas de promesse de gains, pas de fausse information. Les jeux d'argent, la crypto, le crédit, les rencontres, les contenus pour adultes, le tabac et l'alcool sont refusés. HAISSEL ne te demandera jamais ton mot de passe MyLead.</p>
 
-              <form id="publish-form" class="profile-card-box publish-form" novalidate>
-                <h3 id="publish-form-title" class="card-title">Nouvelle offre</h3>
+              <form id="publish-form" class="publish-form" novalidate>
+                <h3 id="publish-form-title" class="publish-form-title">Nouvelle offre</h3>
                 <div id="publish-error" class="auth-error hidden" role="alert"></div>
-                <label class="field">
-                  <span>Titre <small>(5 à 120 caractères)</small></span>
-                  <input id="pub-title" type="text" minlength="5" maxlength="120" required />
-                </label>
-                <p class="field-error hidden" id="err-title" role="alert"></p>
-                <label class="field">
-                  <span>Lien <small>(doit commencer par https://)</small></span>
-                  <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required />
-                </label>
-                <p class="field-error hidden" id="err-url" role="alert"></p>
-                <label class="field">
-                  <span>Description <small>(ce que c'est et pour qui, 20 caractères minimum)</small></span>
-                  <textarea id="pub-description" rows="4" minlength="20" maxlength="1500" required></textarea>
-                </label>
-                <p class="field-error hidden" id="err-description" role="alert"></p>
-                <label class="field">
-                  <span>Catégorie</span>
-                  <select id="pub-category" required><option value="">Choisir…</option></select>
-                </label>
-                <p class="field-error hidden" id="err-category" role="alert"></p>
-                <label class="field">
-                  <span>Pays concernés <small>(codes : FR, BE…)</small></span>
-                  <input id="pub-countries" type="text" maxlength="200" placeholder="FR, BE" required />
-                </label>
-                <p class="field-error hidden" id="err-countries" role="alert"></p>
-                <label class="field">
-                  <span>Action attendue <small>(ex. « inscription avec e-mail confirmé »)</small></span>
-                  <input id="pub-action" type="text" maxlength="300" required />
-                </label>
-                <p class="field-error hidden" id="err-expected_action" role="alert"></p>
-                <label class="field">
-                  <span>Rémunération annoncée <small>(facultatif)</small></span>
-                  <input id="pub-payout" type="text" maxlength="160" placeholder="Seulement si elle figure dans ta campagne" />
-                </label>
-                <p class="field-error hidden" id="err-payout_text" role="alert"></p>
-                <label class="field">
-                  <span>Âge minimum <small>(si la campagne en fixe un)</small></span>
-                  <input id="pub-min-age" type="number" inputmode="numeric" min="10" max="99" />
-                </label>
-                <p class="field-error hidden" id="err-min_age" role="alert"></p>
-                <label class="field">
-                  <span>Conditions et restrictions <small>(facultatif)</small></span>
-                  <textarea id="pub-conditions" rows="3" maxlength="2000" placeholder="ex. pas de trafic incité, France uniquement…"></textarea>
-                </label>
-                <p class="field-error hidden" id="err-conditions" role="alert"></p>
-                <label class="show-password rights-check">
+
+                <section class="pub-step" aria-labelledby="pub-step-1">
+                  <h4 id="pub-step-1" class="pub-step-title"><span class="pub-step-no" aria-hidden="true">1</span>Colle ton lien</h4>
+                  <label class="field icon-field">
+                    <span>Lien <small>(doit commencer par https://)</small></span>
+                    <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
+                    <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required />
+                  </label>
+                  <p class="field-error hidden" id="err-url" role="alert"></p>
+                  <p class="pub-hint"><svg class="icon sm" aria-hidden="true"><use href="#i-shield-check" /></svg>Le lien de ton propre compte éditeur, et rien d'autre.</p>
+                </section>
+
+                <section class="pub-step" aria-labelledby="pub-step-2">
+                  <h4 id="pub-step-2" class="pub-step-title"><span class="pub-step-no" aria-hidden="true">2</span>Titre et catégorie</h4>
+                  <label class="field">
+                    <span class="field-head">Titre accrocheur <small id="pub-title-count" aria-live="off">0/120</small></span>
+                    <input id="pub-title" type="text" minlength="5" maxlength="120" placeholder="ex. Notion – prise de notes gratuite" required />
+                  </label>
+                  <p class="field-error hidden" id="err-title" role="alert"></p>
+                  <fieldset class="cat-fieldset">
+                    <legend>Choisis la catégorie</legend>
+                    <div id="pub-category-tiles" class="cat-tiles"></div>
+                  </fieldset>
+                  <!-- Liste réelle, lue par app.js ; les tuiles ci-dessus la pilotent. -->
+                  <label class="field" hidden>
+                    <span>Catégorie</span>
+                    <select id="pub-category" required tabindex="-1"><option value="">Choisir…</option></select>
+                  </label>
+                  <p class="field-error hidden" id="err-category" role="alert"></p>
+                </section>
+
+                <section class="pub-step" aria-labelledby="pub-step-3">
+                  <h4 id="pub-step-3" class="pub-step-title"><span class="pub-step-no" aria-hidden="true">3</span>Ce qu'il faut savoir</h4>
+                  <label class="field">
+                    <span>Ce qu'il faut faire <small>(ex. « inscription avec e-mail confirmé »)</small></span>
+                    <input id="pub-action" type="text" maxlength="300" required />
+                  </label>
+                  <p class="field-error hidden" id="err-expected_action" role="alert"></p>
+                  <label class="field">
+                    <span>Description <small>(ce que c'est et pour qui, 20 caractères minimum)</small></span>
+                    <textarea id="pub-description" rows="4" minlength="20" maxlength="1500" placeholder="Ce que c'est, pour qui, et pourquoi c'est utile." required></textarea>
+                  </label>
+                  <p class="field-error hidden" id="err-description" role="alert"></p>
+                  <label class="field">
+                    <span>Pays concernés <small>(codes : FR, BE…)</small></span>
+                    <input id="pub-countries" type="text" maxlength="200" placeholder="FR, BE" required />
+                  </label>
+                  <p class="field-error hidden" id="err-countries" role="alert"></p>
+                </section>
+
+                <details class="pub-more">
+                  <summary>
+                    <svg class="icon" aria-hidden="true"><use href="#i-sliders" /></svg>
+                    <span>Plus d'options</span>
+                    <span class="pill">Facultatif</span>
+                    <svg class="icon pub-more-chevron" aria-hidden="true"><use href="#i-chevron-down" /></svg>
+                  </summary>
+                  <div class="pub-more-body">
+                    <label class="field">
+                      <span>Rémunération annoncée <small>(facultatif)</small></span>
+                      <input id="pub-payout" type="text" maxlength="160" placeholder="Seulement si elle figure dans ta campagne" />
+                    </label>
+                    <p class="field-error hidden" id="err-payout_text" role="alert"></p>
+                    <label class="field">
+                      <span>Âge minimum <small>(si la campagne en fixe un)</small></span>
+                      <input id="pub-min-age" type="number" inputmode="numeric" min="10" max="99" />
+                    </label>
+                    <p class="field-error hidden" id="err-min_age" role="alert"></p>
+                    <label class="field">
+                      <span>Conditions et restrictions <small>(facultatif)</small></span>
+                      <textarea id="pub-conditions" rows="3" maxlength="2000" placeholder="ex. pas de trafic incité, France uniquement…"></textarea>
+                    </label>
+                    <p class="field-error hidden" id="err-conditions" role="alert"></p>
+                  </div>
+                </details>
+
+                <!-- Aperçu en direct (mis à jour à chaque saisie) -->
+                <div id="publish-preview" class="publish-preview" aria-live="off">
+                  <p class="publish-preview-head">
+                    <svg class="icon" aria-hidden="true"><use href="#i-eye" /></svg>
+                    <span>Aperçu dans le fil</span>
+                  </p>
+                  <div id="publish-preview-card" class="offer-feed"></div>
+                </div>
+
+                <label class="toggle-row rights-check">
                   <input id="pub-rights" type="checkbox" required />
                   <span>Ce lien vient de <strong>mon propre compte éditeur</strong> et je respecte les conditions de la campagne.</span>
                 </label>
                 <p class="field-error hidden" id="err-rights_confirmed" role="alert"></p>
                 <div class="turnstile-slot hidden" data-turnstile-action="publish"></div>
                 <div class="publish-actions">
+                  <button class="primary-button" type="submit">
+                    <svg class="icon" aria-hidden="true"><use href="#i-send" /></svg>
+                    Envoyer pour vérification
+                  </button>
                   <button id="pub-preview-button" class="secondary-button" type="button">Voir l'aperçu</button>
-                  <button class="primary-button" type="submit">Envoyer pour vérification</button>
                   <button id="pub-cancel-edit" class="ghost-button hidden" type="button">Annuler la modification</button>
                 </div>
-                <div id="publish-success" class="auth-info hidden" role="status" aria-live="polite"></div>
+                <p class="pub-note"><svg class="icon sm" aria-hidden="true"><use href="#i-clock" /></svg>L'équipe relit ton offre avant publication.</p>
+                <div id="publish-success" class="auth-info hidden" role="status" aria-live="polite" tabindex="-1"></div>
               </form>
-
-              <div id="publish-preview" class="publish-preview hidden" aria-live="polite">
-                <h3 class="subsection-title">Aperçu</h3>
-                <p class="security-note">Voici comment les autres membres verront ton offre, une fois vérifiée.</p>
-                <div id="publish-preview-card" class="offer-grid"></div>
-              </div>
 
               <h3 class="subsection-title">Mes offres</h3>
               <div id="my-offers" class="learn-list" aria-live="polite"></div>

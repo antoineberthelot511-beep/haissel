@@ -925,6 +925,7 @@ async function loadCommunity() {
     state.community.categories = data.categories || {};
     fillCategorySelect(ui.communityCategory, state.community.categories, 'Toutes');
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
+    renderCategoryTiles();
     renderHomeChips();
 
     /*
@@ -1099,7 +1100,8 @@ function showFieldError(field, message) {
   const input = ui[PUBLISH_FIELD_INPUTS[field]];
   if (input) {
     input.setAttribute('aria-invalid', 'true');
-    input.focus({ preventScroll: false });
+    const target = field === 'category' ? ui.pubCategoryTiles.querySelector('input') : input;
+    if (target) target.focus({ preventScroll: false });
   }
   return true;
 }
@@ -1126,7 +1128,38 @@ function checkPublishForm(values) {
   return '';
 }
 
-function showPublishPreview() {
+/*
+ * Catégorie : des tuiles (boutons radio) pilotent la liste <select> masquée,
+ * que readPublishForm et startOfferEdit continuent d'utiliser.
+ */
+function renderCategoryTiles() {
+  if (!ui.pubCategoryTiles) return;
+  ui.pubCategoryTiles.replaceChildren(...Object.entries(state.community.categories).map(([value, label]) => h('label', { className: 'cat-tile' },
+    h('input', {
+      type: 'radio', name: 'pub-category-tile', value,
+      onchange: () => {
+        ui.pubCategory.value = value;
+        updatePublishPreview();
+      },
+    }),
+    h('span', { className: 'cat-tile-icon', 'aria-hidden': 'true' }, categoryIcon(value)),
+    h('span', { className: 'cat-tile-label' }, label))));
+  syncCategoryTiles();
+}
+
+function syncCategoryTiles() {
+  if (!ui.pubCategoryTiles) return;
+  ui.pubCategoryTiles.querySelectorAll('input').forEach((input) => {
+    input.checked = input.value === ui.pubCategory.value;
+  });
+}
+
+function updateTitleCount() {
+  ui.pubTitleCount.textContent = `${[...ui.pubTitle.value].length}/${ui.pubTitle.maxLength}`;
+}
+
+/** Aperçu en direct : la carte telle qu'elle apparaîtra dans le fil. */
+function updatePublishPreview() {
   const values = readPublishForm();
   let domain = '';
   try { domain = new URL(values.url).hostname; } catch (error) { /* lien incomplet */ }
@@ -1134,6 +1167,7 @@ function showPublishPreview() {
     ...values,
     domain,
     title: values.title || 'Titre de ton offre',
+    expected_action: values.expected_action || 'L’action attendue apparaîtra ici.',
     description: values.description || 'Ta description apparaîtra ici.',
     category_label: state.community.categories[values.category] || 'Catégorie',
     author: { username: state.user?.username || 'toi' },
@@ -1142,7 +1176,10 @@ function showPublishPreview() {
     is_mine: true,
   };
   ui.publishPreviewCard.replaceChildren(communityCard(preview, { preview: true }));
-  ui.publishPreview.classList.remove('hidden');
+}
+
+function showPublishPreview() {
+  updatePublishPreview();
   ui.publishPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1151,7 +1188,9 @@ function resetPublishForm() {
   ui.publishForm.reset();
   ui.publishFormTitle.textContent = 'Nouvelle offre';
   ui.pubCancelEdit.classList.add('hidden');
-  ui.publishPreview.classList.add('hidden');
+  syncCategoryTiles();
+  updateTitleCount();
+  updatePublishPreview();
 }
 
 function startOfferEdit(offer) {
@@ -1166,6 +1205,11 @@ function startOfferEdit(offer) {
   ui.pubMinAge.value = offer.min_age ?? '';
   ui.pubConditions.value = offer.conditions || '';
   ui.pubRights.checked = false;
+  syncCategoryTiles();
+  updateTitleCount();
+  updatePublishPreview();
+  // Options facultatives déjà remplies : on les montre.
+  ui.publishForm.querySelector('.pub-more').open = Boolean(offer.payout_text || offer.min_age || offer.conditions);
   ui.publishFormTitle.textContent = `Modifier : ${offer.title}`;
   ui.pubCancelEdit.classList.remove('hidden');
   publishFeedback('info', 'Une offre modifiée est de nouveau vérifiée avant d’être visible.');
@@ -1190,6 +1234,7 @@ async function loadMyOffers() {
     const data = await api('/api/community/offers/mine');
     state.community.categories = data.categories || state.community.categories;
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
+    renderCategoryTiles();
     ui.myOffers.setAttribute('aria-busy', 'false');
     ui.myOffers.replaceChildren(...(data.items.length ? data.items.map((offer) => {
       const [label, kind] = OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending'];
@@ -1843,6 +1888,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pubCountries: 'pub-countries', pubAction: 'pub-action', pubPayout: 'pub-payout', pubMinAge: 'pub-min-age',
     pubConditions: 'pub-conditions', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
     pubPreviewButton: 'pub-preview-button', myOffers: 'my-offers', myleadGuide: 'mylead-guide',
+    pubCategoryTiles: 'pub-category-tiles', pubTitleCount: 'pub-title-count',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -1955,6 +2001,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Publier
   ui.publishForm.addEventListener('submit', handlePublish);
   ui.pubPreviewButton.addEventListener('click', showPublishPreview);
+  ui.publishForm.addEventListener('input', () => { updateTitleCount(); updatePublishPreview(); });
+  updatePublishPreview();
   ui.pubCancelEdit.addEventListener('click', () => { resetPublishForm(); publishFeedback('', ''); });
   renderMyLeadGuide({ available: false });
   ui.mfaToggleRecovery.addEventListener('click', () => {
