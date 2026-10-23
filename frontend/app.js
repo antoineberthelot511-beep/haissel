@@ -600,15 +600,17 @@ async function loadLearn() {
   }
   try {
     /*
-     * Le parrainage est refusé (403) aux membres non majeurs : son échec ne
-     * doit pas emporter les guides et les opportunités, qui leur restent
-     * ouverts. D'où le catch individuel plutôt qu'un Promise.all strict.
+     * Le parrainage est réservé aux majeurs : sans majorité déclarée, on ne
+     * l'appelle pas du tout. S'il est refusé quand même (403), son échec ne
+     * doit pas emporter les guides et les opportunités, qui restent ouverts.
+     * D'où le catch individuel plutôt qu'un Promise.all strict.
      */
+    const restricted = { available: false, restricted: true };
     const [content, opportunities, referral] = await Promise.all([
       api('/api/learn/content'),
       api('/api/learn/opportunities'),
-      api('/api/learn/referral').catch((error) => {
-        if (error.status === 403) return { available: false, restricted: true };
+      state.user?.is_adult !== true ? restricted : api('/api/learn/referral').catch((error) => {
+        if (error.status === 403) return restricted;
         throw error;
       }),
     ]);
