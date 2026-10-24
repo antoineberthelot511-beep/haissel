@@ -31,6 +31,7 @@
           <span>Mot de passe</span>
           <input id="login-password" type="password" autocomplete="current-password" required />
         </label>
+        <div class="turnstile-slot hidden" data-turnstile-action="login"></div>
         <button id="login-submit" class="btn primary block" type="submit">Se connecter</button>
       </form>
 
@@ -428,6 +429,7 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+    <script src="/turnstile.js"></script>
     <script src="/admin.js"></script>
   </body>
 </html>

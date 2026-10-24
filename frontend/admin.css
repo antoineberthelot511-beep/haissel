@@ -258,3 +258,9 @@ tbody tr:hover { background: #fafbff; }
 .moderation-meta { margin: 0; padding-left: 1.1rem; display: grid; gap: .2rem; font-size: .9rem; overflow-wrap: anywhere; }
 .moderation-reports { background: var(--bad-soft); border-radius: var(--radius); padding: .6rem .8rem; font-size: .9rem; }
 .moderation-reports ul { margin: .3rem 0 0; padding-left: 1.1rem; }
+
+/* Cloudflare Turnstile (connexion) */
+.turnstile-slot { display: grid; justify-items: center; gap: 6px; min-height: 65px; margin: 4px 0 12px; }
+.turnstile-slot.hidden { display: none; }
+.turnstile-status { margin: 0; font-size: 13px; color: #b42318; text-align: center; }
+.turnstile-retry { background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; }

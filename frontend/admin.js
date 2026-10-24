@@ -249,6 +249,18 @@ async function handleLogin(event) {
     return;
   }
 
+  // Jeton anti-robot exigé par le serveur quand Turnstile est configuré.
+  const form = $('login-form');
+  const body = { identifier, password };
+  if (window.HaisselTurnstile && window.HaisselTurnstile.enabled()) {
+    const token = window.HaisselTurnstile.tokenFor(form);
+    if (!token) {
+      showAlert('login-error', 'Validez la vérification anti-robot avant de vous connecter.');
+      return;
+    }
+    body.cf_turnstile_response = token;
+  }
+
   const submit = $('login-submit');
   submit.disabled = true;
   showAlert('login-error', '');
@@ -256,7 +268,7 @@ async function handleLogin(event) {
   try {
     const data = await api('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify(body),
     });
     $('login-password').value = '';
     if (data.mfa_required) {
@@ -272,6 +284,8 @@ async function handleLogin(event) {
     }
   } catch (error) {
     showAlert('login-error', error.message);
+    // Un jeton ne sert qu'une fois : nouveau défi avant la tentative suivante.
+    if (window.HaisselTurnstile) window.HaisselTurnstile.reset(form);
   } finally {
     submit.disabled = false;
   }
@@ -1174,6 +1188,11 @@ function bindEvents() {
 async function init() {
   bindEvents();
   purgeLegacyStorage();
+  // Widget anti-robot : clé PUBLIQUE de /api/auth/config ; sans clé, rien ne change.
+  try {
+    const config = await api('/api/auth/config');
+    if (window.HaisselTurnstile) window.HaisselTurnstile.init(config.turnstile_site_key);
+  } catch (error) { /* configuration indisponible : connexion sans widget */ }
   try {
     await routeAfterAuth();
   } catch (error) {
