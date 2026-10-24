@@ -23,7 +23,20 @@ process.env.COOKIE_SECURE = 'false';
 process.env.PROXY_SHARED_SECRET = 'test-proxy-secret-0123456789-abcdefghijklmnop';
 process.env.AFFILIATE_WEBHOOK_SECRET = 'test-webhook-secret-0123456789-abcdefghijklmn';
 process.env.ALLOWED_EMAIL_DOMAIN = '';
+/*
+ * Turnstile neutralisé : les tests n'ont pas de navigateur pour resoudre le
+ * défi anti-robot. Pose AVANT dotenv.config() ci-dessous, qui n'écrase jamais
+ * une variable deja définie -- sinon les clés réelles du .env rendraient
+ * toute connexion impossible (400 TURNSTILE_REQUIRED).
+ */
+process.env.TURNSTILE_SITE_KEY = '';
+process.env.TURNSTILE_SECRET_KEY = '';
 process.env.CORS_ORIGINS = '';
+/*
+ * Publication ouverte aux membres : la plupart des tests publient avec un
+ * compte membre. publishing-restricted.test.js remet la valeur à false.
+ */
+process.env.MEMBER_PUBLISHING_ENABLED = 'true';
 process.env.DATABASE_SCHEMA = SCHEMA;
 process.env.DATABASE_POOL_MAX = '5';
 
@@ -70,18 +83,29 @@ const fastHash = () => {
  */
 async function createUser({
   admin = false, active = true, banned = false, verified = true, mfaSecret = null, prefix = 'user',
+  adult = true,
 } = {}) {
   const { pool } = require('../../src/config/database');
   const mfa = require('../../src/services/mfa.service');
   counter += 1;
   const username = `${prefix}${counter}_${crypto.randomBytes(2).toString('hex')}`;
   const secret = mfaSecret || (admin ? mfa.generateSecret() : null);
+  /*
+   * adult : true (defaut) = majeur déclaré, false = mineur déclaré,
+   * null = question pas encore posée (comptes antérieurs a la declaration).
+   * Le défaut est « majeur » pour que les suites existantes, qui publient des
+   * offres, continuent de fonctionner sans modification.
+   */
   const result = await pool.query(
     `INSERT INTO users (username, email, password_hash, display_name, first_name, last_name,
-                        is_active, is_banned, email_verified_at, mfa_enabled, mfa_secret_enc)
-     VALUES ($1, $2, $3, $4, 'Test', 'User', $5, $6, $7, $8, $9) RETURNING id, username, email`,
+                        is_active, is_banned, email_verified_at, mfa_enabled, mfa_secret_enc,
+                        is_adult, adult_declared_at)
+     VALUES ($1, $2, $3, $4, 'Test', 'User', $5, $6, $7, $8, $9, $10,
+             CASE WHEN $10::boolean IS NULL THEN NULL ELSE NOW() END)
+     RETURNING id, username, email, is_adult`,
     [username, `${username}@exemple.fr`, await fastHash(), `Test ${username}`, active, banned,
-      verified ? new Date() : null, Boolean(secret), secret ? mfa.encryptSecret(secret) : null]
+      verified ? new Date() : null, Boolean(secret), secret ? mfa.encryptSecret(secret) : null,
+      adult]
   );
   const user = { ...result.rows[0], mfaSecret: secret };
   if (admin) {

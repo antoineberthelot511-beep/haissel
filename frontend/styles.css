@@ -462,7 +462,9 @@ body { font-size: .9375rem; }
 .side-menu button { padding: .55rem 1rem; font-size: .9rem; }
 .section-header { padding-bottom: .5rem; border-bottom: 2px solid var(--brand); margin-bottom: 1rem; }
 .section-title { font-size: 1.25rem; color: var(--brand-dark); }
-.home-date { color: var(--text-muted); font-size: .9rem; text-transform: capitalize; }
+/* Pas de text-transform : il recapitalisait chaque mot (« Mardi 20 Octobre »).
+   L'usage français est la minuscule, et la date est déjà formatée en JS. */
+.home-date { color: var(--text-muted); font-size: .9rem; }
 
 /* Encadrés (page d'accueil) */
 .widget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; align-items: start; }

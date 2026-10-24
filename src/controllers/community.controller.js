@@ -1,6 +1,7 @@
 const { pool, withTransaction } = require('../config/database');
 const { sendError, parseId, parsePagination } = require('../utils/http');
 const { logger } = require('../utils/logger');
+const { refusalForAffiliateLink, meetsMinAge, isAdult } = require('../services/adult.service');
 const { FORBIDDEN_CLAIMS } = require('./learn.controller');
 
 /*
@@ -18,7 +19,12 @@ const { FORBIDDEN_CLAIMS } = require('./learn.controller');
  *  - aucune donnée MyLead (identifiant, mot de passe, cookie) n'est demandée.
  */
 
-const CATEGORIES = {
+/*
+ * Catégories : table offer_categories (migration 20261020_0009), administrable
+ * depuis la console. Cette liste ne sert plus que de repli si la table n'est
+ * pas encore migrée — un formulaire sans catégorie serait inutilisable.
+ */
+const FALLBACK_CATEGORIES = {
   applications: 'Applications',
   jeux: 'Jeux mobiles',
   shopping: 'Shopping',
@@ -27,6 +33,55 @@ const CATEGORIES = {
   sondages: 'Sondages et avis',
   autre: 'Autre',
 };
+
+/*
+ * Libellés en mémoire, rafraîchis par loadCategories(). formatOffer en a
+ * besoin de façon synchrone ; les routes de lecture appellent loadCategories()
+ * avant de formater, donc le cache est toujours chaud quand il sert.
+ *
+ * Ce cache contient AUSSI les catégories désactivées : une offre publiée sous
+ * une catégorie retirée depuis doit continuer d'afficher son libellé.
+ */
+let categoryLabels = { ...FALLBACK_CATEGORIES };
+let categoryCache = null;
+const CATEGORY_TTL_MS = 60_000;
+
+/**
+ * @returns {Promise<{ active: Object, labels: Object }>}
+ * « active » : proposées dans les formulaires. « labels » : toutes, pour
+ * l'affichage.
+ */
+async function loadCategories({ force = false } = {}) {
+  if (!force && categoryCache && Date.now() - categoryCache.at < CATEGORY_TTL_MS) {
+    return categoryCache.value;
+  }
+  try {
+    const { rows } = await pool.query(
+      'SELECT slug, label, is_active FROM offer_categories ORDER BY position, label'
+    );
+    if (rows.length === 0) throw new Error('aucune catégorie en base');
+
+    const active = {};
+    const labels = {};
+    for (const row of rows) {
+      labels[row.slug] = row.label;
+      if (row.is_active) active[row.slug] = row.label;
+    }
+    categoryLabels = labels;
+    categoryCache = { at: Date.now(), value: { active, labels } };
+  } catch (error) {
+    // Table absente ou base injoignable : on repart du repli, sans planter.
+    logger.warn('Catégories indisponibles, repli sur la liste intégrée', { error: error.message });
+    categoryLabels = { ...FALLBACK_CATEGORIES };
+    categoryCache = { at: Date.now(), value: { active: { ...FALLBACK_CATEGORIES }, labels: { ...FALLBACK_CATEGORIES } } };
+  }
+  return categoryCache.value;
+}
+
+/** À appeler après toute écriture administrative sur les catégories. */
+function invalidateCategories() {
+  categoryCache = null;
+}
 
 const REPORT_REASONS = ['misleading', 'spam', 'dangerous', 'minors', 'rights', 'other'];
 
@@ -37,14 +92,34 @@ const LIMITS = {
   reportsToHide: 3,
 };
 
+/*
+ * Raccourcisseurs d'URL : refusés. Un lien raccourci cache sa destination
+ * réelle, donc ni le membre qui clique ni l'équipe qui modère ne peuvent voir
+ * où il mène ; la cible peut en plus être changée après la vérification.
+ * Un lien d'affiliation MyLead n'a jamais besoin d'être raccourci.
+ */
+const URL_SHORTENERS = new Set([
+  'bit.ly', 'bitly.com', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
+  'buff.ly', 'cutt.ly', 'rb.gy', 'shorturl.at', 's.id', 'lnkd.in', 't.me',
+  'rebrand.ly', 'tiny.cc', 'shorte.st', 'adf.ly', 'bl.ink', 'short.io',
+  'urlz.fr', 'lc.cx', 'qrco.de', 'trib.al', 'db.tt', 'soo.gd', 'clck.ru',
+]);
+
 // Thèmes incompatibles avec un public jeune : refusés quelle que soit la catégorie.
 const SENSITIVE_TOPICS = /\b(casinos?|paris?\s+sportifs?|paris?\s+en\s+ligne|betting|poker|loteries?|crypto\w*|bitcoin|forex|trading|rencontres?|dating|adultes?|porno\w*|xxx|sexe|escort\w*|prêts?|crédits?\s+(conso\w*|rapide|immédiat)|rachat\s+de\s+crédit|cbd|vapes?|tabac|alcool)\b/i;
 
+/*
+ * « field » : nom du champ concerné (title, url, description, category,
+ * countries, expected_action, payout_text, min_age, conditions,
+ * rights_confirmed). Il remonte jusqu'au navigateur, qui affiche le message
+ * sous le champ au lieu d'un bloc d'erreur en haut du formulaire.
+ */
 class ValidationError extends Error {
-  constructor(code, message, status = 400) {
+  constructor(code, message, status = 400, field = null) {
     super(message);
     this.code = code;
     this.status = status;
+    this.field = field;
   }
 }
 
@@ -53,50 +128,68 @@ class ValidationError extends Error {
  * Retourne l'URL normalisée, ou lève une ValidationError.
  */
 function normalizeMemberUrl(value) {
+  const bad = (message) => new ValidationError('INVALID_URL', message, 400, 'url');
+
   if (typeof value !== 'string' || !value.trim() || value.length > 2000) {
-    throw new ValidationError('INVALID_URL', 'Indique un lien valide (2000 caractères maximum).');
+    throw bad('Indique un lien valide (2000 caractères maximum).');
   }
   let url;
   try {
     url = new URL(value.trim());
   } catch (error) {
-    throw new ValidationError('INVALID_URL', 'Ce lien n’est pas une adresse web valide.');
+    throw bad('Ce lien n’est pas une adresse web valide. Il doit commencer par https://');
   }
   const host = url.hostname.toLowerCase();
+
+  /*
+   * Le contrôle du protocole couvre à lui seul javascript:, data: et file: —
+   * seul « https: » passe. Le http: simple est refusé ici aussi.
+   */
   if (url.protocol !== 'https:') {
-    throw new ValidationError('INVALID_URL', 'Seuls les liens sécurisés « https:// » sont acceptés.');
+    throw bad('Seuls les liens sécurisés commençant par « https:// » sont acceptés.');
   }
   if (url.username || url.password) {
-    throw new ValidationError('INVALID_URL', 'Le lien ne doit pas contenir d’identifiant ni de mot de passe.');
+    throw bad('Le lien ne doit pas contenir d’identifiant ni de mot de passe (la partie avant le « @ »).');
   }
   if (url.port && url.port !== '443') {
-    throw new ValidationError('INVALID_URL', 'Le lien ne doit pas utiliser de port particulier.');
+    throw bad('Le lien ne doit pas utiliser de port particulier.');
   }
+  /*
+   * Toute adresse IP littérale est refusée, v4 comme v6 : cela écarte d'un
+   * coup les plages privées (192.168.x, 10.x, 172.16-31.x, 127.x, 169.254.x)
+   * sans avoir à les énumérer. Un nom d'hôte sans point, ou en .localhost,
+   * .local, .internal, .lan, .home, .arpa, est refusé de la même façon.
+   */
   if (!host.includes('.') || host.startsWith('[') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
     || /(^|\.)(localhost|local|internal|lan|home|arpa)$/.test(host)) {
-    throw new ValidationError('INVALID_URL', 'Le lien doit pointer vers un vrai nom de domaine public.');
+    throw bad('Le lien doit pointer vers un vrai nom de domaine public (pas une adresse IP ni un nom local).');
+  }
+  if (URL_SHORTENERS.has(host) || URL_SHORTENERS.has(host.replace(/^www\./, ''))) {
+    throw bad('Les liens raccourcis ne sont pas acceptés : donne le lien complet, pour qu’on voie où il mène.');
   }
   return url.href;
 }
 
 function text(body, name, label, { min = 0, max, required = false }) {
   const raw = body[name];
+  const bad = (code, message) => new ValidationError(code, message, 400, name);
+
   if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
-    if (required) throw new ValidationError('INVALID_FIELD', `Le champ « ${label} » est obligatoire.`);
+    if (required) throw bad('INVALID_FIELD', `Le champ « ${label} » est obligatoire.`);
     return null;
   }
-  if (typeof raw !== 'string') throw new ValidationError('INVALID_FIELD', `« ${label} » doit être un texte.`);
+  if (typeof raw !== 'string') throw bad('INVALID_FIELD', `« ${label} » doit être un texte.`);
   const value = raw.replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
   if (value.length < min || value.length > max) {
-    throw new ValidationError('INVALID_FIELD', `« ${label} » doit contenir entre ${min} et ${max} caractères.`);
+    throw bad('INVALID_FIELD', `« ${label} » doit contenir entre ${min} et ${max} caractères : il en compte ${value.length}.`);
   }
   if (FORBIDDEN_CLAIMS.test(value)) {
-    throw new ValidationError('MISLEADING_CLAIM', `« ${label} » contient une promesse de gain : aucun gain n'est garanti.`);
+    throw bad('MISLEADING_CLAIM', `« ${label} » contient une promesse de gain : aucun gain n'est garanti, il faut reformuler.`);
   }
   return value;
 }
 
-function validateOffer(body) {
+function validateOffer(body, activeCategories) {
   const source = body && typeof body === 'object' ? body : {};
   const offer = {
     title: text(source, 'title', 'Titre', { min: 5, max: 120, required: true }),
@@ -108,8 +201,10 @@ function validateOffer(body) {
     conditions: text(source, 'conditions', 'Conditions et restrictions', { max: 2000 }),
   };
 
-  if (!Object.prototype.hasOwnProperty.call(CATEGORIES, source.category)) {
-    throw new ValidationError('INVALID_FIELD', 'Choisis une catégorie dans la liste.');
+  // Seule une catégorie ACTIVE peut être choisie : une catégorie désactivée
+  // reste affichée sur les offres existantes mais n'est plus proposable.
+  if (!Object.prototype.hasOwnProperty.call(activeCategories, source.category)) {
+    throw new ValidationError('INVALID_FIELD', 'Choisis une catégorie dans la liste.', 400, 'category');
   }
   offer.category = source.category;
 
@@ -118,16 +213,20 @@ function validateOffer(body) {
   } else if (Number.isInteger(source.min_age) && source.min_age >= 10 && source.min_age <= 99) {
     offer.min_age = source.min_age;
   } else {
-    throw new ValidationError('INVALID_FIELD', 'L’âge minimum doit être un nombre entre 10 et 99.');
+    throw new ValidationError('INVALID_FIELD', 'L’âge minimum doit être un nombre entre 10 et 99.', 400, 'min_age');
   }
 
   if (source.rights_confirmed !== true) {
-    throw new ValidationError('RIGHTS_NOT_CONFIRMED', 'Confirme que tu as le droit de promouvoir cette offre.');
+    throw new ValidationError('RIGHTS_NOT_CONFIRMED',
+      'Coche la case : le lien doit venir de ton propre compte éditeur et respecter les conditions de la campagne.',
+      400, 'rights_confirmed');
   }
 
   const haystack = [offer.title, offer.description, offer.conditions, offer.expected_action, offer.url].join(' ');
   if (SENSITIVE_TOPICS.test(haystack)) {
-    throw new ValidationError('FORBIDDEN_TOPIC', 'Ce type d’offre (jeux d’argent, crypto, crédit, rencontres, contenus pour adultes, tabac, alcool…) n’est pas accepté sur HAISSEL.');
+    throw new ValidationError('FORBIDDEN_TOPIC',
+      'Ce type d’offre (jeux d’argent, crypto, crédit, rencontres, contenus pour adultes, tabac, alcool…) n’est pas accepté sur HAISSEL.',
+      400, 'description');
   }
   return offer;
 }
@@ -140,15 +239,34 @@ function domainOf(url) {
   }
 }
 
-function formatOffer(row, userId) {
+/*
+ * « viewer » est le membre qui regarde (req.user). L'URL de destination n'est
+ * transmise au navigateur QUE s'il a le droit de l'ouvrir : un mineur ne doit
+ * pas recevoir l'adresse d'un lien affilié, même masquée dans l'interface.
+ * Le domaine reste visible : il sert à juger l'offre, pas à l'ouvrir.
+ *
+ * L'auteur voit toujours l'URL de sa propre offre, sinon il ne pourrait plus
+ * la relire ni la corriger.
+ */
+function formatOffer(row, userId, viewer = null) {
+  const mine = row.user_id === userId;
+  /*
+   * Dérogation d'auteur : elle ne vaut QUE pour un majeur, et ne sert qu'à
+   * relire sa propre offre malgré un âge minimum que HAISSEL ne peut pas
+   * certifier. Un mineur n'ouvre aucun lien affilié, pas même le sien.
+   */
+  const canOpen = !viewer
+    || (mine && isAdult(viewer))
+    || refusalForAffiliateLink(viewer, row.min_age) === null;
   return {
     id: row.id,
     title: row.title,
-    url: row.url,
+    url: canOpen ? row.url : null,
+    can_open: canOpen,
     domain: domainOf(row.url),
     description: row.description,
     category: row.category,
-    category_label: CATEGORIES[row.category] || row.category,
+    category_label: categoryLabels[row.category] || row.category,
     countries: row.countries,
     expected_action: row.expected_action,
     payout_text: row.payout_text,
@@ -166,7 +284,9 @@ function formatOffer(row, userId) {
 }
 
 function handleError(error, res, next) {
-  if (error instanceof ValidationError) return sendError(res, error.status, error.code, error.message);
+  if (error instanceof ValidationError) {
+    return sendError(res, error.status, error.code, error.message, error.field ? { field: error.field } : null);
+  }
   return next(error);
 }
 
@@ -183,8 +303,12 @@ const OFFER_SELECT = `
 async function listOffers(req, res, next) {
   try {
     const { page, limit, offset } = parsePagination(req.query, 50);
+    // Chargées d'abord : elles servent au filtre ET aux libellés des cartes.
+    const { active, labels } = await loadCategories();
     const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
-    const category = typeof req.query.category === 'string' && CATEGORIES[req.query.category] ? req.query.category : null;
+    // Le filtre accepte aussi une catégorie désactivée : un lien de recherche
+    // déjà partagé doit continuer de fonctionner.
+    const category = typeof req.query.category === 'string' && labels[req.query.category] ? req.query.category : null;
     const country = typeof req.query.country === 'string' && /^[A-Za-z]{2}$/.test(req.query.country) ? req.query.country.toUpperCase() : null;
     const author = typeof req.query.author === 'string' && /^[a-z0-9_.-]{1,50}$/i.test(req.query.author) ? req.query.author.toLowerCase() : null;
     const savedOnly = req.query.saved === '1';
@@ -204,8 +328,8 @@ async function listOffers(req, res, next) {
     return res.status(200).json({
       success: true,
       data: {
-        items: result.rows.map((row) => formatOffer(row, req.user.id)),
-        categories: CATEGORIES,
+        items: result.rows.map((row) => formatOffer(row, req.user.id, req.user)),
+        categories: active,
         pagination: { page, limit },
       },
     });
@@ -216,14 +340,204 @@ async function listOffers(req, res, next) {
 
 async function listMyOffers(req, res, next) {
   try {
+    const { active } = await loadCategories();
     const result = await pool.query(
       `${OFFER_SELECT} WHERE o.user_id = $1 AND o.status <> 'removed' ORDER BY o.created_at DESC LIMIT 100`,
       [req.user.id]
     );
     return res.status(200).json({
       success: true,
-      data: { items: result.rows.map((row) => formatOffer(row, req.user.id)), categories: CATEGORIES, limits: LIMITS },
+      data: { items: result.rows.map((row) => formatOffer(row, req.user.id, req.user)), categories: active, limits: LIMITS },
     });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/*
+ * GET /api/community/offers/:id/open
+ *
+ * Seul endroit qui délivre l'adresse de destination d'une offre. Le navigateur
+ * ne l'a pas reçue avec la liste (voir formatOffer) : il doit la demander ici,
+ * ce qui donne au serveur un point de contrôle réel. Sans cette route,
+ * « refusé côté serveur » serait impossible à tenir, l'ouverture étant
+ * autrement une simple action du navigateur.
+ */
+async function openOffer(req, res, next) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
+
+    const found = await pool.query(
+      `SELECT o.id, o.url, o.min_age, o.user_id, o.status
+       FROM member_offers o JOIN users u ON u.id = o.user_id
+       WHERE o.id = $1 AND o.status = 'published' AND u.is_active AND NOT u.is_banned`,
+      [id]
+    );
+    const offer = found.rows[0];
+    if (!offer) return sendError(res, 404, 'NOT_FOUND', 'Cette offre n’est plus disponible.');
+
+    // Même dérogation qu'à l'affichage : réservée aux majeurs.
+    if (!(offer.user_id === req.user.id && isAdult(req.user))) {
+      const refusal = refusalForAffiliateLink(req.user, offer.min_age);
+      if (refusal) {
+        logger.info('Affiliate link refused', { offerId: id, userId: req.user.id, reason: refusal.code });
+        return sendError(res, 403, refusal.code, refusal.message);
+      }
+    }
+
+    return res.status(200).json({ success: true, data: { url: offer.url } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Catégories (administration)
+// ---------------------------------------------------------------------------
+
+const SLUG_PATTERN = /^[a-z0-9_-]{2,40}$/;
+
+/** Valide les champs d'une catégorie. Lève une ValidationError. */
+function validateCategory(body, { requireSlug = true } = {}) {
+  const source = body && typeof body === 'object' ? body : {};
+  const out = {};
+
+  if (requireSlug) {
+    const slug = String(source.slug || '').trim().toLowerCase();
+    if (!SLUG_PATTERN.test(slug)) {
+      throw new ValidationError('INVALID_FIELD',
+        'L’identifiant doit contenir 2 à 40 caractères : lettres minuscules, chiffres, tiret ou tiret bas.',
+        400, 'slug');
+    }
+    out.slug = slug;
+  }
+
+  const label = String(source.label || '').trim().replace(/\s+/g, ' ');
+  if (label.length < 2 || label.length > 80) {
+    throw new ValidationError('INVALID_FIELD', 'Le nom affiché doit contenir entre 2 et 80 caractères.', 400, 'label');
+  }
+  out.label = label;
+
+  const position = source.position === undefined || source.position === null || source.position === ''
+    ? 100
+    : Number(source.position);
+  if (!Number.isInteger(position) || position < 0 || position > 999) {
+    throw new ValidationError('INVALID_FIELD', 'L’ordre doit être un nombre entier entre 0 et 999.', 400, 'position');
+  }
+  out.position = position;
+
+  out.is_active = source.is_active === undefined ? true : source.is_active === true;
+  return out;
+}
+
+/** Nombre d'offres portant chaque catégorie : une catégorie utilisée ne se supprime pas. */
+const CATEGORY_SELECT = `
+  SELECT c.slug, c.label, c.position, c.is_active, c.created_at, c.updated_at,
+         (SELECT COUNT(*) FROM member_offers o
+           WHERE o.category = c.slug AND o.status <> 'removed')::int AS offers
+  FROM offer_categories c`;
+
+async function adminListCategories(req, res, next) {
+  try {
+    const { rows } = await pool.query(`${CATEGORY_SELECT} ORDER BY c.position, c.label`);
+    return res.status(200).json({ success: true, data: { items: rows } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function adminCreateCategory(req, res, next) {
+  try {
+    const value = validateCategory(req.body);
+    const { rows } = await pool.query(
+      `INSERT INTO offer_categories (slug, label, position, is_active)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (slug) DO NOTHING
+       RETURNING slug`,
+      [value.slug, value.label, value.position, value.is_active]
+    );
+    if (!rows[0]) {
+      return sendError(res, 409, 'CATEGORY_EXISTS', 'Cet identifiant est déjà utilisé.', { field: 'slug' });
+    }
+
+    invalidateCategories();
+    await pool.query(
+      `INSERT INTO admin_actions (admin_user_id, action, target_type, details)
+       VALUES ($1, 'category.create', 'offer_category', $2)`,
+      [req.user.id, JSON.stringify({ slug: value.slug })]
+    );
+    logger.info('Offer category created', { adminId: req.user.id, slug: value.slug });
+
+    const created = await pool.query(`${CATEGORY_SELECT} WHERE c.slug = $1`, [value.slug]);
+    return res.status(201).json({ success: true, data: { category: created.rows[0] } });
+  } catch (error) {
+    return handleError(error, res, next);
+  }
+}
+
+/*
+ * L'identifiant (slug) n'est JAMAIS modifiable : il est inscrit dans chaque
+ * offre existante et dans les liens de recherche déjà partagés. Seuls le nom
+ * affiché, l'ordre et l'activation changent.
+ */
+async function adminUpdateCategory(req, res, next) {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    if (!SLUG_PATTERN.test(slug)) return sendError(res, 400, 'INVALID_ID', 'Catégorie invalide.');
+    const value = validateCategory(req.body, { requireSlug: false });
+
+    const { rows } = await pool.query(
+      `UPDATE offer_categories SET label = $2, position = $3, is_active = $4, updated_at = NOW()
+       WHERE slug = $1 RETURNING slug`,
+      [slug, value.label, value.position, value.is_active]
+    );
+    if (!rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Catégorie introuvable.');
+
+    invalidateCategories();
+    await pool.query(
+      `INSERT INTO admin_actions (admin_user_id, action, target_type, details)
+       VALUES ($1, 'category.update', 'offer_category', $2)`,
+      [req.user.id, JSON.stringify({ slug, is_active: value.is_active })]
+    );
+
+    const updated = await pool.query(`${CATEGORY_SELECT} WHERE c.slug = $1`, [slug]);
+    return res.status(200).json({ success: true, data: { category: updated.rows[0] } });
+  } catch (error) {
+    return handleError(error, res, next);
+  }
+}
+
+/*
+ * Suppression possible UNIQUEMENT si aucune offre ne porte la catégorie.
+ * Sinon on propose de la désactiver : supprimer laisserait des offres avec une
+ * catégorie orpheline, sans libellé affichable.
+ */
+async function adminDeleteCategory(req, res, next) {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    if (!SLUG_PATTERN.test(slug)) return sendError(res, 400, 'INVALID_ID', 'Catégorie invalide.');
+
+    const used = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM member_offers WHERE category = $1 AND status <> 'removed'",
+      [slug]
+    );
+    if (used.rows[0].n > 0) {
+      return sendError(res, 409, 'CATEGORY_IN_USE',
+        `${used.rows[0].n} offre(s) utilisent cette catégorie. Désactive-la plutôt que de la supprimer.`);
+    }
+
+    const { rows } = await pool.query('DELETE FROM offer_categories WHERE slug = $1 RETURNING slug', [slug]);
+    if (!rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Catégorie introuvable.');
+
+    invalidateCategories();
+    await pool.query(
+      `INSERT INTO admin_actions (admin_user_id, action, target_type, details)
+       VALUES ($1, 'category.delete', 'offer_category', $2)`,
+      [req.user.id, JSON.stringify({ slug })]
+    );
+    logger.info('Offer category deleted', { adminId: req.user.id, slug });
+    return res.status(200).json({ success: true, data: { message: 'Catégorie supprimée.' } });
   } catch (error) {
     return next(error);
   }
@@ -258,7 +572,8 @@ async function getMemberProfile(req, res, next) {
 
 async function createOffer(req, res, next) {
   try {
-    const offer = validateOffer(req.body);
+    const { active } = await loadCategories();
+    const offer = validateOffer(req.body, active);
 
     const usage = await pool.query(
       `SELECT
@@ -288,7 +603,7 @@ async function createOffer(req, res, next) {
     return res.status(201).json({
       success: true,
       data: {
-        offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id),
+        offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id, req.user),
         message: 'Ton offre a été envoyée. Elle sera visible après vérification par l’équipe.',
       },
     });
@@ -297,28 +612,77 @@ async function createOffer(req, res, next) {
   }
 }
 
+/*
+ * Droit de modifier ou de retirer une offre : son auteur, ou un ADMIN.
+ *
+ * On lit l'offre AVANT d'agir, pour distinguer deux situations que l'ancienne
+ * version confondait en 404 :
+ *   - l'offre n'existe pas            -> 404
+ *   - elle existe mais appartient a   -> 403, et on le dit clairement
+ *     quelqu'un d'autre
+ *
+ * L'identifiant du demandeur vient toujours de la session (req.user.id),
+ * jamais du corps de la requête.
+ *
+ * Retourne { offer } si l'accès est accordé, sinon { error: true } après avoir
+ * répondu.
+ */
+async function loadOwnedOffer(req, res, id) {
+  const found = await pool.query(
+    `SELECT o.id, o.user_id, o.status, u.username AS author_username
+     FROM member_offers o JOIN users u ON u.id = o.user_id
+     WHERE o.id = $1`,
+    [id]
+  );
+  const offer = found.rows[0];
+  if (!offer || offer.status === 'removed') {
+    sendError(res, 404, 'NOT_FOUND', 'Cette offre n’existe pas ou a déjà été retirée.');
+    return { error: true };
+  }
+
+  const isAuthor = offer.user_id === req.user.id;
+  const isAdmin = String(req.userRole || '').toUpperCase() === 'ADMIN';
+  if (!isAuthor && !isAdmin) {
+    logger.warn('Member offer access denied', { offerId: id, userId: req.user.id });
+    sendError(res, 403, 'NOT_OWNER', 'Cette offre a été publiée par un autre membre : tu ne peux pas la modifier.');
+    return { error: true };
+  }
+  return { offer, isAdmin, isAuthor };
+}
+
 async function updateOffer(req, res, next) {
   try {
     const id = parseId(req.params.id);
     if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
-    const offer = validateOffer(req.body);
 
-    // Modifier une offre la renvoie en vérification ; seul l'auteur le peut.
+    const access = await loadOwnedOffer(req, res, id);
+    if (access.error) return undefined;
+
+    const { active } = await loadCategories();
+    const offer = validateOffer(req.body, active);
+
+    /*
+     * Toute modification renvoie l'offre en vérification, y compris celle d'un
+     * ADMIN : le contenu change, il doit être revu. L'auteur ne change jamais
+     * (user_id n'est pas touché), même si c'est un ADMIN qui modifie.
+     */
     const result = await pool.query(
       `UPDATE member_offers
-       SET title = $3, url = $4, description = $5, category = $6, countries = $7, expected_action = $8,
-           payout_text = $9, min_age = $10, conditions = $11, rights_confirmed_at = NOW(),
+       SET title = $2, url = $3, description = $4, category = $5, countries = $6, expected_action = $7,
+           payout_text = $8, min_age = $9, conditions = $10, rights_confirmed_at = NOW(),
            status = 'pending', moderation_note = NULL, published_at = NULL, updated_at = NOW()
-       WHERE id = $1 AND user_id = $2 AND status IN ('pending', 'published', 'rejected')
+       WHERE id = $1 AND status IN ('pending', 'published', 'rejected')
        RETURNING *`,
-      [id, req.user.id, offer.title, offer.url, offer.description, offer.category, offer.countries,
+      [id, offer.title, offer.url, offer.description, offer.category, offer.countries,
         offer.expected_action, offer.payout_text, offer.min_age, offer.conditions]
     );
     if (!result.rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Offre introuvable.');
     return res.status(200).json({
       success: true,
       data: {
-        offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id),
+        // Le pseudo affiché est celui de l'AUTEUR, pas du demandeur : un ADMIN
+        // qui corrige une offre ne doit pas apparaître comme son auteur.
+        offer: formatOffer({ ...result.rows[0], author_username: access.offer.author_username }, req.user.id, req.user),
         message: 'Modification envoyée : ton offre sera de nouveau visible après vérification.',
       },
     });
@@ -331,10 +695,15 @@ async function removeOffer(req, res, next) {
   try {
     const id = parseId(req.params.id);
     if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
+
+    const access = await loadOwnedOffer(req, res, id);
+    if (access.error) return undefined;
+
+    // Retrait logique : la ligne reste en base avec status = 'removed'.
     const result = await pool.query(
       `UPDATE member_offers SET status = 'removed', updated_at = NOW()
-       WHERE id = $1 AND user_id = $2 AND status <> 'removed' RETURNING id`,
-      [id, req.user.id]
+       WHERE id = $1 AND status <> 'removed' RETURNING id`,
+      [id]
     );
     if (!result.rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Offre introuvable.');
     return res.status(200).json({ success: true, data: { message: 'Ton offre a été retirée.' } });
@@ -460,7 +829,14 @@ async function adminListOffers(req, res, next) {
                  FROM member_offer_reports r WHERE r.offer_id = o.id AND r.status = 'open') AS reports
        FROM member_offers o JOIN users u ON u.id = o.user_id
        WHERE ${filter}
-       ORDER BY o.updated_at DESC
+       /*
+        * Les offres signalées remontent en tête, les plus signalées d'abord :
+        * ce sont celles qui demandent une décision rapide. Le reste suit par
+        * date de mise à jour.
+        */
+       ORDER BY (SELECT COUNT(*) FROM member_offer_reports r
+                 WHERE r.offer_id = o.id AND r.status = 'open') DESC,
+                o.updated_at DESC
        LIMIT 200`
     );
     const items = result.rows.map((row) => ({
@@ -519,6 +895,7 @@ async function adminModerateOffer(req, res, next) {
 }
 
 module.exports = {
+  openOffer,
   listOffers,
   listMyOffers,
   getMemberProfile,
@@ -533,6 +910,12 @@ module.exports = {
   normalizeMemberUrl,
   validateOffer,
   SENSITIVE_TOPICS,
-  CATEGORIES,
+  loadCategories,
+  invalidateCategories,
+  adminListCategories,
+  adminCreateCategory,
+  adminUpdateCategory,
+  adminDeleteCategory,
+  FALLBACK_CATEGORIES,
   LIMITS,
 };

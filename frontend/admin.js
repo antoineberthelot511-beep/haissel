@@ -21,6 +21,8 @@ const state = {
   user: null,
   section: 'dashboard',
   clicksPage: 1,
+  usersPage: 1,
+  usersSearch: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -342,7 +344,8 @@ async function handleLogout() {
 // Navigation
 // ---------------------------------------------------------------------------
 
-const SECTIONS = ['dashboard', 'links', 'clicks', 'notifications', 'moderation', 'content', 'opportunities', 'referral'];
+const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'categories',
+  'content', 'opportunities', 'referral'];
 
 function sectionFromHash() {
   const name = window.location.hash.replace('#', '');
@@ -530,6 +533,79 @@ async function loadClicks() {
 }
 
 // ---------------------------------------------------------------------------
+// Utilisateurs
+// ---------------------------------------------------------------------------
+
+/*
+ * GET /api/admin/users ne renvoie pas (encore) is_adult : le bouton est donc
+ * proposé pour tous les comptes. Si le champ apparaît, seuls les comptes
+ * déclarés mineurs (is_adult === false) le gardent.
+ */
+function canResetAdultDeclaration(user) {
+  return user.is_adult === undefined || user.is_adult === false;
+}
+
+async function resetAdultDeclaration(user) {
+  const ok = await confirmAction(
+    'Réinitialiser la déclaration d’âge',
+    `La question sur l’âge sera reposée à @${user.username} à sa prochaine visite. Continuer ?`,
+    'Réinitialiser'
+  );
+  if (!ok) return;
+  try {
+    const data = await api(`/api/admin/users/${encodeURIComponent(user.id)}/adult-declaration/reset`, { method: 'POST' });
+    toast(data.message || 'Déclaration d’âge réinitialisée.');
+    await loadUsers();
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+function userStatusBadge(user) {
+  if (user.is_banned) return badge('Banni', 'bad');
+  if (!user.is_active) return badge('Suspendu', 'warn');
+  return badge('Actif', 'ok');
+}
+
+async function loadUsers() {
+  const params = new URLSearchParams({ page: state.usersPage, limit: PAGE_SIZE });
+  if (state.usersSearch) params.set('search', state.usersSearch);
+  const data = await api(`/api/admin/users?${params}`);
+  renderTable('users-table', [
+    { label: 'Pseudo', render: (u) => `@${u.username}` },
+    { label: 'Nom', render: (u) => u.display_name || '—' },
+    { label: 'E-mail', render: (u) => u.email || '—' },
+    { label: 'Inscription', render: (u) => date(u.created_at) },
+    { label: 'Statut', render: userStatusBadge },
+    {
+      label: 'Action',
+      render: (u) => (canResetAdultDeclaration(u)
+        ? h('button', { className: 'btn small ghost', type: 'button', onclick: () => resetAdultDeclaration(u) }, 'Réinitialiser la déclaration d’âge')
+        : '—'),
+    },
+  ], data.users, state.usersSearch ? 'Aucun utilisateur ne correspond à cette recherche.' : 'Aucun utilisateur.');
+
+  const pager = $('users-pager');
+  pager.replaceChildren();
+  const pages = Math.max(1, Math.ceil(Number(data.pagination.total || 0) / PAGE_SIZE));
+  if (pages > 1) {
+    const go = (page) => { state.usersPage = page; loadUsers().catch(handleError); };
+    pager.append(
+      h('button', { className: 'btn ghost small', type: 'button', disabled: state.usersPage <= 1, onclick: () => go(state.usersPage - 1) }, 'Précédent'),
+      h('span', { className: 'muted' }, `Page ${state.usersPage} / ${pages}`),
+      h('button', { className: 'btn ghost small', type: 'button', disabled: state.usersPage >= pages, onclick: () => go(state.usersPage + 1) }, 'Suivant')
+    );
+  }
+}
+
+function handleUsersSearch(event) {
+  event.preventDefault();
+  state.usersSearch = $('users-search').value.trim();
+  state.usersPage = 1;
+  loadUsers().catch(handleError);
+}
+
+// ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 
@@ -554,7 +630,27 @@ function updateNotifPreview() {
   $('notif-preview-url').textContent = url ? `Ouvre : ${url}` : '';
 }
 
+/*
+ * Canal des notifications, renseigné par /presence : « sse » (flux permanent)
+ * ou « poll » (interrogation, Vercel). Les libellés en dépendent.
+ */
+let realtimeMode = 'sse';
+
+/*
+ * En mode interrogation, le nombre d'utilisateurs connectés n'existe pas :
+ * plusieurs instances répondent sans mémoire partagée, aucune ne connaît les
+ * onglets des autres. On l'indique au lieu d'afficher le compte partiel d'une
+ * instance, qui serait faux.
+ */
 function renderPresence(presence) {
+  if (presence.available === false) {
+    $('notif-presence').replaceChildren(
+      h('strong', {}, 'Comptage indisponible en ligne'),
+      ' — le site tourne sur plusieurs instances sans mémoire partagée, aucune ne connaît les onglets ouverts. '
+      + `Les notifications sont remises aux membres dont la session est valide, dans un délai de ${num(presence.poll_interval_seconds || 45)} s.`
+    );
+    return;
+  }
   $('notif-presence').replaceChildren(
     h('strong', {}, num(presence.connected_users)),
     ` utilisateur(s) connecté(s) au canal temps réel · ${num(presence.connections)} onglet(s) ouvert(s)`
@@ -563,12 +659,18 @@ function renderPresence(presence) {
 
 function renderBroadcastResult(broadcast) {
   const [label, tone] = BROADCAST_STATUS[broadcast.status] || [broadcast.status, 'muted'];
-  const lines = [
-    `Utilisateurs connectés : ${num(broadcast.connected_users)}`,
-    `Utilisateurs ayant reçu la notification : ${num(broadcast.delivered_users)}`,
-    `Onglets atteints : ${num(broadcast.delivered_connections)}`,
-  ];
-  if (broadcast.failed_connections) lines.push(`Erreurs de distribution : ${num(broadcast.failed_connections)} onglet(s)`);
+  const polling = (broadcast.mode || realtimeMode) === 'poll';
+  const lines = polling
+    ? [
+      `Destinataires enregistrés (sessions valides) : ${num(broadcast.connected_users)}`,
+      'Remise à la prochaine actualisation de chaque membre (au plus 45 s).',
+    ]
+    : [
+      `Utilisateurs connectés : ${num(broadcast.connected_users)}`,
+      `Utilisateurs ayant reçu la notification : ${num(broadcast.delivered_users)}`,
+      `Onglets atteints : ${num(broadcast.delivered_connections)}`,
+    ];
+  if (!polling && broadcast.failed_connections) lines.push(`Erreurs de distribution : ${num(broadcast.failed_connections)} onglet(s)`);
   const kind = tone === 'ok' ? 'success' : (tone === 'bad' ? 'error' : 'info');
   $('notif-result').replaceChildren(
     h('div', { className: `alert ${kind}` }, h('strong', {}, label), h('ul', {}, lines.map((line) => h('li', {}, line))))
@@ -580,13 +682,17 @@ async function loadNotifications() {
     api('/api/admin/notifications/presence'),
     api('/api/admin/notifications?limit=20'),
   ]);
+  realtimeMode = presence.mode === 'poll' ? 'poll' : 'sse';
   renderPresence(presence);
   renderTable('notif-history', [
     { label: 'Date', render: (row) => date(row.created_at) },
     { label: 'Titre', render: (row) => row.title },
     { label: 'Message', render: (row) => h('span', { className: 'clamp' }, row.message) },
     { label: 'Statut', render: (row) => badge(...(BROADCAST_STATUS[row.status] || [row.status, 'muted'])) },
-    { label: 'Connectés', render: (row) => num(row.connected_users) },
+    {
+      label: realtimeMode === 'poll' ? 'Destinataires' : 'Connectés',
+      render: (row) => num(row.connected_users),
+    },
     { label: 'Distribuées', render: (row) => num(row.delivered_users) },
     { label: 'Affichées', render: (row) => num(row.displayed_users) },
     { label: 'Par', render: (row) => row.admin_username || '—' },
@@ -883,15 +989,142 @@ async function loadModeration() {
     : [h('p', { className: 'empty panel' }, 'Aucune offre dans cette liste.')]));
 }
 
+// ---------------------------------------------------------------------------
+// Catégories des offres
+// ---------------------------------------------------------------------------
+
+/*
+ * L'identifiant (slug) est immuable : il est inscrit dans chaque offre et dans
+ * les liens de recherche partagés. En modification, le champ est donc
+ * verrouillé plutôt que masqué, pour qu'on voie toujours de quoi il s'agit.
+ */
+let editingCategory = null;
+
+function categoryForm() {
+  return $('category-form');
+}
+
+function resetCategoryForm() {
+  editingCategory = null;
+  const form = categoryForm();
+  form.reset();
+  form.querySelector('[data-field="slug"]').readOnly = false;
+  form.querySelector('[data-field="position"]').value = '100';
+  form.querySelector('[data-field="is_active"]').checked = true;
+  $('category-form-title').textContent = 'Nouvelle catégorie';
+  $('category-cancel').hidden = true;
+  showAlert('category-error', '');
+}
+
+function startCategoryEdit(row) {
+  editingCategory = row.slug;
+  const form = categoryForm();
+  fillForm(form, { slug: row.slug, label: row.label, position: row.position, is_active: row.is_active });
+  form.querySelector('[data-field="slug"]').readOnly = true;
+  $('category-form-title').textContent = `Modifier « ${row.label} »`;
+  $('category-cancel').hidden = false;
+  showAlert('category-error', '');
+  form.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+async function deleteCategory(row) {
+  if (row.offers > 0) {
+    toast(`${row.offers} offre(s) utilisent cette catégorie : désactive-la plutôt.`, 'error');
+    return;
+  }
+  const ok = await confirmAction(
+    'Supprimer cette catégorie ?',
+    `« ${row.label} » disparaîtra des formulaires. Aucune offre ne l'utilise.`,
+    'Supprimer'
+  );
+  if (!ok) return;
+  try {
+    await api(`/api/admin/community/categories/${encodeURIComponent(row.slug)}`, { method: 'DELETE' });
+    toast('Catégorie supprimée.');
+    await loadCategories();
+  } catch (error) {
+    if (error.status === 409) toast(error.message, 'error');
+    else handleError(error);
+  }
+}
+
+async function toggleCategory(row) {
+  try {
+    await api(`/api/admin/community/categories/${encodeURIComponent(row.slug)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ label: row.label, position: row.position, is_active: !row.is_active }),
+    });
+    toast(row.is_active ? 'Catégorie désactivée.' : 'Catégorie proposée aux membres.');
+    await loadCategories();
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+async function handleCategorySubmit(event) {
+  event.preventDefault();
+  showAlert('category-error', '');
+  const values = readForm(categoryForm());
+  const payload = {
+    label: values.label,
+    position: values.position === null ? 100 : Number(values.position),
+    is_active: categoryForm().querySelector('[data-field="is_active"]').checked,
+  };
+  try {
+    if (editingCategory) {
+      await api(`/api/admin/community/categories/${encodeURIComponent(editingCategory)}`, {
+        method: 'PATCH', body: JSON.stringify(payload),
+      });
+      toast('Catégorie modifiée.');
+    } else {
+      await api('/api/admin/community/categories', {
+        method: 'POST', body: JSON.stringify({ ...payload, slug: values.slug }),
+      });
+      toast('Catégorie créée.');
+    }
+    resetCategoryForm();
+    await loadCategories();
+  } catch (error) {
+    showAlert('category-error', error.message);
+  }
+}
+
+async function loadCategories() {
+  const data = await api('/api/admin/community/categories');
+  renderTable('categories-table', [
+    { label: 'Identifiant', render: (row) => h('code', null, row.slug) },
+    { label: 'Nom affiché', render: (row) => row.label },
+    { label: 'Ordre', render: (row) => num(row.position) },
+    { label: 'Offres', render: (row) => num(row.offers) },
+    {
+      label: 'État',
+      render: (row) => (row.is_active ? badge('Proposée', 'ok') : badge('Désactivée', 'muted')),
+    },
+    {
+      label: 'Actions',
+      render: (row) => h('div', { className: 'row-actions' },
+        h('button', { className: 'btn small ghost', type: 'button', onclick: () => startCategoryEdit(row) }, 'Modifier'),
+        h('button', { className: 'btn small ghost', type: 'button', onclick: () => toggleCategory(row) },
+          row.is_active ? 'Désactiver' : 'Proposer'),
+        // Supprimer n'a de sens que sur une catégorie qu'aucune offre n'utilise.
+        row.offers === 0
+          ? h('button', { className: 'btn small danger', type: 'button', onclick: () => deleteCategory(row) }, 'Supprimer')
+          : null),
+    },
+  ], data.items, 'Aucune catégorie. Ajoutez-en une ci-dessus.');
+}
+
 const LOADERS = {
   dashboard: loadDashboard,
   links: loadLinks,
   clicks: loadClicks,
+  users: loadUsers,
   notifications: loadNotifications,
   content: loadContent,
   opportunities: loadOpportunities,
   referral: loadReferral,
   moderation: loadModeration,
+  categories: loadCategories,
 };
 
 // ---------------------------------------------------------------------------
@@ -899,6 +1132,8 @@ const LOADERS = {
 // ---------------------------------------------------------------------------
 
 function bindEvents() {
+  $('category-form').addEventListener('submit', handleCategorySubmit);
+  $('category-cancel').addEventListener('click', resetCategoryForm);
   $('login-form').addEventListener('submit', handleLogin);
   $('mfa-form').addEventListener('submit', handleMfa);
   $('mfa-cancel').addEventListener('click', handleLogout);
@@ -908,6 +1143,7 @@ function bindEvents() {
   $('setup-logout').addEventListener('click', handleLogout);
   $('admin-logout').addEventListener('click', handleLogout);
   $('link-form').addEventListener('submit', handleLinkSubmit);
+  $('users-search-form').addEventListener('submit', handleUsersSearch);
   $('notif-form').addEventListener('submit', handleNotifSubmit);
   $('content-form').addEventListener('submit', (event) => handleLearnSubmit('content', event));
   $('opportunity-form').addEventListener('submit', (event) => handleLearnSubmit('opportunity', event));

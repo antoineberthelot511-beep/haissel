@@ -1,6 +1,9 @@
 const express = require('express');
 const community = require('../controllers/community.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
+const { requireAdult } = require('../middleware/adult.middleware');
+const { requireTurnstile } = require('../middleware/turnstile.middleware');
+const { requireMemberPublishing } = require('../middleware/feature.middleware');
 
 const router = express.Router();
 
@@ -9,12 +12,22 @@ router.use(authenticateToken);
 
 router.get('/offers', community.listOffers);
 router.get('/offers/mine', community.listMyOffers);
-router.post('/offers', community.createOffer);
-router.patch('/offers/:id', community.updateOffer);
+/*
+ * Publier ou modifier une offre suppose un compte éditeur MyLead, donc
+ * 18 ans. Le retrait reste permis à tous : un membre doit toujours pouvoir
+ * supprimer ce qu'il a publié, même si sa déclaration a changé depuis.
+ */
+// La publication est le seul formulaire du site qui diffuse un lien à
+// d'autres membres : elle est vérifiée comme les formulaires publics.
+// MEMBER_PUBLISHING_ENABLED=false : publication et modification réservées aux ADMIN.
+router.post('/offers', requireAdult, requireMemberPublishing, requireTurnstile('publish'), community.createOffer);
+router.patch('/offers/:id', requireAdult, requireMemberPublishing, community.updateOffer);
 router.delete('/offers/:id', community.removeOffer);
 router.post('/offers/:id/save', community.saveOffer);
 router.delete('/offers/:id/save', community.unsaveOffer);
 router.post('/offers/:id/report', community.reportOffer);
+// Ouverture d'un lien affilié : l'URL n'est délivrée qu'ici, après contrôle.
+router.get('/offers/:id/open', community.openOffer);
 router.get('/members/:username', community.getMemberProfile);
 
 module.exports = router;

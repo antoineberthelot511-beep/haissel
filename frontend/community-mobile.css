@@ -1,0 +1,342 @@
+/*
+ * Offres de la communauté sur téléphone.
+ *
+ * Complète styles.css et redesign.css ; ne redéfinit que ce qui concerne les
+ * cartes d'offres, le formulaire de publication et les messages d'erreur.
+ * Toutes les couleurs viennent des variables déjà définies : aucune nouvelle
+ * police, aucune ressource externe (la CSP n'autorise que 'self').
+ */
+
+/* ---------- Messages d'erreur sous le champ concerné ---------- */
+
+/*
+ * Placé juste après le champ fautif plutôt qu'en haut du formulaire : sur un
+ * téléphone, un message en tête d'écran est hors de vue quand on remplit le
+ * dernier champ.
+ */
+.field-error {
+  margin: -6px 0 2px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--error);
+  border-radius: 0 6px 6px 0;
+  background: var(--error-soft);
+  color: #7a1912;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.field-error.hidden { display: none; }
+
+/* Le champ lui-même est signalé, pas seulement le texte sous lui. */
+[aria-invalid='true'] {
+  border-color: var(--error);
+  outline-color: var(--error);
+}
+
+/* ---------- Cartes d'offres ---------- */
+
+/*
+ * Rémunération : affichée uniquement si l'auteur l'a saisie, et toujours
+ * suivie de la mise en garde. Elle occupe sa propre ligne pour que la mention
+ * ne soit jamais tronquée à 360 px.
+ */
+.payout-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.payout-note {
+  flex-basis: 100%;
+  font-size: 13px;
+  font-style: normal;
+  color: var(--muted);
+}
+.payout-note::before { content: '— '; }
+
+/* Badge « Lien affilié » : lisible, jamais coupé. */
+.offer-header-line .pill.ad { white-space: nowrap; }
+
+/* ---------- Accueil ---------- */
+
+.home-offers-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.home-offers-head .subsection-title { margin: 0; }
+
+/* ---------- Téléphone ---------- */
+
+@media (max-width: 640px) {
+  /*
+   * Cibles tactiles : 44 px minimum partout, y compris sur les boutons de
+   * carte, qui étaient à 40 px.
+   */
+  .small-button { min-height: 44px; }
+
+  /*
+   * Les actions d'une carte passent en pleine largeur et s'empilent : à
+   * 360 px, trois boutons côte à côte deviennent illisibles et se chevauchent.
+   */
+  .offer-card .card-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .offer-card .card-actions .offer-link-button,
+  .offer-card .card-actions .offer-blocked { grid-column: 1 / -1; }
+
+  .offer-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .offer-domain {
+    /* Un nom de domaine long ne doit pas élargir la carte. */
+    overflow-wrap: anywhere;
+    font-size: 13px;
+  }
+
+  /* Titre d'offre : pas de débordement horizontal avec un mot très long. */
+  .offer-header-line h4 { overflow-wrap: anywhere; }
+
+  /* Formulaire de publication : une seule colonne, champs confortables. */
+  .publish-form .field input,
+  .publish-form .field select,
+  .publish-form .field textarea { min-height: 44px; font-size: 16px; }
+
+  /* 16px : en dessous, iOS zoome automatiquement à la mise au point. */
+
+  .publish-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  /*
+   * styles.css pose « flex: 1 1 200px » sur ces boutons. En ligne, 200px est
+   * une largeur de base ; une fois la barre passée en colonne ci-dessus, la
+   * même valeur devient une HAUTEUR de base et donne des boutons de 200px.
+   * On neutralise donc la base flexible : la hauteur revient au contenu.
+   *
+   * Les classes sont reprises une à une : « .publish-actions button » seul
+   * (spécificité 0,1,1) perdait face à « .publish-actions .primary-button »
+   * (0,2,0) de styles.css, et la règle n'avait aucun effet. À égale
+   * spécificité, c'est cette feuille qui l'emporte : elle est chargée après.
+   */
+  .publish-actions button,
+  .publish-actions .primary-button,
+  .publish-actions .secondary-button,
+  .publish-actions .ghost-button { flex: 0 0 auto; width: 100%; min-height: 48px; }
+
+  /* Case à cocher : zone de clic large, texte non tronqué. */
+  .rights-check {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+  }
+  .rights-check input { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 2px; }
+
+  /* Barre de filtres : chaque champ sur sa ligne, rien ne déborde. */
+  .filters-bar .field input,
+  .filters-bar .field select { min-height: 44px; font-size: 16px; }
+}
+
+/* ---------- Déclaration de majorité ---------- */
+
+/*
+ * Question posée à l'inscription. Encadrée pour qu'on ne la saute pas : c'est
+ * elle qui décide de ce que le compte pourra faire.
+ */
+.age-fieldset {
+  margin: 4px 0 0;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.age-fieldset legend {
+  padding: 0 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+}
+.age-why,
+.age-consequence {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.age-consequence {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.age-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.age-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Cible tactile : toute la ligne est cliquable, pas seulement le rond. */
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.age-choice input { width: 20px; height: 20px; flex: 0 0 auto; }
+.age-choice:has(input:checked) {
+  border-color: var(--brand-strong);
+  box-shadow: inset 0 0 0 1px var(--brand-strong);
+}
+
+/*
+ * Écran posé aux comptes créés avant la mise en place. Il couvre la page et
+ * n'offre pas de sortie : il n'y a pas de troisième réponse. Le contenu de
+ * dessous est rendu inerte par le script, ce que le CSS ne peut pas faire.
+ */
+.age-gate[hidden] { display: none; }
+.age-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--rd-soft) 0%, transparent 60%),
+    var(--rd-bg);
+}
+.age-gate:focus { outline: none; }
+body.age-gate-open { overflow: hidden; }
+
+.age-gate-card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.age-gate-brand { display: flex; align-items: center; gap: 10px; margin: 0; }
+.age-gate h1 {
+  margin: 0;
+  font-family: var(--f-rd-title);
+  font-weight: 600;
+  font-size: clamp(24px, 7vw, 30px);
+  line-height: 1.2;
+  color: var(--rd-ink);
+}
+.age-gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.age-gate-actions button { width: 100%; min-height: 50px; font-size: 16px; }
+
+/* Offre non ouvrable : on dit pourquoi au lieu d'un bouton qui échouerait. */
+.offer-blocked {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ---------- Double authentification (Profil) ---------- */
+
+.mfa-state { margin: 0 0 4px; }
+.mfa-state .pill.ok { background: var(--ok-soft, #e3f3ec); color: var(--ok-text, #2f6e5e); }
+
+/*
+ * Repère de progression : la mise en place se fait en trois temps, et sur un
+ * téléphone on ne voit qu'un écran à la fois. Sans ce rappel, on ne sait plus
+ * où l'on en est.
+ */
+.mfa-step-label {
+  margin: 14px 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-strong);
+}
+
+/*
+ * La clé TOTP : lue puis recopiée à la main dans une application. Chasse fixe
+ * et interlettrage large pour distinguer 0/O et 1/l, et coupure autorisée
+ * n'importe où pour qu'une clé longue ne déborde pas à 360 px.
+ */
+.mfa-secret {
+  margin: 0 0 10px;
+  padding: 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 17px;
+  letter-spacing: 2px;
+  line-height: 1.6;
+  word-break: break-all;
+  text-align: center;
+  /* Sélection d'un seul geste si la copie automatique échoue. */
+  user-select: all;
+}
+
+.mfa-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.mfa-codes li {
+  padding: 10px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-align: center;
+  user-select: all;
+}
+
+#mfa-box .auth-form { margin-top: 4px; }
+#mfa-box button { margin-top: 8px; }
+
+@media (max-width: 640px) {
+  /* Cibles tactiles et champs confortables, comme le reste des formulaires. */
+  #mfa-box button { width: 100%; min-height: 48px; }
+  #mfa-box .field input { min-height: 44px; font-size: 16px; }
+
+  /* Le code à 6 chiffres : gros caractères, clavier numérique. */
+  #mfa-enable-code,
+  #mfa-disable-code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 22px;
+    letter-spacing: 6px;
+    text-align: center;
+  }
+
+  /* Un seul code par ligne : deux colonnes serrent trop à 360 px. */
+  .mfa-codes { grid-template-columns: minmax(0, 1fr); }
+}

@@ -99,8 +99,10 @@
           <a href="#dashboard" data-section="dashboard">Tableau de bord</a>
           <a href="#links" data-section="links">Liens</a>
           <a href="#clicks" data-section="clicks">Clics</a>
+          <a href="#users" data-section="users">Utilisateurs</a>
           <a href="#notifications" data-section="notifications">Notifications</a>
           <a href="#moderation" data-section="moderation">Offres membres</a>
+          <a href="#categories" data-section="categories">Catégories</a>
           <a href="#content" data-section="content">Guides et tutoriels</a>
           <a href="#opportunities" data-section="opportunities">Opportunités</a>
           <a href="#referral" data-section="referral">Parrainage</a>
@@ -170,6 +172,27 @@
           </header>
           <div id="clicks-table" class="panel table-wrap"></div>
           <div id="clicks-pager" class="pager"></div>
+        </section>
+
+        <!-- UTILISATEURS -->
+        <section id="section-users" class="section" aria-labelledby="h-users" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Comptes</p>
+              <h1 id="h-users">Utilisateurs</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="users">Actualiser</button>
+          </header>
+          <p class="muted">« Réinitialiser la déclaration d'âge » efface la réponse du membre à la question sur sa majorité : elle lui sera reposée à sa prochaine visite. À utiliser quand quelqu'un s'est trompé de réponse.</p>
+          <form id="users-search-form" class="panel toolbar users-search" role="search" novalidate>
+            <label class="field inline">
+              <span>Rechercher (pseudo, nom ou e-mail)</span>
+              <input id="users-search" type="search" maxlength="100" />
+            </label>
+            <button class="btn ghost" type="submit">Rechercher</button>
+          </form>
+          <div id="users-table" class="panel table-wrap"></div>
+          <div id="users-pager" class="pager"></div>
         </section>
 
         <!-- NOTIFICATIONS -->
@@ -251,6 +274,37 @@
             <button class="btn small ghost" type="button" data-moderation-filter="removed">Retirées</button>
           </div>
           <div id="moderation-list" class="moderation-list" aria-live="polite"></div>
+        </section>
+
+        <!-- CATÉGORIES -->
+        <section id="section-categories" class="section" aria-labelledby="h-categories" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Communauté</p>
+              <h1 id="h-categories">Catégories des offres</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="categories">Actualiser</button>
+          </header>
+          <p class="muted">Les catégories proposées aux membres quand ils publient une offre. L'identifiant ne se modifie pas : il est inscrit dans les offres déjà publiées et dans les liens de recherche partagés. Une catégorie utilisée ne peut pas être supprimée — désactive-la : elle disparaît des formulaires, les offres existantes gardent leur libellé.</p>
+
+          <form id="category-form" class="panel form-grid" novalidate>
+            <h2 id="category-form-title" class="panel-title">Nouvelle catégorie</h2>
+            <div id="category-error" class="alert error" hidden></div>
+            <label class="field"><span>Identifiant <small>(minuscules, chiffres, tiret)</small></span>
+              <input data-field="slug" type="text" maxlength="40" placeholder="ex. voyage" required /></label>
+            <label class="field"><span>Nom affiché</span>
+              <input data-field="label" type="text" maxlength="80" placeholder="ex. Voyages" required /></label>
+            <label class="field"><span>Ordre <small>(0 à 999, petit = en haut)</small></span>
+              <input data-field="position" type="number" min="0" max="999" value="100" /></label>
+            <label class="field checkbox-field"><span>Proposée aux membres</span>
+              <input data-field="is_active" type="checkbox" checked /></label>
+            <div class="row-actions">
+              <button class="btn primary" type="submit">Enregistrer</button>
+              <button id="category-cancel" class="btn ghost" type="button" hidden>Annuler la modification</button>
+            </div>
+          </form>
+
+          <div id="categories-table" class="panel table-wrap"></div>
         </section>
 
         <!-- GUIDES ET TUTORIELS -->

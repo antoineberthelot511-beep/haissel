@@ -83,6 +83,7 @@ const REQUIRED_TABLES = [
   'notification_broadcasts', 'notification_recipients',
   'learning_content', 'opportunities', 'site_settings',
   'member_offers', 'member_offer_saves', 'member_offer_reports',
+  'rate_limit_counters', 'login_throttle_failures',
 ];
 
 async function findMissingTables(pool) {

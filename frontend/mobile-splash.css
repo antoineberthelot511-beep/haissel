@@ -1,4 +1,14 @@
-/* Écran d'accueil réservé aux smartphones. */
+/*
+ * Écran d'accueil réservé aux smartphones.
+ *
+ * Du texte et des boutons réels : plus d'image avec des zones cliquables
+ * positionnées en pourcentage, qui se décalaient selon la taille de l'écran
+ * et n'exposaient aucun texte au lecteur d'écran.
+ *
+ * Couleurs et polices : variables de redesign.css. Boutons : classes
+ * .primary-button / .secondary-button de styles.css (déjà à 44 px de haut).
+ */
+
 .mobile-splash { display: none; }
 
 @media (max-width: 760px) {
@@ -9,27 +19,131 @@
     z-index: 1000;
     align-items: center;
     justify-content: center;
-    background: #e9e9e9;
+    /* Dégradé discret, dans les teintes de l'espace membre. */
+    background:
+      radial-gradient(120% 80% at 50% 0%, var(--rd-soft) 0%, transparent 60%),
+      var(--rd-bg);
+    /* Safe areas iOS, sinon le contenu passe sous l'encoche. */
+    padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+    /* Écran très court (paysage) : on défile verticalement plutôt que de rogner. */
+    overflow-y: auto;
   }
   body.splash-open { overflow: hidden; }
 }
 
-.mobile-splash-frame {
-  position: relative;
-  width: min(100vw, calc(100dvh * 542 / 1024));
-  aspect-ratio: 542 / 1024;
+.splash-card {
+  width: 100%;
+  max-width: 420px;
+  /* Pas de largeur fixe : aucun défilement horizontal à 360 px. */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
 }
-.mobile-splash-frame img { display: block; width: 100%; height: 100%; }
 
-.splash-hit {
-  position: absolute;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+/* ---------- Marque ---------- */
+
+.splash-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  flex-wrap: wrap;
 }
-.splash-hit:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
-.splash-login    { left: 9.6%;  top: 5.3%;  width: 40.2%; height: 5.3%; }
-.splash-register { left: 49.8%; top: 5.3%;  width: 40.4%; height: 5.3%; }
-.splash-learn    { left: 9.6%;  top: 85.2%; width: 80.6%; height: 5.3%; }
+.splash-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--rd-teal);
+  color: #fff;
+  font-family: var(--f-rd-title);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1;
+}
+.splash-name {
+  font-family: var(--f-rd-title);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -.01em;
+  color: var(--rd-teal-dark);
+}
+.splash-tag {
+  padding-left: 10px;
+  border-left: 1px solid var(--rd-line);
+  font-size: 13px;
+  color: var(--rd-muted);
+}
+
+/* ---------- Texte ---------- */
+
+.splash-title {
+  margin: 0;
+  font-family: var(--f-rd-title);
+  font-weight: 600;
+  /* Suit la largeur disponible sans jamais déborder à 360 px. */
+  font-size: clamp(27px, 7.8vw, 34px);
+  line-height: 1.16;
+  letter-spacing: -.015em;
+  color: var(--rd-ink);
+  text-wrap: balance;
+}
+
+.splash-lede {
+  margin: 0;
+  font-family: var(--f-rd-text);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--rd-text);
+}
+
+/* ---------- Actions ---------- */
+
+.splash-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+/* min-height: 44 px vient de .primary-button / .secondary-button ; on élargit
+   seulement la zone et on fixe la taille du texte. */
+.splash-button {
+  width: 100%;
+  min-height: 50px;
+  font-family: var(--f-rd-text);
+  font-size: 16px;
+}
+
+.splash-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: center;
+  /* Cible tactile conforme même si le texte est court. */
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rd-teal);
+  font-family: var(--f-rd-text);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.splash-more:hover { background: var(--rd-soft); color: var(--rd-teal-hover); }
+.splash-more .icon { width: 18px; height: 18px; }
+
+/* Le focus visible global (styles.css) s'applique ; on le garde dans le cadre
+   sur les boutons pleine largeur, sinon l'anneau est rogné par le bord. */
+.splash-button:focus-visible { outline-offset: -3px; }
+
+/* Le conteneur reçoit le focus à l'ouverture, uniquement pour que le lecteur
+   d'écran annonce le titre : pas d'anneau sur une zone non cliquable. */
+.mobile-splash:focus { outline: none; }

@@ -1,7 +1,13 @@
-function sendError(res, status, code, message) {
+/**
+ * Réponse d'erreur normalisée.
+ * « extra » ajoute des clés à l'objet error : notamment « field », le nom du
+ * champ fautif, pour que l'interface affiche le message sous ce champ plutôt
+ * qu'en haut du formulaire.
+ */
+function sendError(res, status, code, message, extra = null) {
   return res.status(status).json({
     success: false,
-    error: { code, message },
+    error: { code, message, ...(extra || {}) },
   });
 }
 

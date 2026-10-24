@@ -3,8 +3,17 @@
 /*
  * Notifications temps réel de l'espace utilisateur HAISSEL.
  *
- * - Flux Server-Sent Events /api/notifications/stream, authentifié par le
- *   cookie de session HttpOnly (aucun jeton manipulé ici).
+ * DEUX CANAUX, choisis par options.mode (valeur realtime_mode de
+ * /api/auth/config) :
+ *  - « sse » (défaut, npm start et Docker) : flux Server-Sent Events
+ *    /api/notifications/stream, authentifié par le cookie de session
+ *    HttpOnly (aucun jeton manipulé ici), reconnexion à délai exponentiel ;
+ *  - « poll » (Vercel) : interrogation de /api/notifications/poll toutes les
+ *    45 s, uniquement quand l'onglet est visible. Un flux permanent est
+ *    impossible là-bas : plusieurs instances répondent sans mémoire partagée,
+ *    donc l'instance qui tient le flux n'est pas celle qui reçoit la diffusion.
+ *
+ * L'affichage, la déduplication et les accusés sont communs aux deux canaux.
  * - Reconnexion avec délai exponentiel et nombre de tentatives limité.
  * - Notifications système uniquement après un clic explicite sur
  *   « Activer les notifications » ; la permission n'est jamais demandée
@@ -14,6 +23,8 @@
  */
 window.createNotificationCenter = function createNotificationCenter(options) {
   const STREAM_URL = '/api/notifications/stream';
+  const POLL_URL = '/api/notifications/poll';
+  const POLL_INTERVAL_MS = 45000;
   const MAX_ATTEMPTS = 8;
   const BASE_DELAY_MS = 2000;
   const MAX_DELAY_MS = 60000;
@@ -41,6 +52,10 @@ window.createNotificationCenter = function createNotificationCenter(options) {
   let running = false;
   let attempts = 0;
   let retryTimer = null;
+  let pollTimer = null;
+  // null = curseur pas encore établi : le premier appel ne rapporte aucun
+  // élément, il fixe seulement le point de départ (pas d'historique d'un coup).
+  let pollCursor = null;
   let lastSystemAt = 0;
   const seen = new Set();
   const pendingAcks = new Map(); // id -> affiché dans un onglet masqué, accusé au retour
@@ -48,6 +63,12 @@ window.createNotificationCenter = function createNotificationCenter(options) {
   // -------------------------------------------------------------------------
   // Statuts affichés
   // -------------------------------------------------------------------------
+
+  /* Lu à l'appel : /api/auth/config est chargé après la construction. */
+  function currentMode() {
+    const value = typeof options.mode === 'function' ? options.mode() : options.mode;
+    return value === 'poll' ? 'poll' : 'sse';
+  }
 
   function setRealtimeStatus(text, { canRetry = false } = {}) {
     el.realtime.textContent = text;
@@ -78,14 +99,14 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     } else if (!window.isSecureContext) {
       status = 'Indisponibles : HTTPS requis';
       help = `Le navigateur bloque les notifications Windows sur ${window.location.origin} (connexion non sécurisée). `
-        + 'Ouvrez Haissel via son adresse https:// (voir l’administrateur). Les messages s’affichent dans la page en attendant.';
+        + 'Ouvre Haissel via son adresse https:// (voir l’administrateur). Les messages s’affichent dans la page en attendant.';
     } else if (Notification.permission === 'granted') {
       status = 'Autorisées';
       help = 'Pour les désactiver : icône à gauche de l’adresse du site › Notifications › Bloquer. '
-        + 'Si rien n’apparaît, vérifiez aussi Windows : Paramètres › Système › Notifications (navigateur autorisé, mode « Ne pas déranger » désactivé).';
+        + 'Si rien n’apparaît, vérifie aussi Windows : Paramètres › Système › Notifications (navigateur autorisé, mode « Ne pas déranger » désactivé).';
     } else if (Notification.permission === 'denied') {
       status = 'Refusées';
-      help = 'Vous avez refusé les notifications. Pour changer d’avis : icône à gauche de l’adresse du site › Notifications › Autoriser, puis rechargez la page.';
+      help = 'Tu as refusé les notifications. Pour changer d’avis : icône à gauche de l’adresse du site › Notifications › Autoriser, puis recharge la page.';
     } else {
       status = 'Non configurées';
       canAsk = true;
@@ -158,7 +179,7 @@ window.createNotificationCenter = function createNotificationCenter(options) {
       setLastResult(result === 'shown'
         ? `Test ${timeNow()} : Chrome a transmis la notification à Windows. Si aucune bulle n’apparaît en bas à droite de l’écran, `
           + 'les notifications sont masquées par Windows (Paramètres › Système › Notifications, ou « Ne pas déranger »).'
-        : `Test ${timeNow()} : notification créée, mais Chrome n’a pas confirmé son affichage. Vérifiez les paramètres de notification de Windows.`,
+        : `Test ${timeNow()} : notification créée, mais Chrome n’a pas confirmé son affichage. Vérifie les paramètres de notification de Windows.`,
       result !== 'shown');
     } catch (error) {
       setLastResult(`Test ${timeNow()} : échec, aucune notification n’a été créée (${error.message}).`, true);
@@ -417,9 +438,85 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     }, delay);
   }
 
+  // -------------------------------------------------------------------------
+  // Interrogation régulière (Vercel)
+  // -------------------------------------------------------------------------
+
+  function stopPolling() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  /*
+   * Pas de nouvel appel quand l'onglet est masqué : inutile, puisque les
+   * notifications système sont de toute façon affichées au retour, et cela
+   * évite des requêtes en continu sur des onglets oubliés.
+   */
+  function schedulePoll() {
+    stopPolling();
+    if (!running) return;
+    if (document.visibilityState !== 'visible') {
+      setRealtimeStatus('En pause : onglet en arrière-plan');
+      return;
+    }
+    pollTimer = setTimeout(pollOnce, POLL_INTERVAL_MS);
+  }
+
+  async function pollOnce() {
+    if (!running) return;
+    // Premier appel sans « since » : fixe le curseur sans rien afficher.
+    const query = pollCursor === null ? '' : `?since=${encodeURIComponent(pollCursor)}`;
+
+    let data;
+    try {
+      data = await options.get(`${POLL_URL}${query}`);
+    } catch (error) {
+      if (error && error.status === 401) {
+        stop();
+        options.onSessionEnded();
+        return;
+      }
+      attempts += 1;
+      if (attempts > MAX_ATTEMPTS) {
+        setRealtimeStatus('Hors ligne', { canRetry: true });
+        return;
+      }
+      setRealtimeStatus(`Actualisation impossible, nouvel essai dans ${Math.round(POLL_INTERVAL_MS / 1000)} s`);
+      schedulePoll();
+      return;
+    }
+
+    attempts = 0;
+    if (typeof data.cursor === 'number') pollCursor = data.cursor;
+    setRealtimeStatus(`Connecté · actualisation toutes les ${Math.round(POLL_INTERVAL_MS / 1000)} s`);
+
+    // Même traitement que les événements SSE : handleNotification applique la
+    // validation, la déduplication, la permission et l'accusé d'affichage.
+    const items = Array.isArray(data.items) ? data.items : [];
+    for (const item of items) {
+      await handleNotification(JSON.stringify(item));
+    }
+
+    schedulePoll();
+  }
+
+  function startPolling() {
+    pollCursor = null;
+    setRealtimeStatus('Connexion…');
+    pollOnce();
+  }
+
+  // -------------------------------------------------------------------------
+  // Cycle de vie
+  // -------------------------------------------------------------------------
+
   function retryNow() {
     if (!running) return;
     attempts = 0;
+    if (currentMode() === 'poll') {
+      pollOnce();
+      return;
+    }
     connect();
   }
 
@@ -427,13 +524,15 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     if (running) return;
     running = true;
     attempts = 0;
-    connect();
+    if (currentMode() === 'poll') startPolling(); else connect();
     renderPermission();
   }
 
   function stop() {
     running = false;
     clearTimeout(retryTimer);
+    stopPolling();
+    pollCursor = null;
     closeSource();
     setRealtimeStatus('Hors ligne');
     el.stack.replaceChildren();
@@ -447,9 +546,15 @@ window.createNotificationCenter = function createNotificationCenter(options) {
   el.test.addEventListener('click', testSystemNotification);
   window.addEventListener('online', () => { if (running && !source) retryNow(); });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible') {
+      // Onglet masqué : la boucle d'interrogation s'arrête là.
+      if (running && currentMode() === 'poll') schedulePoll();
+      return;
+    }
     // Notifications reçues pendant l'absence et désormais visibles dans la page.
     for (const id of [...pendingAcks.keys()]) acknowledge(id, 'in_app');
+    // Retour sur l'onglet : on rattrape immédiatement, sans attendre 45 s.
+    if (running && currentMode() === 'poll') pollOnce();
   });
 
   renderPermission();

@@ -4,6 +4,7 @@
  */
 const helpers = require('./helpers/setup');
 
+const crypto = require('crypto');
 const http = require('http');
 const { EventEmitter } = require('events');
 const request = require('supertest');
@@ -414,5 +415,128 @@ describe('accusés d’affichage et historique', () => {
        WHERE table_schema = current_schema() AND table_name IN ('notification_broadcasts', 'notification_recipients')`
     );
     expect(columns.rows.map((row) => row.column_name).filter((name) => /ip/.test(name))).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// Interrogation régulière (mode Vercel)
+// ===========================================================================
+
+/*
+ * Ces tests appellent /api/notifications/poll directement : la route est
+ * montée dans les deux modes, seul le client décide de l'utiliser. Les
+ * destinataires sont insérés en base comme le fait sendBroadcast sur Vercel,
+ * sans dépendre de VERCEL=1 (qui changerait le comportement de toute
+ * l'application au milieu de la suite).
+ */
+describe('Notifications : endpoint d’interrogation', () => {
+  /** Crée une diffusion en base et en désigne les destinataires. */
+  async function seedBroadcast(title, userIds) {
+    const inserted = await pool.query(
+      `INSERT INTO notification_broadcasts (public_id, title, message, status, completed_at)
+       VALUES ($1, $2, $3, 'delivered', NOW())
+       RETURNING id, public_id`,
+      [crypto.randomUUID(), title, `message ${title}`]
+    );
+    const { id, public_id: publicId } = inserted.rows[0];
+    if (userIds.length) {
+      await pool.query(
+        `INSERT INTO notification_recipients (broadcast_id, user_id)
+         SELECT $1, unnest($2::int[]) ON CONFLICT DO NOTHING`,
+        [id, userIds]
+      );
+    }
+    return { id, publicId };
+  }
+
+  function poll(identity, since) {
+    const query = since === undefined ? '' : `?since=${since}`;
+    return request(app).get(`/api/notifications/poll${query}`).set('Cookie', identity.cookie);
+  }
+
+  test('refuse l’accès sans session (401)', async () => {
+    const res = await request(app).get('/api/notifications/poll');
+    expect(res.status).toBe(401);
+  });
+
+  test('refuse un cookie de session invalide (401)', async () => {
+    const res = await request(app).get('/api/notifications/poll')
+      .set('Cookie', 'haissel_sid=jeton-inexistant');
+    expect(res.status).toBe(401);
+  });
+
+  test('sans « since » : aucun élément, seulement le curseur courant', async () => {
+    const { user, identity } = await userIdentity('pollbase');
+    const { id } = await seedBroadcast('avant-ouverture', [user.id]);
+
+    const res = await poll(identity);
+    expect(res.status).toBe(200);
+    // L'historique n'est jamais renvoyé d'un coup à l'ouverture d'un onglet.
+    expect(res.body.data.items).toEqual([]);
+    expect(res.body.data.cursor).toBe(id);
+  });
+
+  test('ne renvoie que les diffusions plus récentes que le curseur', async () => {
+    const { user, identity } = await userIdentity('pollcursor');
+
+    const first = await poll(identity);
+    const start = first.body.data.cursor;
+
+    const older = await seedBroadcast('premiere', [user.id]);
+    const newer = await seedBroadcast('seconde', [user.id]);
+
+    const all = await poll(identity, start);
+    expect(all.status).toBe(200);
+    expect(all.body.data.items.map((item) => item.title)).toEqual(['premiere', 'seconde']);
+    expect(all.body.data.cursor).toBe(newer.id);
+
+    // Depuis le curseur de la première : seule la seconde reste à venir.
+    const rest = await poll(identity, older.id);
+    expect(rest.body.data.items.map((item) => item.title)).toEqual(['seconde']);
+
+    // Curseur à jour : plus rien, et le curseur ne régresse pas.
+    const empty = await poll(identity, newer.id);
+    expect(empty.body.data.items).toEqual([]);
+    expect(empty.body.data.cursor).toBe(newer.id);
+  });
+
+  test('ne renvoie pas les diffusions destinées à quelqu’un d’autre', async () => {
+    const reader = await userIdentity('pollmine');
+    const outsider = await userIdentity('pollother');
+
+    const start = (await poll(outsider.identity)).body.data.cursor;
+    await seedBroadcast('pour-le-lecteur', [reader.user.id]);
+
+    const res = await poll(outsider.identity, start);
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toEqual([]);
+  });
+
+  test('renvoie le contenu complet et un identifiant utilisable pour l’accusé', async () => {
+    const { user, identity } = await userIdentity('pollcontent');
+    const start = (await poll(identity)).body.data.cursor;
+    const { publicId } = await seedBroadcast('contenu', [user.id]);
+
+    const res = await poll(identity, start);
+    const [item] = res.body.data.items;
+    expect(item).toMatchObject({ id: publicId, title: 'contenu', message: 'message contenu' });
+    expect(typeof item.sent_at).toBe('string');
+
+    // L'identifiant renvoyé est bien celui attendu par la route d'accusé.
+    const ack = await request(app).post(`/api/notifications/${item.id}/ack`)
+      .set(auth(identity)).send({ mode: 'in_app' });
+    expect(ack.status).toBe(200);
+    expect(ack.body.data.recorded).toBe(true);
+  });
+
+  test('un « since » non numérique est traité comme une absence de curseur', async () => {
+    const { user, identity } = await userIdentity('pollbadcursor');
+    await seedBroadcast('ignoree', [user.id]);
+
+    const res = await request(app).get('/api/notifications/poll?since=../../etc/passwd')
+      .set('Cookie', identity.cookie);
+    expect(res.status).toBe(200);
+    expect(res.body.data.items).toEqual([]);
+    expect(typeof res.body.data.cursor).toBe('number');
   });
 });

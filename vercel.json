@@ -16,5 +16,8 @@
   ],
   "routes": [
     { "src": "/(.*)", "dest": "src/app.js" }
+  ],
+  "crons": [
+    { "path": "/api/internal/retention", "schedule": "0 3 * * *" }
   ]
 }

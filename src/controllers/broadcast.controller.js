@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { pool } = require('../config/database');
 const realtime = require('../services/realtime.service');
+const { isVercel } = require('../config/security');
 const { sendError, parsePagination } = require('../utils/http');
 const { logger } = require('../utils/logger');
 
@@ -8,6 +9,7 @@ const { logger } = require('../utils/logger');
  * Centre de notifications administrateur.
  *
  * - GET  /api/notifications/stream      flux SSE de l'utilisateur connecté
+ * - GET  /api/notifications/poll        interrogation régulière (Vercel)
  * - POST /api/notifications/:id/ack     accusé d'affichage envoyé par le client
  * - POST /api/admin/notifications       diffusion (admin uniquement)
  * - GET  /api/admin/notifications       historique
@@ -128,6 +130,97 @@ async function acknowledge(req, res, next) {
 }
 
 // ---------------------------------------------------------------------------
+// Interrogation régulière (Vercel)
+// ---------------------------------------------------------------------------
+
+/*
+ * Sur Vercel, plusieurs instances répondent sans mémoire partagée : le
+ * registre des flux SSE d'une instance ne connaît pas les connexions des
+ * autres, donc le flux ne peut pas servir de canal de diffusion. Le client
+ * interroge cet endpoint toutes les 45 s (voir frontend/notifications.js).
+ *
+ * « since » est le curseur rendu par l'appel précédent (notification_broadcasts.id,
+ * une simple séquence interne). Sans « since », aucun élément n'est renvoyé :
+ * seul le curseur courant est communiqué, pour que l'ouverture d'un onglet
+ * n'affiche pas d'un coup tout l'historique. Le comportement reste celui du
+ * SSE : on ne reçoit que ce qui est diffusé pendant que la page est ouverte.
+ */
+const POLL_MAX_ITEMS = 20;
+
+async function pollNotifications(req, res, next) {
+  try {
+    const raw = Number.parseInt(req.query.since, 10);
+    const hasCursor = Number.isInteger(raw) && raw >= 0;
+
+    if (!hasCursor) {
+      const { rows } = await pool.query(
+        `SELECT COALESCE(MAX(broadcast_id), 0)::int AS cursor
+         FROM notification_recipients WHERE user_id = $1`,
+        [req.user.id]
+      );
+      return res.status(200).json({ success: true, data: { items: [], cursor: rows[0].cursor } });
+    }
+
+    const { rows } = await pool.query(
+      `
+        SELECT b.id AS cursor, b.public_id AS id, b.title, b.message,
+               b.target_url AS url, b.created_at
+        FROM notification_recipients r
+        INNER JOIN notification_broadcasts b ON b.id = r.broadcast_id
+        WHERE r.user_id = $1 AND b.id > $2
+        ORDER BY b.id ASC
+        LIMIT $3
+      `,
+      [req.user.id, raw, POLL_MAX_ITEMS]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        items: rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          message: row.message,
+          url: row.url,
+          sent_at: row.created_at.toISOString(),
+        })),
+        cursor: rows.length ? rows[rows.length - 1].cursor : raw,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/*
+ * Destinataires d'une diffusion en mode interrogation : les utilisateurs dont
+ * une session est encore valide. Même filtre que realtime.revalidateSessions()
+ * — session non révoquée, non expirée, hors délai d'inactivité, compte actif
+ * et non banni — pour que les deux modes visent la même population.
+ *
+ * DIFFÉRENCE ASSUMÉE avec le SSE : « session valide » est plus large que
+ * « onglet ouvert ». Quelqu'un dont l'onglet est fermé mais la session encore
+ * valide verra la notification à sa prochaine visite (dans les 45 s). Sans
+ * mémoire partagée, aucune instance ne peut savoir quels onglets sont ouverts.
+ */
+async function sessionRecipients() {
+  const { rows } = await pool.query(
+    `
+      SELECT DISTINCT s.user_id
+      FROM sessions s
+      INNER JOIN users u ON u.id = s.user_id
+      WHERE s.revoked_at IS NULL
+        AND s.mfa_pending = false
+        AND s.expires_at > NOW()
+        AND s.last_seen_at + make_interval(secs => s.idle_timeout_seconds) > NOW()
+        AND u.is_active = true
+        AND u.is_banned = false
+    `
+  );
+  return rows.map((row) => row.user_id);
+}
+
+// ---------------------------------------------------------------------------
 // Administration
 // ---------------------------------------------------------------------------
 
@@ -161,9 +254,28 @@ async function sendBroadcast(req, res, next) {
       sent_at: inserted.rows[0].created_at.toISOString(),
     };
 
+    /*
+     * Deux canaux :
+     *  - SSE (local, Docker) : écriture immédiate dans les flux ouverts, les
+     *    statistiques viennent des connexions réellement servies ;
+     *  - interrogation (Vercel) : rien à écrire, la diffusion consiste à
+     *    enregistrer les destinataires, que leur navigateur viendra chercher
+     *    dans les 45 s. « delivered_connections » reste à 0 : aucun onglet
+     *    n'est joignable directement, et un faux chiffre serait trompeur.
+     */
     let stats;
     try {
-      stats = await realtime.broadcast('admin-notification', event, publicId);
+      if (isVercel()) {
+        const userIds = await sessionRecipients();
+        stats = {
+          connectedUserIds: userIds,
+          deliveredUserIds: userIds,
+          deliveredConnections: 0,
+          failedConnections: 0,
+        };
+      } else {
+        stats = await realtime.broadcast('admin-notification', event, publicId);
+      }
     } catch (broadcastError) {
       await pool.query(
         "UPDATE notification_broadcasts SET status = 'failed', completed_at = NOW() WHERE id = $1",
@@ -202,6 +314,7 @@ async function sendBroadcast(req, res, next) {
         broadcast: {
           id: publicId,
           status,
+          mode: isVercel() ? 'poll' : 'sse',
           connected_users: stats.connectedUserIds.length,
           delivered_users: stats.deliveredUserIds.length,
           delivered_connections: stats.deliveredConnections,
@@ -237,12 +350,33 @@ async function listBroadcasts(req, res, next) {
   }
 }
 
+/*
+ * Présence : le nombre d'utilisateurs connectés vient du registre en mémoire
+ * des flux SSE. Sur Vercel, chaque instance n'a que ses propres connexions,
+ * donc aucun chiffre global n'existe. On le dit explicitement plutôt que de
+ * renvoyer le compte partiel d'une instance, qui serait faux.
+ */
 function getPresence(req, res) {
-  return res.status(200).json({ success: true, data: { ...realtime.presence(), limits: LIMITS } });
+  if (isVercel()) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        available: false,
+        mode: 'poll',
+        poll_interval_seconds: 45,
+        limits: LIMITS,
+      },
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    data: { available: true, mode: 'sse', ...realtime.presence(), limits: LIMITS },
+  });
 }
 
 module.exports = {
   openStream,
+  pollNotifications,
   acknowledge,
   sendBroadcast,
   listBroadcasts,

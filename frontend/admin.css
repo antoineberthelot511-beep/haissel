@@ -110,6 +110,7 @@ code { font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-si
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 1.25rem; }
 .form-grid h2, .span-2 { grid-column: 1 / -1; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.users-search { align-items: flex-end; padding: .9rem 1.25rem; }
 
 /* ---------- Cartes ---------- */
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1rem; }

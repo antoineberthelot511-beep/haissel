@@ -1,77 +1,123 @@
 # HAISSEL
 
-Plateforme d'affiliation : les utilisateurs obtiennent un lien personnel par offre, HAISSEL compte les clics côté serveur, les partenaires confirment les conversions via un webhook signé, et les gains n'apparaissent qu'une fois la conversion approuvée.
+HAISSEL est une communauté d'offres affiliées doublée d'un parcours pour apprendre l'affiliation.
+Les guides sont ouverts à tous ; tout ce qui mène à un lien affilié ou à un compte éditeur MyLead est réservé aux membres ayant déclaré 18 ans ou plus.
+Le site ne verse aucun argent, ne demande jamais d'identifiants MyLead et ne promet aucun gain.
 
-```
-                 RÉSEAU LOCAL                       MACHINE SERVEUR
-   http://IP_DU_SERVEUR:3000                     http://localhost:3000
-            │ (espace utilisateur)                        │ (administration)
-            └───────────────────────┬─────────────────────┘
-                          ┌─────────▼─────────┐
-                          │ Express / Node.js │  helmet · rate-limit · JWT + sessions
-                          └─────────┬─────────┘
-          ┌───────────────┬─────────┴───────┬──────────────────────┐
-     /api/auth      /api/affiliate     /api/admin           /api/webhooks
-     (sessions)     /r/:code (clics)   (local + ADMIN)      (HMAC signé)
-          └───────────────┴────────┬────────┴──────────────────────┘
-                              PostgreSQL
-```
+## Sommaire
 
-## Accès
+1. [Fonctionnalités](#fonctionnalités)
+2. [Architecture](#architecture)
+3. [Mettre en ligne sur Vercel](#mettre-en-ligne-sur-vercel)
+4. [Développer en local](#développer-en-local)
+5. [Sécurité](#sécurité)
+6. [Âge des membres](#âge-des-membres)
+7. [Affiliation interne (gelée)](#affiliation-interne-gelée)
+8. [Anciennes tables](#anciennes-tables)
+9. [Tests et migrations](#tests-et-migrations)
 
-| Adresse | Qui | Contenu |
-|---|---|---|
-| `http://localhost:3000` ou `http://127.0.0.1:3000` | la machine serveur | **Administration** (connexion admin) |
-| `http://IP_DU_SERVEUR:3000` | appareils du réseau local | **Espace utilisateur** |
-| `http://localhost:3000/app` | la machine serveur | espace utilisateur (pour tester) |
-| `http://IP_DU_SERVEUR:3000/r/HAI-XXXXXXXX` | n'importe qui | lien affilié (clic + redirection) |
+L'ancien fonctionnement en réseau local et sous Docker / Nginx est archivé dans [docs/archive/reseau-local-et-docker.md](docs/archive/reseau-local-et-docker.md).
 
-L'administration est protégée par trois contrôles côté serveur, sur la page **et** sur toute l'API `/api/admin/*` :
-1. la requête vient de la machine serveur (adresse du socket `127.0.0.1` / `::1`, les en-têtes `X-Forwarded-*` sont ignorés) ;
-2. le jeton JWT est valide **et** sa session existe en base (non expirée, non révoquée, compte actif et non banni) ;
-3. l'utilisateur figure dans la table `admins` avec le rôle `ADMIN`.
+## Fonctionnalités
 
-Un utilisateur du réseau qui connaît les URL reçoit `403`. Modifier `localStorage` ou le JavaScript ne donne aucun droit.
+**Membres**
+- **Fil d'offres** : les offres publiées par la communauté et par l'équipe, classées par catégorie.
+- **Recherche** dans le titre et la description des offres.
+- **Publication avec modération** : une offre publiée attend la validation de l'équipe avant d'apparaître. Tant que `MEMBER_PUBLISHING_ENABLED` vaut `false` (défaut), seuls les administrateurs publient.
+- **Profil** : mes offres (statut et motif de refus éventuel), offres sauvegardées, sécurité du compte.
+- **Sauvegardes** : garder une offre pour plus tard.
+- **Signalements** : signaler une offre à l'équipe.
+- **Apprendre** : guides et tutoriels, opportunités, parcours MyLead et lien de parrainage (ces deux derniers réservés aux majeurs).
+- **Notifications** : messages de l'équipe affichés dans le site.
 
-## Installation (Node.js + PostgreSQL)
+**Administration**
+- Catégories des offres.
+- Modération des offres membres et des signalements.
+- Guides, tutoriels et opportunités de l'espace Apprendre.
+- Parrainage.
+- Notifications envoyées aux membres.
+- Liens de l'équipe et clics.
 
-Prérequis : Node.js ≥ 20, PostgreSQL ≥ 14.
+## Architecture
 
-```powershell
-npm install
-Copy-Item .env.example .env
-notepad .env          # renseigner DATABASE_URL, JWT_SECRET, AFFILIATE_WEBHOOK_SECRET
-npm run migrate       # crée / met à jour le schéma (idempotent)
-npm start             # écoute sur 0.0.0.0:3000
-```
+- **Serveur** : Node.js (≥ 20) + Express.
+- **Base** : PostgreSQL, hébergée chez Neon via l'intégration Vercel.
+- **Interface** : HTML, CSS et JavaScript, sans framework (dossier `frontend/`).
+- **Hébergement** : Vercel (`vercel.json`). Les migrations sont lancées automatiquement à chaque déploiement par `scripts/vercel-build.js` (script `vercel-build`).
 
-Créez ensuite votre compte depuis `http://localhost:3000/app`, puis promouvez-le administrateur :
+Sur Vercel, plusieurs instances répondent en parallèle, sans mémoire partagée. Le mode est détecté par `VERCEL=1`, défini par Vercel. En conséquence :
+- les limites de tentatives sont comptées en base (tables `rate_limit_counters` et `login_throttle_failures`) ;
+- les notifications passent par une interrogation régulière (`GET /api/notifications/poll`, toutes les 45 s, onglet visible uniquement) au lieu d'un flux SSE. Le nombre d'utilisateurs connectés n'est donc pas disponible dans la console ;
+- la purge de rétention (RGPD) est déclenchée chaque nuit par le planificateur de Vercel (`crons` dans `vercel.json`, route `/api/internal/retention`, authentifiée par `CRON_SECRET`).
 
-```powershell
-node scripts/promote-admin.js --username votre_nom
-# ou --email vous@exemple.fr   ou --user-id 1
-# retirer le rôle : ajouter --demote
-```
-
-Le script est idempotent (aucun doublon s'il est relancé). Aucun compte n'est jamais promu automatiquement.
+## Mettre en ligne sur Vercel
 
 ### Variables d'environnement
 
-| Variable | Rôle |
-|---|---|
-| `PORT` | port HTTP (3000) |
-| `DATABASE_URL`, `DATABASE_SSL` | connexion PostgreSQL |
-| `JWT_SECRET` | ≥ 32 octets aléatoires ; le serveur refuse de démarrer sinon |
-| `ALLOWED_EMAIL_DOMAIN` | domaine e-mail imposé à l'inscription (vide = libre) |
-| `AFFILIATE_WEBHOOK_SECRET` | secret HMAC des webhooks partenaires (≥ 32 caractères ; vide = webhook désactivé). Secret par partenaire : `AFFILIATE_WEBHOOK_SECRET_<NOM>` |
-| `PROXY_SHARED_SECRET` | Docker uniquement : authentifie Nginx auprès de l'application |
-| `PUBLIC_PORT`, `ADMIN_PORT` | Docker uniquement : ports publics / admin |
-| `CORS_ORIGINS` | origines supplémentaires autorisées (inutile en usage normal : même origine) |
-| `ENABLE_LEGACY_SOCIAL_API` | `true` pour réactiver les anciennes API du réseau social |
+À renseigner dans le tableau de bord Vercel (Settings › Environment Variables). « Sensitive » : cochez l'option pour que la valeur ne soit plus lisible après enregistrement.
 
-`.env` n'est jamais versionné ; seuls `.env.example` et `.env.production.example` le sont.
+| Variable | Rôle | Obligatoire | Sensitive |
+|---|---|---|---|
+| `APP_SECRET` | secret maître, au moins 32 octets aléatoires. `JWT_SECRET` est accepté à la place pour les anciennes installations | oui | oui |
+| `DATABASE_URL` | adresse PostgreSQL. Si elle est absente, l'adresse publiée par l'intégration Neon (`<PRÉFIXE>_DATABASE_URL`, et `<PRÉFIXE>_DATABASE_URL_UNPOOLED` pour les migrations) est utilisée | oui, sauf intégration Neon | oui |
+| `NODE_ENV` | `production` | oui | non |
+| `COOKIE_SECURE` | `true` (Vercel sert toujours en HTTPS) | oui | non |
+| `CRON_SECRET` | authentifie la purge de rétention ; sans elle, la route répond 404 et la purge ne tourne pas | oui | oui |
+| `TURNSTILE_SITE_KEY` | clé publique Cloudflare Turnstile (anti-robot) ; à définir avec la clé secrète, ou aucune des deux | recommandé | non |
+| `TURNSTILE_SECRET_KEY` | clé secrète Turnstile | recommandé | oui |
+| `ADMIN_IP_ALLOWLIST` | adresses IP autorisées pour l'administration, séparées par des virgules ; vide = toute adresse | optionnel | non |
+| `MEMBER_PUBLISHING_ENABLED` | `false` (défaut) : publication d'offres réservée aux ADMIN ; `true` : ouverte aux membres majeurs | optionnel | non |
+| `ENABLE_INTERNAL_AFFILIATION` | `false` (défaut) : moteur d'affiliation interne gelé | optionnel | non |
+| `MAIL_TRANSPORT` | `none` (défaut) ou `smtp` | si e-mails | non |
+| `MAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` | expéditeur et serveur SMTP | si e-mails | non |
+| `SMTP_PASSWORD` | mot de passe SMTP | si e-mails | oui |
+| `APP_PUBLIC_URL` | adresse du site, base des liens envoyés par e-mail | si e-mails | non |
+| `EMAIL_VERIFICATION` | `off` pour ne pas exiger la vérification d'adresse même si l'envoi est configuré | optionnel | non |
+| `MFA_ENCRYPTION_KEY` | clé de chiffrement de la double authentification (dérivée d'`APP_SECRET` sinon), au moins 32 octets | optionnel | oui |
+| `ALLOWED_EMAIL_DOMAIN` | domaine e-mail imposé à l'inscription ; vide = libre | optionnel | non |
+| `AFFILIATE_WEBHOOK_SECRET` | secret des webhooks partenaires (moteur gelé) ; `AFFILIATE_WEBHOOK_SECRET_<NOM>` par partenaire | optionnel | oui |
+| `CORS_ORIGINS` | origines supplémentaires autorisées ; inutile en usage normal | optionnel | non |
 
-## Authentification et sécurité des comptes
+`ADMIN_REQUIRE_MFA` est sans effet en ligne : la double authentification des administrateurs y est toujours imposée.
+
+Sans e-mail configuré (`MAIL_TRANSPORT=none`), la vérification d'adresse n'est pas exigée et « Mot de passe oublié » est masqué.
+
+### Cloudflare Turnstile : hostnames
+
+Dans le widget Turnstile (tableau de bord Cloudflare), déclarez chaque adresse qui affichera le formulaire :
+- le domaine de production ;
+- l'adresse fixe de chaque branche de Preview (de la forme `<projet>-git-<branche>-<équipe>.vercel.app`).
+
+Une adresse absente de la liste fait échouer le défi, donc la connexion et l'inscription.
+
+### Previews et base de données
+
+> **Attention : une Preview utilise la même base que la production si `DATABASE_URL` est commune aux deux environnements.** Comptes, offres et migrations sont alors partagés. Pour isoler les Previews, donnez-leur une autre base (variable limitée à l'environnement Preview, ou branche Neon dédiée).
+
+### Premier administrateur
+
+Aucun compte n'est promu automatiquement. Créez votre compte sur le site, puis, depuis votre poste, avec `DATABASE_URL` pointant vers la base de production :
+
+```powershell
+npm run admin:promote -- --username votre_pseudo
+# ou --email, ou --user-id ; --demote pour retirer le rôle
+```
+
+## Développer en local
+
+Prérequis : Node.js ≥ 20 et PostgreSQL ≥ 14.
+
+```powershell
+npm install
+Copy-Item .env.example .env   # puis renseigner DATABASE_URL et APP_SECRET
+npm run migrate               # crée ou met à jour le schéma
+npm run dev                   # http://localhost:3000, redémarre à chaque modification
+npm test
+```
+
+En local, l'administration n'est accessible que depuis `http://localhost:3000`. En développement, `MAIL_TRANSPORT=console` affiche les e-mails dans la console au lieu de les envoyer (refusé en production).
+
+## Sécurité
 
 Aucun système n'est inviolable. L'objectif est de réduire les risques connus et de limiter l'impact d'une compromission.
 
@@ -81,13 +127,13 @@ Aucun système n'est inviolable. L'objectif est de réduire les risques connus e
 - Messages génériques : « Identifiants incorrects » que le compte existe ou non. Les états banni, suspendu ou non vérifié ne sont indiqués qu'après un mot de passe correct.
 
 **Mots de passe**
-- Hachés avec Argon2id (m = 19 Mio, t = 2, p = 1, recommandation OWASP), avec un sel propre à chaque mot de passe. Coût mesuré sur le serveur : environ 55 ms pour un hash, 45 ms pour une vérification. Au plus 4 calculs simultanés, ce qui borne la mémoire utilisée.
+- Hachés avec Argon2id (m = 19 Mio, t = 2, p = 1, recommandation OWASP), avec un sel propre à chaque mot de passe. Au plus 4 calculs simultanés, ce qui borne la mémoire utilisée.
 - Les anciens hash bcrypt sont convertis automatiquement en Argon2id à la connexion suivante.
 - Politique : 10 à 128 caractères, phrases de passe bienvenues, aucune règle arbitraire de composition. Sont refusés : les mots de passe très courants, les répétitions et ceux qui contiennent le pseudo ou l'adresse e-mail.
 
-**Sessions**
+**Sessions et cookies**
 - Identifiant aléatoire de 256 bits, envoyé uniquement dans un cookie `HttpOnly`, `SameSite=Lax`, `Path=/`, sans attribut `Domain`. En HTTPS, le cookie s'appelle `__Host-haissel_sid` et porte `Secure`. Seul le SHA-256 de l'identifiant est stocké en base.
-- Aucun jeton dans `localStorage` ni `sessionStorage`. Les anciens JWT ont été révoqués par la migration 0003 et l'en-tête `Authorization: Bearer` n'est plus accepté.
+- Aucun jeton dans `localStorage` ni `sessionStorage`. L'en-tête `Authorization: Bearer` n'est pas accepté.
 - Expiration absolue et par inactivité :
 
   | Compte | Durée maximale | Inactivité |
@@ -104,201 +150,86 @@ Aucun système n'est inviolable. L'objectif est de réduire les risques connus e
 2. sur les routes connectées, il faut en plus le jeton `X-CSRF-Token`, propre à la session (HMAC dérivé de la session) ;
 3. le cookie est `SameSite=Lax`.
 
-**Limitations des tentatives**
-- Limites par IP : connexion, inscription, vérification d'e-mail et réinitialisation, double authentification.
-- Ralentissement progressif par compte visé, sans verrouillage, pour qu'une victime ne puisse pas être bloquée par un attaquant.
+**Limites de tentatives**
+- Limites par IP : connexion (échecs uniquement, 30 par 15 min), inscription (30 par heure), vérification d'e-mail et réinitialisation, double authentification. Elles restent larges car une classe entière peut sortir par la même adresse IP.
+- Ralentissement progressif par compte visé (0,5 s à 8 s après 3 échecs), sans verrouillage, pour qu'une victime ne puisse pas être bloquée par un attaquant. Changer d'IP n'y échappe pas.
 - 5 codes de double authentification faux annulent la connexion en cours.
-- Ces compteurs sont en mémoire : ils valent pour un seul processus Node. Avec plusieurs instances, il faudrait un stockage partagé.
+- Sur Vercel, ces compteurs sont en base (voir [Architecture](#architecture)) : toutes les instances partagent les mêmes. Si PostgreSQL ne répond pas, les compteurs laissent passer la requête plutôt que de rendre le site indisponible.
 
 **Vérification d'e-mail et mot de passe oublié**
 - Jetons aléatoires de 256 bits, stockés hachés, à usage unique, valables 24 h pour la vérification et 30 min pour la réinitialisation. Au plus 3 jetons par heure et par compte ; une nouvelle demande invalide l'ancien lien.
 - Les liens transportent le jeton dans le fragment `#` de l'URL : il n'est jamais envoyé au serveur en GET, ni écrit dans un journal, ni transmis par l'en-tête Referer.
 - Réponse identique, que le compte existe ou non.
-- Le mot de passe n'est modifié qu'après validation du jeton, dans une transaction qui révoque aussi toutes les sessions. Une notification est envoyée après chaque changement.
-- **Sans service d'e-mail configuré (`MAIL_TRANSPORT=none`)** :
-  - la vérification d'adresse n'est pas exigée ;
-  - « Mot de passe oublié » est masqué et le serveur répond qu'aucun envoi n'est configuré ;
-  - aucun faux « e-mail envoyé » n'est jamais affiché.
+- Le mot de passe n'est modifié qu'après validation du jeton, dans une transaction qui révoque aussi toutes les sessions.
 
 **Double authentification (TOTP)**
 - Compatible Google Authenticator, Microsoft Authenticator, Aegis…
 - Le secret est chiffré en AES-256-GCM. La clé vient de `MFA_ENCRYPTION_KEY`, ou est dérivée d'`APP_SECRET`.
 - Anti-rejeu : un même code ne fonctionne qu'une fois.
 - 10 codes de récupération, à usage unique, stockés hachés.
-- Obligatoire pour les administrateurs (`ADMIN_REQUIRE_MFA=true`, valeur par défaut). À la première connexion à l'admin, un écran guide l'activation. Un administrateur ne peut pas la désactiver.
 
-**Comptes privilégiés**
-- Un compte administrateur ne fonctionne que depuis la machine serveur, à la connexion comme à chaque requête.
-- `promote-admin` refuse de retirer le rôle au dernier administrateur sans `--force`, et ferme les sessions du compte modifié.
+**Administration en ligne.** Sur Vercel, la console d'administration est accessible en ligne. Elle est protégée, sur la page comme sur toute l'API `/api/admin/*`, par :
+1. une session valide en base ;
+2. le rôle `ADMIN` lu dans la table `admins` ;
+3. la double authentification, **obligatoire et non désactivable** (un écran guide l'activation à la première connexion) ;
+4. en option, `ADMIN_IP_ALLOWLIST`, qui limite l'accès à vos adresses IP. Sans elle, un avertissement est écrit dans les journaux au démarrage.
 
-**Journal.** La table `security_events` garde :
-- les connexions réussies ou échouées ;
-- les changements et réinitialisations de mot de passe ;
-- les vérifications d'adresse ;
-- les événements de double authentification ;
-- les révocations et les changements de rôle.
+`promote-admin` refuse de retirer le rôle au dernier administrateur sans `--force`, et ferme les sessions du compte modifié.
 
-Les IP y sont tronquées. Aucun mot de passe, cookie, jeton ni secret n'y figure.
+**Turnstile.** Connexion, inscription, « mot de passe oublié » et publication d'une offre passent par Cloudflare Turnstile quand les deux clés sont définies. La clé secrète ne quitte jamais le serveur ; `/api/auth/config` ne transmet que la clé publique. Les clés de test Cloudflare sont refusées en production.
 
-### Configurer l'envoi des e-mails
+**Déclaration de majorité.** Voir [Âge des membres](#âge-des-membres) : passer de « mineur » à « majeur » n'est possible qu'après **30 jours**.
 
-1. Choisissez un fournisseur SMTP : celui de votre messagerie, ou un service transactionnel (Brevo, Mailjet, Postmark…). Pour Gmail, il faut activer la validation en deux étapes puis créer un « mot de passe d'application ».
-2. Dans `.env` :
-   ```
-   MAIL_TRANSPORT=smtp
-   MAIL_FROM="HAISSEL <adresse@exemple.fr>"
-   SMTP_HOST=smtp.exemple.fr
-   SMTP_PORT=587
-   SMTP_SECURE=false        # true pour le port 465
-   SMTP_USER=...
-   SMTP_PASSWORD=...
-   APP_PUBLIC_URL=http://192.168.1.17:3000   # adresse que les utilisateurs ouvriront
-   ```
-3. Redémarrez le serveur. La vérification d'adresse devient alors obligatoire pour les **nouveaux** comptes ; les comptes créés avant la migration 0003 sont considérés comme vérifiés.
+**Journal de sécurité.** La table `security_events` garde les connexions réussies ou échouées, les changements et réinitialisations de mot de passe, les vérifications d'adresse, les événements de double authentification, les déclarations de majorité, les révocations et les changements de rôle. Les IP y sont tronquées. Aucun mot de passe, cookie, jeton ni secret n'y figure.
 
-En développement uniquement, `MAIL_TRANSPORT=console` affiche les e-mails dans la console au lieu de les envoyer. Le serveur refuse ce mode quand `NODE_ENV=production`.
+**Secrets.** Changer `APP_SECRET` invalide tous les jetons CSRF et rend illisibles les secrets de double authentification (sauf si `MFA_ENCRYPTION_KEY` est défini séparément). Aucun secret n'est versionné : `.env` est ignoré par Git. Si un secret a pu être exposé, remplacez-le.
 
-### Activer HTTPS (production)
+## Âge des membres
 
-En HTTP sur le réseau local, le cookie de session circule en clair : quelqu'un qui écoute le Wi-Fi pourrait le lire. Pour un usage réel :
-1. Placez HAISSEL derrière un reverse proxy TLS : Nginx ou Caddy, avec un certificat Let's Encrypt pour un nom de domaine, ou un certificat interne pour un réseau local.
-2. Dans `.env` : `COOKIE_SECURE=true`. Le cookie devient alors `__Host-haissel_sid` avec `Secure`, et l'en-tête HSTS est envoyé.
-3. Vérifiez que le proxy transmet l'adresse IP réelle comme décrit dans la section Docker (`PROXY_SHARED_SECRET`). N'activez pas `trust proxy` à l'aveugle.
+MyLead exige 18 ans pour ouvrir un compte éditeur. Une seule question est posée à l'inscription : **« As-tu 18 ans ou plus ? »**. Les comptes plus anciens la reçoivent à leur prochaine connexion. Aucune date de naissance ni aucun âge n'est enregistré : seulement `users.is_adult` et `users.adult_declared_at`. C'est une déclaration sur l'honneur.
 
-### Secrets
+| | Majeur déclaré | Mineur déclaré | Sans réponse |
+|---|---|---|---|
+| Guides, opportunités, liste des offres | oui | oui | oui |
+| Parcours MyLead, lien de parrainage | oui | non | non |
+| Publier ou modifier une offre | oui* | non | non |
+| Ouvrir un lien affilié | oui | non | non |
+| Retirer sa propre offre | oui | oui | oui |
 
-- `APP_SECRET` (ou `JWT_SECRET`) : au moins 32 octets aléatoires, une valeur différente par serveur. Le serveur refuse de démarrer si la valeur est trop courte, ou si c'est une valeur d'exemple en production.
-- Pour le générer en PowerShell : `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))`.
-- Changer `APP_SECRET` invalide tous les jetons CSRF et rend illisibles les secrets de double authentification, sauf si `MFA_ENCRYPTION_KEY` est défini séparément. Dans ce cas, les utilisateurs doivent réactiver la double authentification.
-- Aucun secret n'est versionné : `.env` est ignoré par Git. Si un secret a pu être exposé (capture d'écran, message, dépôt public), remplacez-le.
+\* si `MEMBER_PUBLISHING_ENABLED=true` ; sinon réservé aux ADMIN (403 `PUBLISHING_RESTRICTED`).
 
-## Base de données et migrations
+La règle est appliquée par le serveur (403 `ADULT_REQUIRED`, ou `ADULT_DECLARATION_REQUIRED` sans réponse), pas seulement par l'interface. L'adresse d'un lien affilié n'est jamais envoyée à qui ne peut pas l'ouvrir : elle n'est délivrée que par `GET /api/community/offers/:id/open`, après contrôle. Une offre dont l'âge minimum dépasse 18 ans est refusée à tous (`AGE_RESTRICTED`).
 
-- `database/init.sql` : schéma de base (idempotent).
-- `database/migrations/*.sql` : évolutions, appliquées dans l'ordre alphabétique.
-- `npm run migrate` applique ce qui manque, chaque fichier dans une transaction, et enregistre son nom dans `schema_migrations`. Relancer la commande ne fait rien.
-- Ne supprimez jamais la base ni le volume Docker pour « réparer » : ajoutez une nouvelle migration.
-- `GET /api/health` renvoie `schema: "migrations_required"` si des tables manquent.
+**Changer sa réponse** (`POST /api/auth/adult-declaration`) : passer de « majeur » à « mineur » est immédiat. L'inverse n'est possible que 30 jours après la dernière réponse, sinon un mineur refusé n'aurait qu'à répondre « oui » dans la foulée. Un administrateur peut réinitialiser la déclaration d'un membre.
 
-Tables principales : `users`, `sessions` (hash SHA-256 du jeton), `admins`, `affiliate_links` (offres), `user_affiliate_codes`, `clicks`, `conversions`, `earnings`, `admin_actions` (journal). La table `stats` est conservée pour compatibilité mais n'est plus utilisée : toutes les statistiques sont calculées à partir des tables sources, elles ne peuvent donc pas diverger.
+## Affiliation interne (gelée)
 
-## Affiliation
+HAISSEL contient un moteur d'affiliation interne (codes personnels `HAI-XXXXXXXX`, webhook de conversion signé, gains). Aucun annonceur réel n'y est branché et le format de postback attendu (`X-Haissel-Signature`) n'est émis par aucun réseau d'affiliation. Il est donc **gelé** tant que `ENABLE_INTERNAL_AFFILIATION` ne vaut pas `true` :
+- les routes de création de codes, de statistiques, de conversions, de gains et le webhook répondent 404 `FEATURE_DISABLED` ;
+- les redirections `/r/:code` restent actives, pour ne casser aucun lien déjà partagé ;
+- le catalogue de liens de l'équipe (`/go/:id`, écrans « Liens » et « Clics ») est une fonctionnalité distincte, toujours active ;
+- aucune donnée n'est supprimée.
 
-1. L'admin crée une offre (URL http/https validée).
-2. L'utilisateur clique sur **Obtenir mon lien** : un code `HAI-XXXXXXXX` unique est généré (`crypto.randomInt`, un seul code par utilisateur et par offre).
-3. Le lien `http://IP:3000/r/HAI-XXXXXXXX` enregistre le clic côté serveur (IP tronquée + empreinte HMAC, dédoublonnage 10 min par visiteur), puis redirige vers l'URL **stockée en base** (pas d'open redirect). Les liens historiques `/api/affiliate/HAI-…` restent valides.
-4. L'URL d'offre peut contenir `{click_id}` et `{code}`, remplacés à la redirection, pour que le partenaire puisse les renvoyer.
-5. Le partenaire confirme la conversion via le webhook ; le gain est créé uniquement si la conversion est `approved`.
+Pour le réactiver pour de bon, il faudra d'abord écrire un adaptateur par réseau d'affiliation, qui lit le format de postback de ce réseau et l'authentifie à sa manière.
 
-**Statuts.** Conversion : `pending → approved | rejected | cancelled`, puis `approved → cancelled` (seulement si le gain n'a pas encore été payé). `rejected` et `cancelled` sont des statuts définitifs. Gain : `pending` (dû) → `paid` (`paid_at` enregistré) ou `cancelled`.
+## Anciennes tables
 
-Les montants sont des entiers en centimes (`4250` = 42,50 €), uniquement en EUR, plafonnés à 10 000 € par conversion.
+HAISSEL a d'abord été un réseau social. Ce code a été supprimé, mais **aucune table n'a été supprimée** : `posts`, `comments`, `likes`, `follows`, `conversations`, `conversation_members`, `messages`, `notifications` et `reports` restent en base, sans être lues ni écrites. Ne pas les confondre avec `notification_broadcasts` / `notification_recipients` et `member_offer_reports`, qui servent au site actuel. Les supprimer demanderait une migration dédiée, après sauvegarde. La table `stats` est elle aussi conservée sans être utilisée.
 
-### Webhook partenaire
-
-```
-POST /api/webhooks/affiliate/<fournisseur>
-X-Haissel-Timestamp: <secondes UNIX>
-X-Haissel-Signature: sha256=<hex HMAC-SHA256(secret, "<timestamp>.<corps brut>")>
-Content-Type: application/json
-
-{ "external_reference": "ORDER-123", "code": "HAI-XXXXXXXX", "amount_cents": 1250,
-  "currency": "EUR", "status": "approved", "click_id": 42 }
-```
-
-- La signature, l'horodatage (± 5 min) et le contenu sont vérifiés.
-- **Idempotence** : `(fournisseur, external_reference)` est unique en base. Un événement reçu deux fois ne crée ni deuxième conversion ni deuxième gain. Un renvoi avec un autre statut applique la transition si elle est autorisée ; un renvoi avec un montant différent est refusé (`409`).
-- `click_id`, s'il est fourni, doit appartenir au même code affilié.
-- Conversion, gain et journal sont écrits dans une seule transaction PostgreSQL.
-
-Test local : `node scripts/sign-webhook.js --provider partner --code HAI-XXXXXXXX --reference ORDER-1 --amount 1250 --status approved`
-
-**Aucune route utilisateur ne peut créer de conversion.** L'ancien `POST /api/affiliate/conversion` a été supprimé. L'administration locale peut saisir une conversion confirmée hors webhook (fournisseur `manual`), avec les mêmes règles d'idempotence, et l'action est journalisée.
-
-## Administration
-
-Sections disponibles : Dashboard (chiffres réels), Utilisateurs (recherche, suspendre/réactiver, bannir/débannir, avec confirmation ; la suspension révoque les sessions ; impossible de se suspendre soi-même), Offres (création, activation/désactivation ; aucune suppression, l'historique est conservé), Conversions (filtres par statut, offre, utilisateur et dates ; transitions contrôlées), Gains (totaux, marquer comme payé), Clics, Journal des actions admin, Notifications (diffusion temps réel, voir ci-dessous).
-
-## Notifications administrateur (temps réel)
-
-Section **Notifications** de la console d'administration : l'administrateur rédige un titre (80 caractères max.) et un message (500 max.), choisit éventuellement une destination interne (`/app`, `/mes-affilies`), confirme, puis le serveur transmet la notification aux utilisateurs **actuellement connectés**. Le résultat affiché est réel : utilisateurs connectés, utilisateurs ayant reçu la notification, onglets atteints, erreurs.
-
-**Fonctionnement**
-
-- Chaque page utilisateur ouverte et connectée ouvre un flux Server-Sent Events `GET /api/notifications/stream`, authentifié par le cookie de session existant. L'identité vient de la session côté serveur, jamais de l'adresse IP ni du navigateur. Il n'existe aucun ciblage par IP.
-- Registre en mémoire : plusieurs onglets d'un même utilisateur sont plusieurs connexions, mais **un seul destinataire** dans les statistiques. Au-delà de 5 onglets (`REALTIME_MAX_PER_USER`), le plus ancien flux est fermé.
-- Un battement (`: ping`) est envoyé toutes les 20 s. Les sessions des flux ouverts sont revérifiées toutes les 30 s **et juste avant chaque diffusion** : une session révoquée, expirée ou un compte suspendu ne reçoit plus rien, et son flux est fermé. La déconnexion (ou « tous les appareils ») ferme le flux immédiatement.
-- Côté navigateur : reconnexion avec délai croissant (2 s → 60 s, avec aléa), 8 tentatives au maximum, puis bouton « Se reconnecter ». La session est revérifiée avant chaque tentative.
-- Format d'un événement (`event: admin-notification`) : `{ id, title, message, url, sent_at }`. Aucun secret ni donnée personnelle. Le contenu est du **texte brut** affiché avec `textContent` ; aucune commande n'est transmise aux postes.
-
-**Sécurité** : routes admin protégées par les middlewares existants (requête locale + session + rôle `ADMIN` lu en base + double authentification), jeton CSRF de session et contrôle d'origine sur `POST`, limitation à 5 diffusions/minute et 30/heure par administrateur, 30 ouvertures de flux/minute par adresse. Validation serveur : normalisation Unicode, suppression des caractères de contrôle et bidirectionnels, cible unique `connected_users`, liens internes en liste blanche.
-
-**Notifications Windows (système)** : jamais demandées automatiquement. L'utilisateur clique sur « Activer les notifications Windows » (Profil, ou bouton en haut de page), puis peut cliquer « Tester une notification Windows » ; le statut affiché est *Activé*, *Refusé*, *Non configuré*, *Non pris en charge* ou *Indisponible (HTTPS requis)*, avec l'explication pour changer d'avis dans les paramètres du navigateur. Si l'utilisateur a autorisé les notifications, chaque message produit une vraie notification Windows (même si la page est au premier plan), sans encadré en double dans la page ; l'encadré « Message HAISSEL (dans la page) » ne sert que de secours (autorisation absente ou refusée, HTTP, échec). La notification est affichée via `new Notification(titre, { body })`, avec repli sur un service worker (`/sw.js`, `registration.showNotification()`) si le constructeur est indisponible. Une seule notification pour tous les onglets, au plus une toutes les 3 s. Si l'API échoue ou si le système refuse, l'erreur est affichée dans le Profil et aucun affichage n'est déclaré au serveur.
-
-**Historique** (tables `notification_broadcasts` et `notification_recipients`, migration `20261011_0004_admin_notifications.sql`, non destructive) : émetteur, titre, contenu, date, utilisateurs connectés, utilisateurs ayant reçu, onglets, erreurs, statut (`delivered`, `partial`, `no_recipients`, `failed`). « Affichées » ne compte que les accusés envoyés par le navigateur après un affichage effectif ; ce n'est **pas** une preuve de lecture. Aucune adresse IP n'est enregistrée, et les connexions au flux ne sont pas journalisées.
-
-**Limite — un seul processus** : le registre des connexions est en mémoire. Avec plusieurs processus Node (cluster, plusieurs conteneurs `app`), chaque processus ne verrait que ses propres flux. Le déploiement actuel (`npm start` ou un conteneur `app` derrière Nginx) n'en a qu'un. Pour passer à plusieurs instances, il faudrait relayer les diffusions entre processus (PostgreSQL `LISTEN/NOTIFY` ou Redis pub/sub) et additionner les statistiques.
-
-### HTTPS sur le réseau local (requis pour les notifications système)
-
-Les navigateurs n'autorisent l'API Notification que dans un **contexte sécurisé** : `https://…` ou `http://localhost`. Sur `http://192.168.x.x:3000`, les autres PC reçoivent les notifications **dans la page** seulement.
-
-| Mode | Adresse | Notifications dans la page | Notifications système |
-| --- | --- | --- | --- |
-| HTTP (par défaut) | `http://localhost:3000` (serveur) | oui | oui |
-| HTTP | `http://IP:3000` (autres PC) | oui | **non** |
-| HTTPS (certificat de confiance) | `https://IP:3000` | oui | oui |
-
-Mise en place avec [mkcert](https://github.com/FiloSottile/mkcert) (autorité de certification locale, réservée au réseau de test) :
-
-```powershell
-# Sur le serveur
-winget install FiloSottile.mkcert
-mkcert -install                                   # crée l'autorité locale
-mkdir C:\haissel-certs
-mkcert -cert-file C:\haissel-certs\haissel.pem -key-file C:\haissel-certs\haissel-key.pem 192.168.1.17 localhost 127.0.0.1
-mkcert -CAROOT                                    # dossier contenant rootCA.pem
-```
-
-1. Remplacez `192.168.1.17` par l'IP du serveur (`ipconfig`). Si l'IP change, régénérez le certificat.
-2. Dans `.env` : `HTTPS_CERT_FILE=C:\haissel-certs\haissel.pem`, `HTTPS_KEY_FILE=C:\haissel-certs\haissel-key.pem`, `COOKIE_SECURE=true`. Redémarrez : le journal affiche `https://`.
-3. Sur **chaque PC de test** : copiez uniquement `rootCA.pem` (jamais `rootCA-key.pem`), puis `certutil -addstore -user Root rootCA.pem` (ou double-clic › Installer › « Autorités de certification racines de confiance »). Firefox : Paramètres › Certificats › Importer.
-4. Ouvrez `https://192.168.1.17:3000` : aucun avertissement ne doit apparaître. Ne contournez jamais un avertissement de certificat.
-
-Les certificats et clés restent **hors du dépôt** (`.gitignore` exclut `*.pem`, `*.key`, `*.crt`, `certs/`). `rootCA-key.pem` permet de signer des certificats acceptés par tous les PC de test : gardez-le sur le serveur uniquement, et désinstallez l'autorité (`mkcert -uninstall`) à la fin des tests. Avec Docker, placez le certificat dans Nginx (`listen 443 ssl;`, `ssl_certificate`…) et montez-le en volume depuis un dossier hors du dépôt.
-
-### Tester sur deux PC du même réseau
-
-1. Serveur : `npm run migrate`, puis `npm start` (en HTTPS de préférence, voir ci-dessus). Autorisez le port 3000 dans le pare-feu Windows (réseau privé).
-2. PC B : ouvrez `https://IP_DU_SERVEUR:3000`, créez un compte ou connectez-vous. Dans **Profil**, « Canal temps réel » doit indiquer *Connecté* ; cliquez sur « Activer les notifications » et acceptez.
-3. Serveur : `https://localhost:3000` › Notifications. Le compteur affiche 1 utilisateur connecté. Saisissez un titre et un message, « Envoyer », confirmez.
-4. PC B : la notification apparaît dans la page (onglet visible) ou en notification système (onglet en arrière-plan, autre fenêtre au premier plan). Le panneau admin affiche le résultat ; la colonne « Affichées » de l'historique augmente après l'accusé.
-5. Pour tester la reconnexion : débranchez le réseau de PC B quelques secondes, puis rebranchez (le statut repasse à *Connecté*). Pour tester la révocation : « Se déconnecter de tous les appareils » sur PC B ferme le flux immédiatement.
-
-## Docker
-
-```powershell
-Copy-Item .env.production.example .env   # remplir les secrets ; DATABASE_URL avec l'hôte "db"
-docker compose up --build -d
-```
-
-- `http://IP_DU_SERVEUR:3000` (port `PUBLIC_PORT`) : espace utilisateur, via Nginx.
-- `http://localhost:3001` (port `ADMIN_PORT`, publié **uniquement sur 127.0.0.1**) : administration.
-- Les migrations s'exécutent automatiquement au démarrage du conteneur `app`.
-- Derrière Docker, l'adresse vue par Node est celle du proxy : Nginx s'authentifie avec `PROXY_SHARED_SECRET` et transmet l'IP réelle ; seul le bloc Nginx admin ajoute l'en-tête d'accès admin (les en-têtes envoyés par le client sont écrasés).
-- Promotion admin : `docker compose exec app node scripts/promote-admin.js --username votre_nom`.
-
-## Tests
+## Tests et migrations
 
 ```powershell
 npm test                    # vérification de syntaxe + tous les tests
 npm run test:unit           # sans base de données
 npm run test:integration    # PostgreSQL requis
-npx jest tests/auth.test.js  # tests de sécurité de l'authentification
+npm run migrate             # applique les migrations manquantes
 ```
 
-Les tests d'intégration utilisent `DATABASE_URL` (ou `TEST_DATABASE_URL`), dans un **schéma temporaire** `haissel_test_*` créé puis supprimé : les données réelles ne sont ni lues ni modifiées. Ils couvrent l'authentification, les droits admin (utilisateur → 403, accès depuis le LAN → 403), les offres, les clics et la redirection, les webhooks (signature, horodatage, altération du corps, doublons concurrents), les transitions de statut, les gains, les statistiques, l'injection SQL, les montants invalides et le rate limiting.
+Les tests utilisent `DATABASE_URL` (ou `TEST_DATABASE_URL`) dans un **schéma temporaire** `haissel_test_*`, créé puis supprimé : les données réelles ne sont ni lues ni modifiées.
 
-## Anciennes fonctionnalités du réseau social
-
-Les contrôleurs, routes et tables `posts`, `comments`, `likes`, `follows`, `messages`, `notifications` et `reports` existent encore, mais l'interface ne les utilise plus. Leurs API sont désactivées par défaut (`ENABLE_LEGACY_SOCIAL_API=false`) ; aucune table n'a été supprimée.
+**Migrations**
+- `database/init.sql` : schéma de base ; `database/migrations/*.sql` : évolutions, appliquées dans l'ordre alphabétique.
+- Chaque fichier est appliqué dans une transaction et enregistré dans `schema_migrations` ; relancer ne fait rien.
+- Sur Vercel, elles sont appliquées à chaque déploiement par `scripts/vercel-build.js`. Si une migration échoue, le déploiement échoue.
+- `GET /api/health` renvoie `schema: "migrations_required"` si des tables manquent.
+- **Règle : jamais de migration destructive.** Aucune migration ne supprime de table, de colonne ni de donnée. Pour corriger, on ajoute une nouvelle migration ; on ne supprime jamais la base.

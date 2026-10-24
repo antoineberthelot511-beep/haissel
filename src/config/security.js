@@ -14,6 +14,33 @@ const PLACEHOLDER = /change_me|replace_with|remplacer|local-development|example|
 const isProduction = () => process.env.NODE_ENV === 'production';
 const isTest = () => process.env.NODE_ENV === 'test';
 
+/*
+ * Déploiement sans état partagé (Vercel) : plusieurs instances de la fonction
+ * répondent en parallèle et aucune mémoire n'est partagée entre elles. Les
+ * compteurs (limites de tentatives) passent alors en base, et le flux SSE est
+ * remplacé par une interrogation régulière. Voir README, « Déploiement Vercel ».
+ */
+const isVercel = () => process.env.VERCEL === '1';
+
+/*
+ * Moteur d'affiliation interne (codes HAI-XXXXXXXX, conversions, gains,
+ * webhook signé). GELÉ par défaut : aucun annonceur réel n'y est branché et le
+ * format de postback attendu (X-Haissel-Signature) est propre à HAISSEL,
+ * qu'aucun réseau d'affiliation n'émet. Voir README, « Moteur d'affiliation
+ * interne (gelé) ».
+ *
+ * Les redirections /r/:code restent actives quelle que soit cette valeur :
+ * des liens ont pu être partagés et ne doivent pas se mettre à renvoyer 404.
+ */
+const isInternalAffiliationEnabled = () => process.env.ENABLE_INTERNAL_AFFILIATION === 'true';
+
+/*
+ * Publication d'offres par les membres. FERMÉE par défaut : seuls les comptes
+ * ADMIN publient ou modifient des offres. Le retrait de ses propres offres
+ * reste permis à tous. Voir README, « Variables d'environnement ».
+ */
+const isMemberPublishingEnabled = () => process.env.MEMBER_PUBLISHING_ENABLED === 'true';
+
 function getMasterSecret() {
   return process.env.APP_SECRET || process.env.JWT_SECRET || '';
 }
@@ -53,7 +80,7 @@ function isEmailVerificationRequired() {
 function isAdminMfaRequired() {
   // En ligne (Vercel), l'administration n'est protégée que par le mot de
   // passe et la double authentification : celle-ci n'est pas désactivable.
-  if (process.env.VERCEL === '1') return true;
+  if (isVercel()) return true;
   return process.env.ADMIN_REQUIRE_MFA !== 'false';
 }
 
@@ -108,8 +135,22 @@ function validateSecurityConfig() {
     warnings.push("Aucun envoi d'e-mail configuré : vérification d'adresse et « mot de passe oublié » désactivés.");
   }
 
-  if (process.env.MFA_ENCRYPTION_KEY && Buffer.byteLength(process.env.MFA_ENCRYPTION_KEY) < 32) {
+  const turnstileSite = String(process.env.TURNSTILE_SITE_KEY || '').trim();
+  const turnstileSecret = String(process.env.TURNSTILE_SECRET_KEY || '').trim();
+  if (Boolean(turnstileSite) !== Boolean(turnstileSecret)) {
+    errors.push('TURNSTILE_SITE_KEY et TURNSTILE_SECRET_KEY doivent être définies ensemble.');
+  } else if (!turnstileSite) {
+    warnings.push('Cloudflare Turnstile non configuré : connexion et inscription sans vérification anti-robot.');
+  } else if (isProduction() && [turnstileSite, turnstileSecret].some((key) => /^[123]x0{20,}[A-Z]{2}$/.test(key))) {
+    errors.push('Clés Turnstile de test interdites en production : utilisez les clés du tableau de bord Cloudflare.');
+  }
+
+  if (process.env.MFA_ENCRYPTION_KEY &&Buffer.byteLength(process.env.MFA_ENCRYPTION_KEY) < 32) {
     errors.push('MFA_ENCRYPTION_KEY doit contenir au moins 32 octets.');
+  }
+  if (isVercel() && !String(process.env.ADMIN_IP_ALLOWLIST || '').trim()) {
+    warnings.push("ADMIN_IP_ALLOWLIST est vide : la console d'administration est joignable depuis n'importe quelle adresse IP. "
+      + 'Seuls le mot de passe et la double authentification la protègent. Renseignez vos adresses IP dans le tableau de bord Vercel.');
   }
   if (isProduction() && String(process.env.COOKIE_SECURE || 'auto') !== 'true') {
     warnings.push('Site servi sans HTTPS imposé : le cookie de session circule en clair sur le réseau. Activez HTTPS (voir README).');
@@ -121,6 +162,9 @@ function validateSecurityConfig() {
 module.exports = {
   isProduction,
   isTest,
+  isVercel,
+  isInternalAffiliationEnabled,
+  isMemberPublishingEnabled,
   getMasterSecret,
   deriveKey,
   getMfaKey,

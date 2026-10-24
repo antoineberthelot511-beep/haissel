@@ -7,6 +7,7 @@ const {
   accountRecoveryRateLimiter,
   mfaRateLimiter,
 } = require('../middleware/rate-limit.middleware');
+const { requireTurnstile } = require('../middleware/turnstile.middleware');
 
 const router = express.Router();
 const pendingOk = authenticate({ allowMfaPending: true });
@@ -14,17 +15,21 @@ const signedIn = authenticate();
 
 router.get('/config', auth.getAuthConfig);
 
-router.post('/register', registerRateLimiter, auth.register);
-router.post('/login', authRateLimiter, auth.login);
+// Limite par IP d'abord (même sans jeton Turnstile), puis vérification anti-robot.
+router.post('/register', registerRateLimiter, requireTurnstile('register'), auth.register);
+router.post('/login', authRateLimiter, requireTurnstile('login'), auth.login);
 router.post('/mfa/verify', mfaRateLimiter, pendingOk, auth.verifyMfaLogin);
 
 router.get('/me', pendingOk, auth.me);
+// Déclaration de majorité (comptes créés avant sa mise en place).
+router.post('/adult-declaration', authRateLimiter, signedIn, auth.declareAdult);
 router.post('/logout', pendingOk, auth.logout);
 router.post('/logout-all', signedIn, auth.logoutAll);
 
 router.post('/email/verify', accountRecoveryRateLimiter, auth.verifyEmail);
 router.post('/email/resend', accountRecoveryRateLimiter, auth.resendVerification);
-router.post('/password/forgot', accountRecoveryRateLimiter, auth.forgotPassword);
+// Formulaire public : protégé au même titre que l'inscription et la connexion.
+router.post('/password/forgot', accountRecoveryRateLimiter, requireTurnstile('forgot-password'), auth.forgotPassword);
 router.post('/password/reset', accountRecoveryRateLimiter, auth.resetPassword);
 router.post('/password/change', authRateLimiter, signedIn, auth.changePassword);
 
