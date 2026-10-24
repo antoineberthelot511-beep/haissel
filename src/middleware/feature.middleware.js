@@ -1,4 +1,4 @@
-const { isInternalAffiliationEnabled } = require('../config/security');
+const { isInternalAffiliationEnabled, isMemberPublishingEnabled } = require('../config/security');
 const { sendError } = require('../utils/http');
 
 /*
@@ -23,4 +23,18 @@ function requireInternalAffiliation(req, res, next) {
   return next();
 }
 
-module.exports = { requireInternalAffiliation };
+/*
+ * Publication réservée à l'équipe tant que MEMBER_PUBLISHING_ENABLED n'est pas
+ * activé. Le rôle vient de la session, donc de la base (authenticateToken).
+ * 403 et non 404 : la fonctionnalité existe, l'interface la masque seulement.
+ * À placer APRÈS authenticateToken.
+ */
+function requireMemberPublishing(req, res, next) {
+  if (!isMemberPublishingEnabled() && req.userRole !== 'ADMIN') {
+    return sendError(res, 403, 'PUBLISHING_RESTRICTED',
+      "La publication est réservée à l'équipe pour le moment.");
+  }
+  return next();
+}
+
+module.exports = { requireInternalAffiliation, requireMemberPublishing };

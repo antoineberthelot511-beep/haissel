@@ -67,6 +67,9 @@ Le script est idempotent (aucun doublon s'il est relancé). Aucun compte n'est j
 | `PROXY_SHARED_SECRET` | Docker uniquement : authentifie Nginx auprès de l'application |
 | `PUBLIC_PORT`, `ADMIN_PORT` | Docker uniquement : ports publics / admin |
 | `CORS_ORIGINS` | origines supplémentaires autorisées (inutile en usage normal : même origine) |
+| `MEMBER_PUBLISHING_ENABLED` | `false` (défaut) : publication d'offres réservée aux ADMIN ; `true` : ouverte aux membres majeurs |
+
+**Publication réservée à l'équipe.** Tant que `MEMBER_PUBLISHING_ENABLED` vaut `false`, `POST` et `PATCH /api/community/offers` répondent 403 `PUBLISHING_RESTRICTED` à tout compte non ADMIN (les ADMIN passent toujours la vérification d'âge et Turnstile). Chacun peut encore retirer ses propres offres. `/api/auth/config` expose `publishing_open`, et l'interface masque alors le bouton +, le bouton « Publier » du profil et l'invitation à publier.
 
 `.env` n'est jamais versionné ; seuls `.env.example` et `.env.production.example` le sont.
 

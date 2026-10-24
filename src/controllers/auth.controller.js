@@ -4,6 +4,7 @@ const {
   isEmailVerificationRequired,
   isAdminMfaRequired,
   isVercel,
+  isMemberPublishingEnabled,
 } = require('../config/security');
 const { sendError } = require('../utils/http');
 const { needsDeclaration, canDeclareAdult, ADULT_AGE } = require('../services/adult.service');
@@ -107,6 +108,8 @@ function getAuthConfig(req, res) {
       realtime_mode: isVercel() ? 'poll' : 'sse',
       // Âge minimum pour un compte éditeur MyLead (voir adult.service).
       adult_age: ADULT_AGE,
+      // false : l'interface masque la publication aux comptes non ADMIN.
+      publishing_open: isMemberPublishingEnabled(),
     },
   });
 }

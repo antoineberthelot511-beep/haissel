@@ -3,6 +3,7 @@ const community = require('../controllers/community.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { requireAdult } = require('../middleware/adult.middleware');
 const { requireTurnstile } = require('../middleware/turnstile.middleware');
+const { requireMemberPublishing } = require('../middleware/feature.middleware');
 
 const router = express.Router();
 
@@ -18,8 +19,9 @@ router.get('/offers/mine', community.listMyOffers);
  */
 // La publication est le seul formulaire du site qui diffuse un lien à
 // d'autres membres : elle est vérifiée comme les formulaires publics.
-router.post('/offers', requireAdult, requireTurnstile('publish'), community.createOffer);
-router.patch('/offers/:id', requireAdult, community.updateOffer);
+// MEMBER_PUBLISHING_ENABLED=false : publication et modification réservées aux ADMIN.
+router.post('/offers', requireAdult, requireMemberPublishing, requireTurnstile('publish'), community.createOffer);
+router.patch('/offers/:id', requireAdult, requireMemberPublishing, community.updateOffer);
 router.delete('/offers/:id', community.removeOffer);
 router.post('/offers/:id/save', community.saveOffer);
 router.delete('/offers/:id/save', community.unsaveOffer);

@@ -32,6 +32,11 @@ process.env.ALLOWED_EMAIL_DOMAIN = '';
 process.env.TURNSTILE_SITE_KEY = '';
 process.env.TURNSTILE_SECRET_KEY = '';
 process.env.CORS_ORIGINS = '';
+/*
+ * Publication ouverte aux membres : la plupart des tests publient avec un
+ * compte membre. publishing-restricted.test.js remet la valeur à false.
+ */
+process.env.MEMBER_PUBLISHING_ENABLED = 'true';
 process.env.DATABASE_SCHEMA = SCHEMA;
 process.env.DATABASE_POOL_MAX = '5';
 

@@ -257,6 +257,15 @@ function isAdultMember() {
   return state.user?.is_adult === true;
 }
 
+/*
+ * Publication ouverte à ce compte : majeur, et publication ouverte aux membres
+ * (publishing_open) ou compte ADMIN. Le serveur applique la même règle (403).
+ */
+function canPublish() {
+  if (!isAdultMember()) return false;
+  return state.config?.publishing_open !== false || state.user?.role === 'ADMIN';
+}
+
 function needsAgeAnswer() {
   return Boolean(state.user) && state.user.adult_declaration_required === true;
 }
@@ -268,8 +277,14 @@ function applyAgeRestrictions() {
 
   // Onglet « Publier » : retire de la navigation et des raccourcis.
   // [data-adult-only] : textes et blocs qui invitent à publier.
-  document.querySelectorAll('[data-view="publish"], [data-goto="publish"], [data-adult-only]').forEach((el) => {
+  document.querySelectorAll('[data-adult-only]').forEach((el) => {
     el.classList.toggle('hidden', !adult);
+  });
+  // Bouton +, « Publier » du profil, invitation à publier : aussi masqués
+  // tant que la publication est réservée à l'équipe.
+  const publish = canPublish();
+  document.querySelectorAll('[data-view="publish"], [data-goto="publish"], [data-publish-only]').forEach((el) => {
+    el.classList.toggle('hidden', !publish);
   });
   // Parcours MyLead et Parrainage : rubriques de l'espace Apprendre.
   document.querySelectorAll('[data-learn-tab="mylead"], [data-learn-tab="referral"]').forEach((el) => {
@@ -284,8 +299,8 @@ function applyAgeRestrictions() {
   if (!adult && activeTab && ['mylead', 'referral'].includes(activeTab.dataset.learnTab)) {
     setLearnTab('guides');
   }
-  // Idem pour la vue : un mineur ne reste pas sur « Publier ».
-  if (!adult && !document.getElementById('publish-view').classList.contains('hidden')) {
+  // Idem pour la vue : qui ne peut pas publier ne reste pas sur « Publier ».
+  if (!publish && !document.getElementById('publish-view').classList.contains('hidden')) {
     setActiveView('home');
   }
   renderHomeLearnCard();
