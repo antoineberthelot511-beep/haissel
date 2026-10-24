@@ -3,12 +3,17 @@ const { sendError, parseId, parsePagination } = require('../utils/http');
 const { logger } = require('../utils/logger');
 const { refusalForAffiliateLink, meetsMinAge, isAdult } = require('../services/adult.service');
 const { FORBIDDEN_CLAIMS } = require('./learn.controller');
+const { isAffiliateTrackingUrl, AFFILIATE_LINK_MESSAGE } = require('../utils/affiliate-tracking');
 
 /*
  * Offres publiées par les membres.
  *
  * Toutes les routes exigent une session. Règles :
  *  - un membre ne modifie ou ne retire QUE ses propres offres ;
+ *  - deux sortes d'offres (colonne kind, fixée à la création) :
+ *      · « campaign » : fiche campagne d'un membre majeur (page officielle,
+ *        conseils, conditions) ; un lien de suivi affilié y est refusé ;
+ *      · « affiliate » : lien affilié, réservé aux comptes ADMIN ;
  *  - toute offre (création ou modification) passe en modération (pending) ;
  *  - seules les offres « published » sont visibles des autres membres ;
  *  - liens : HTTPS uniquement, vrai nom de domaine, sans identifiants ;
@@ -83,7 +88,7 @@ function invalidateCategories() {
   categoryCache = null;
 }
 
-const REPORT_REASONS = ['misleading', 'spam', 'dangerous', 'minors', 'rights', 'other'];
+const REPORT_REASONS = ['misleading', 'spam', 'dangerous', 'minors', 'rights', 'signup_exchange', 'other'];
 
 const LIMITS = {
   offersPerDay: 5,
@@ -189,8 +194,14 @@ function text(body, name, label, { min = 0, max, required = false }) {
   return value;
 }
 
-function validateOffer(body, activeCategories) {
+/*
+ * « kind » : 'campaign' (fiche campagne, membre) ou 'affiliate' (lien affilié,
+ * ADMIN). Une fiche campagne exige le nom de la campagne et refuse tout lien
+ * qui ressemble à un lien de suivi affilié.
+ */
+function validateOffer(body, activeCategories, kind = 'campaign') {
   const source = body && typeof body === 'object' ? body : {};
+  const campaign = kind === 'campaign';
   const offer = {
     title: text(source, 'title', 'Titre', { min: 5, max: 120, required: true }),
     url: normalizeMemberUrl(source.url),
@@ -199,7 +210,13 @@ function validateOffer(body, activeCategories) {
     expected_action: text(source, 'expected_action', 'Action attendue', { min: 5, max: 300, required: true }),
     payout_text: text(source, 'payout_text', 'Rémunération annoncée', { max: 160 }),
     conditions: text(source, 'conditions', 'Conditions et restrictions', { max: 2000 }),
+    campaign_name: text(source, 'campaign_name', 'Nom de la campagne MyLead', { min: 2, max: 120, required: campaign }),
+    tips: text(source, 'tips', 'Mes conseils', { max: 1500 }),
   };
+
+  if (campaign && isAffiliateTrackingUrl(offer.url)) {
+    throw new ValidationError('AFFILIATE_LINK_FORBIDDEN', AFFILIATE_LINK_MESSAGE, 400, 'url');
+  }
 
   // Seule une catégorie ACTIVE peut être choisie : une catégorie désactivée
   // reste affichée sur les offres existantes mais n'est plus proposable.
@@ -217,12 +234,14 @@ function validateOffer(body, activeCategories) {
   }
 
   if (source.rights_confirmed !== true) {
-    throw new ValidationError('RIGHTS_NOT_CONFIRMED',
-      'Coche la case : le lien doit venir de ton propre compte éditeur et respecter les conditions de la campagne.',
-      400, 'rights_confirmed');
+    throw new ValidationError('RIGHTS_NOT_CONFIRMED', campaign
+      ? 'Coche la case : le lien doit mener à la page officielle et ta fiche doit respecter les conditions de la campagne.'
+      : 'Coche la case : le lien doit venir de ton propre compte éditeur et respecter les conditions de la campagne.',
+    400, 'rights_confirmed');
   }
 
-  const haystack = [offer.title, offer.description, offer.conditions, offer.expected_action, offer.url].join(' ');
+  const haystack = [offer.title, offer.description, offer.conditions, offer.expected_action, offer.url,
+    offer.campaign_name, offer.tips].join(' ');
   if (SENSITIVE_TOPICS.test(haystack)) {
     throw new ValidationError('FORBIDDEN_TOPIC',
       'Ce type d’offre (jeux d’argent, crypto, crédit, rencontres, contenus pour adultes, tabac, alcool…) n’est pas accepté sur HAISSEL.',
@@ -260,7 +279,10 @@ function formatOffer(row, userId, viewer = null) {
     || refusalForAffiliateLink(viewer, row.min_age) === null;
   return {
     id: row.id,
+    kind: row.kind || 'campaign',
     title: row.title,
+    campaign_name: row.campaign_name || null,
+    tips: row.tips || null,
     url: canOpen ? row.url : null,
     can_open: canOpen,
     domain: domainOf(row.url),
@@ -573,7 +595,9 @@ async function getMemberProfile(req, res, next) {
 async function createOffer(req, res, next) {
   try {
     const { active } = await loadCategories();
-    const offer = validateOffer(req.body, active);
+    // Lien affilié : ADMIN uniquement (rôle lu en base). Sinon, fiche campagne.
+    const kind = req.userRole === 'ADMIN' ? 'affiliate' : 'campaign';
+    const offer = validateOffer(req.body, active, kind);
 
     const usage = await pool.query(
       `SELECT
@@ -593,11 +617,13 @@ async function createOffer(req, res, next) {
 
     const result = await pool.query(
       `INSERT INTO member_offers (user_id, title, url, description, category, countries, expected_action,
-                                  payout_text, min_age, conditions, rights_confirmed_at, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), 'pending')
+                                  payout_text, min_age, conditions, rights_confirmed_at, status,
+                                  kind, campaign_name, tips)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), 'pending', $11, $12, $13)
        RETURNING *`,
       [req.user.id, offer.title, offer.url, offer.description, offer.category, offer.countries,
-        offer.expected_action, offer.payout_text, offer.min_age, offer.conditions]
+        offer.expected_action, offer.payout_text, offer.min_age, offer.conditions,
+        kind, offer.campaign_name, offer.tips]
     );
     logger.info('Member offer submitted', { userId: req.user.id, offerId: result.rows[0].id });
     return res.status(201).json({
@@ -629,7 +655,7 @@ async function createOffer(req, res, next) {
  */
 async function loadOwnedOffer(req, res, id) {
   const found = await pool.query(
-    `SELECT o.id, o.user_id, o.status, u.username AS author_username
+    `SELECT o.id, o.user_id, o.status, o.kind, u.username AS author_username
      FROM member_offers o JOIN users u ON u.id = o.user_id
      WHERE o.id = $1`,
     [id]
@@ -659,7 +685,13 @@ async function updateOffer(req, res, next) {
     if (access.error) return undefined;
 
     const { active } = await loadCategories();
-    const offer = validateOffer(req.body, active);
+    /*
+     * Un ADMIN garde la sorte de l'offre qu'il corrige. Un non ADMIN ne
+     * modifie qu'une fiche campagne : même une ancienne offre « affiliate »
+     * (auteur qui n'est plus ADMIN) devient une fiche campagne.
+     */
+    const kind = access.isAdmin ? (access.offer.kind || 'campaign') : 'campaign';
+    const offer = validateOffer(req.body, active, kind);
 
     /*
      * Toute modification renvoie l'offre en vérification, y compris celle d'un
@@ -670,11 +702,13 @@ async function updateOffer(req, res, next) {
       `UPDATE member_offers
        SET title = $2, url = $3, description = $4, category = $5, countries = $6, expected_action = $7,
            payout_text = $8, min_age = $9, conditions = $10, rights_confirmed_at = NOW(),
+           kind = $11, campaign_name = $12, tips = $13,
            status = 'pending', moderation_note = NULL, published_at = NULL, updated_at = NOW()
        WHERE id = $1 AND status IN ('pending', 'published', 'rejected')
        RETURNING *`,
       [id, offer.title, offer.url, offer.description, offer.category, offer.countries,
-        offer.expected_action, offer.payout_text, offer.min_age, offer.conditions]
+        offer.expected_action, offer.payout_text, offer.min_age, offer.conditions,
+        kind, offer.campaign_name, offer.tips]
     );
     if (!result.rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Offre introuvable.');
     return res.status(200).json({

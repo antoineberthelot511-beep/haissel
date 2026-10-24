@@ -40,6 +40,7 @@ async function publishedOffer({ minAge = null } = {}) {
     payout_text: null,
     min_age: minAge,
     conditions: null,
+    campaign_name: 'Campagne de test',
     rights_confirmed: true,
   });
   expect(res.status).toBe(201);
@@ -185,6 +186,7 @@ describe('Mineur : ce qui est refusé côté serveur', () => {
       countries: 'FR',
       expected_action: 'Créer un compte',
       min_age: null,
+      campaign_name: 'Campagne de test',
       rights_confirmed: true,
     });
     expect(res.status).toBe(403);
@@ -201,6 +203,7 @@ describe('Mineur : ce qui est refusé côté serveur', () => {
       category: 'applications',
       countries: 'FR',
       expected_action: 'Créer un compte',
+      campaign_name: 'Campagne de test',
       rights_confirmed: true,
     });
     expect(res.status).toBe(403);
@@ -241,6 +244,7 @@ describe('Mineur : ce qui est refusé côté serveur', () => {
       category: 'applications',
       countries: 'FR',
       expected_action: 'Créer un compte',
+      campaign_name: 'Campagne de test',
       rights_confirmed: true,
     });
     const id = created.body.data.offer.id;
@@ -302,6 +306,7 @@ describe('Mineur : ce qui reste accessible', () => {
       category: 'applications',
       countries: 'FR',
       expected_action: 'Créer un compte',
+      campaign_name: 'Campagne de test',
       rights_confirmed: true,
     });
     expect(created.status).toBe(201);
@@ -324,6 +329,7 @@ describe('Compte sans réponse : tout est suspendu à la question', () => {
       category: 'applications',
       countries: 'FR',
       expected_action: 'Créer un compte',
+      campaign_name: 'Campagne de test',
       rights_confirmed: true,
     });
     expect(res.status).toBe(403);

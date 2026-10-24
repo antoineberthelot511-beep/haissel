@@ -23,10 +23,12 @@ L'ancien fonctionnement en réseau local et sous Docker / Nginx est archivé dan
 **Membres**
 - **Fil d'offres** : les offres publiées par la communauté et par l'équipe, classées par catégorie.
 - **Recherche** dans le titre et la description des offres.
-- **Publication avec modération** : une offre publiée attend la validation de l'équipe avant d'apparaître. Tant que `MEMBER_PUBLISHING_ENABLED` vaut `false` (défaut), seuls les administrateurs publient.
+- **Publication avec modération** : toute publication attend la validation de l'équipe avant d'apparaître.
+  - Les membres majeurs partagent des **fiches campagne** : lien vers la page officielle (site de l'annonceur ou page de la campagne sur MyLead), nom de la campagne, conseils et conditions. Un lien qui ressemble à un lien de suivi affilié est refusé (liste dans `src/utils/affiliate-tracking.js`).
+  - Seuls les administrateurs publient des **liens affiliés**.
 - **Profil** : mes offres (statut et motif de refus éventuel), offres sauvegardées, sécurité du compte.
 - **Sauvegardes** : garder une offre pour plus tard.
-- **Signalements** : signaler une offre à l'équipe.
+- **Signalements** : signaler une offre à l'équipe, y compris une demande d'« échange d'inscriptions » (interdite).
 - **Apprendre** : guides et tutoriels, opportunités, parcours MyLead et lien de parrainage (ces deux derniers réservés aux majeurs).
 - **Notifications** : messages de l'équipe affichés dans le site.
 
@@ -66,7 +68,6 @@ Sur Vercel, plusieurs instances répondent en parallèle, sans mémoire partagé
 | `TURNSTILE_SITE_KEY` | clé publique Cloudflare Turnstile (anti-robot) ; à définir avec la clé secrète, ou aucune des deux | recommandé | non |
 | `TURNSTILE_SECRET_KEY` | clé secrète Turnstile | recommandé | oui |
 | `ADMIN_IP_ALLOWLIST` | adresses IP autorisées pour l'administration, séparées par des virgules ; vide = toute adresse | optionnel | non |
-| `MEMBER_PUBLISHING_ENABLED` | `false` (défaut) : publication d'offres réservée aux ADMIN ; `true` : ouverte aux membres majeurs | optionnel | non |
 | `ENABLE_INTERNAL_AFFILIATION` | `false` (défaut) : moteur d'affiliation interne gelé | optionnel | non |
 | `MAIL_TRANSPORT` | `none` (défaut) ou `smtp` | si e-mails | non |
 | `MAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER` | expéditeur et serveur SMTP | si e-mails | non |
@@ -192,11 +193,11 @@ MyLead exige 18 ans pour ouvrir un compte éditeur. Une seule question est posé
 |---|---|---|---|
 | Guides, opportunités, liste des offres | oui | oui | oui |
 | Parcours MyLead, lien de parrainage | oui | non | non |
-| Publier ou modifier une offre | oui* | non | non |
+| Publier ou modifier une fiche campagne | oui* | non | non |
 | Ouvrir un lien affilié | oui | non | non |
 | Retirer sa propre offre | oui | oui | oui |
 
-\* si `MEMBER_PUBLISHING_ENABLED=true` ; sinon réservé aux ADMIN (403 `PUBLISHING_RESTRICTED`).
+\* les liens affiliés sont réservés aux ADMIN ; un membre ne publie que des fiches campagne, sans lien de suivi (400 `AFFILIATE_LINK_FORBIDDEN`).
 
 La règle est appliquée par le serveur (403 `ADULT_REQUIRED`, ou `ADULT_DECLARATION_REQUIRED` sans réponse), pas seulement par l'interface. L'adresse d'un lien affilié n'est jamais envoyée à qui ne peut pas l'ouvrir : elle n'est délivrée que par `GET /api/community/offers/:id/open`, après contrôle. Une offre dont l'âge minimum dépasse 18 ans est refusée à tous (`AGE_RESTRICTED`).
 

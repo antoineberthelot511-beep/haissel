@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Parcours « Débuter sur MyLead » (11 étapes).
+ * Parcours « Débuter sur MyLead » (14 étapes).
  *
  * - Contenu statique : aucun appel réseau, aucun code à saisir par le membre.
  * - Progression enregistrée uniquement dans ce navigateur (localStorage) :
@@ -20,6 +20,8 @@
    * étapes déjà cochées d'un cran. On repart donc d'une progression vide
    * plutôt que d'en afficher une fausse.
    */
+  // Étapes ajoutées EN FIN de parcours : les indices existants ne bougent pas,
+  // la clé v2 reste valable.
   const STORAGE_KEY = 'haissel_mylead_progress_v2';
   const OFFICIAL = {
     start: 'https://mylead.global/fr/start',
@@ -136,7 +138,7 @@
     },
     {
       title: 'Copier ton lien d’affiliation',
-      intro: 'Une fois la campagne acceptée, MyLead génère ton lien personnel. C’est ce lien que tu publieras.',
+      intro: 'Une fois la campagne acceptée, MyLead génère ton lien personnel. C’est ce lien que tu partageras sur ta propre source de trafic, jamais sur HAISSEL.',
       instructions: [
         'Ouvre la campagne acceptée.',
         'Repère la section « Vos configurations » (« Your configurations » si ton panneau est en anglais) : le lien y apparaît automatiquement une fois la campagne acceptée.',
@@ -148,16 +150,16 @@
       links: [{ label: 'Guide officiel : obtenir son lien', href: OFFICIAL.link }],
     },
     {
-      title: 'Publier ton lien sur HAISSEL',
-      intro: 'Remplis le formulaire « Publier ». Décris l’offre honnêtement : ce que c’est, ce qu’il faut faire, pour qui.',
+      title: 'Partager une fiche campagne sur HAISSEL',
+      intro: 'Sur HAISSEL, tu ne publies pas ton lien affilié : tu partages une fiche campagne, avec la page officielle, tes conseils et les conditions. Chacun récupère ensuite son propre lien sur MyLead.',
       instructions: [
         'Appuie sur « Publier » dans la barre de navigation.',
-        'Colle ton lien dans le champ « Lien ».',
-        'Recopie les informations notées à l’étape « Vérifier pays, âge, action payée et restrictions » : pays, âge minimum, action attendue, restrictions.',
-        'N’indique une rémunération que si elle apparaît dans ta campagne MyLead.',
-        'Vérifie l’aperçu, coche la confirmation puis envoie. L’équipe vérifie l’offre avant de l’afficher.',
+        'Colle le lien de la page officielle : le site de l’annonceur ou la page de la campagne sur MyLead. Jamais ton lien affilié.',
+        'Indique le nom de la campagne MyLead, puis recopie les informations notées à l’étape « Vérifier pays, âge, action payée et restrictions ».',
+        'Ajoute tes conseils si tu veux : ce qui t’a aidé, les pièges à éviter.',
+        'Vérifie l’aperçu, coche la confirmation puis envoie. L’équipe vérifie la fiche avant de l’afficher.',
       ],
-      figure: { title: 'Formulaire Publier', rows: ['Titre', 'Lien https://…', 'Description', 'Pays · Âge · Action', 'Aperçu puis Envoyer'], highlight: 4, note: 'Écran HAISSEL.' },
+      figure: { title: 'Fiche campagne', rows: ['Page officielle https://…', 'Nom de la campagne', 'Description', 'Mes conseils', 'Aperçu puis Envoyer'], highlight: 0, note: 'Écran HAISSEL.' },
       internalView: { label: 'Ouvrir le formulaire Publier', view: 'publish' },
     },
     {
@@ -184,6 +186,43 @@
       ],
       figure: { title: 'Avant de publier', rows: ['✓ Honnête', '✓ « Lien affilié » visible', '✗ Spam', '✗ Promesse de gains'], highlight: -1, note: 'Voir aussi l’onglet Sécurité et légalité.' },
       internal: { label: 'Lire « Sécurité et légalité »', tab: 'safety' },
+    },
+    {
+      title: 'Trouve ton audience',
+      intro: 'Une offre n’intéresse pas tout le monde. Cherche les personnes à qui elle peut vraiment servir, là où tu as le droit de publier.',
+      instructions: [
+        'Pars de ce que tu connais : un sujet que tu suis, une appli que tu utilises vraiment.',
+        'Demande-toi à qui l’offre est utile : son âge, son pays, ce qu’il cherche.',
+        'Choisis un canal que tu as déclaré comme source de trafic sur MyLead : ton blog, ta chaîne, ton compte.',
+        'Vérifie que la campagne autorise ce canal et le pays de ton audience.',
+        'Mieux vaut peu de personnes vraiment intéressées que beaucoup de clics au hasard.',
+      ],
+      figure: { title: 'Mon audience', rows: ['Qui ?', 'Quel besoin ?', 'Quel pays ?', 'Quel canal autorisé ?'], highlight: 3, note: 'Dans le doute, relis les conditions de la campagne.' },
+    },
+    {
+      title: 'Présente une offre honnêtement (avec #publicité)',
+      intro: 'Quand tu partages ton lien sur ta source de trafic, dis clairement que c’est une publicité et décris l’offre telle qu’elle est.',
+      instructions: [
+        'Écris « #publicité » ou « lien affilié » juste à côté du lien, bien visible, pas caché en bas.',
+        'Explique ce que fait l’offre, ce qu’il faut faire, et ses limites (prix, pays, âge).',
+        'Parle de ton expérience si tu en as une, sans exagérer.',
+        'Ne promets aucun gain et ne présente pas une inscription comme payée si elle ne l’est pas.',
+        'Si quelqu’un pose une question, réponds honnêtement, même si la réponse le fait renoncer.',
+      ],
+      figure: { title: 'Ma publication', rows: ['#publicité', 'Ce que c’est', 'Ce qu’il faut faire', 'Les limites', 'Le lien'], highlight: 0, note: 'Exemple schématique.' },
+      internal: { label: 'Lire « Sécurité et légalité »', tab: 'safety' },
+    },
+    {
+      title: 'Pourquoi l’échange d’inscriptions est interdit',
+      intro: '« Inscris-toi sur mon lien et je m’inscris sur le tien » : ça a l’air de rendre service, mais c’est de la fraude.',
+      instructions: [
+        'Ces inscriptions ne viennent pas d’un vrai intérêt pour l’offre : ce sont de faux leads, que les annonceurs repèrent.',
+        'Les faux leads sont refusés : l’action n’est pas validée.',
+        'Les gains déjà comptés peuvent être annulés, pour toi comme pour l’autre membre.',
+        'MyLead peut fermer les comptes concernés, sans retour en arrière possible.',
+        'Sur HAISSEL, demander à d’autres membres de s’inscrire sur ton lien est interdit. Si tu vois une telle demande, signale-la avec le motif « Échange d’inscriptions ».',
+      ],
+      figure: { title: 'Échange d’inscriptions', rows: ['✗ Faux leads refusés', '✗ Gains annulés', '✗ Comptes fermés'], highlight: -1, note: 'Seules de vraies personnes intéressées comptent.' },
     },
   ];
 

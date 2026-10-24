@@ -258,12 +258,37 @@ function isAdultMember() {
 }
 
 /*
- * Publication ouverte à ce compte : majeur, et publication ouverte aux membres
- * (publishing_open) ou compte ADMIN. Le serveur applique la même règle (403).
+ * Publication ouverte aux membres majeurs : fiche campagne pour un membre,
+ * lien affilié pour un ADMIN. Le serveur applique la même règle.
  */
 function canPublish() {
-  if (!isAdultMember()) return false;
-  return state.config?.publishing_open !== false || state.user?.role === 'ADMIN';
+  return isAdultMember();
+}
+
+function isAdminUser() {
+  return state.user?.role === 'ADMIN';
+}
+
+/*
+ * Formulaire « Publier » selon le rôle : un ADMIN publie un lien affilié
+ * (« Partager un bon plan »), un membre une fiche campagne (page officielle,
+ * nom de la campagne, conseils).
+ */
+function applyPublishMode() {
+  const admin = isAdminUser();
+  ui.publishForm.dataset.kind = admin ? 'affiliate' : 'campaign';
+  document.getElementById('publish-title').textContent = admin ? 'Partager un bon plan 🚀' : 'Partager une fiche campagne';
+  document.getElementById('publish-eyebrow').textContent = admin
+    ? 'Partage ton lien d’affiliation avec la communauté.'
+    : 'Tes conseils et les conditions d’une campagne, sans ton lien affilié.';
+  document.getElementById('pub-url-label').textContent = admin
+    ? 'Lien'
+    : 'Lien vers la page officielle (site de l’annonceur ou page de la campagne sur MyLead)';
+  const rights = document.getElementById('pub-rights-text');
+  rights.replaceChildren(...(admin
+    ? ['Ce lien vient de ', h('strong', null, 'mon propre compte éditeur'), ' et je respecte les conditions de la campagne.']
+    : ['Ce lien mène à la ', h('strong', null, 'page officielle'), ', pas à mon lien affilié, et ma fiche respecte les conditions de la campagne.']));
+  document.querySelectorAll('[data-campaign-only]').forEach((el) => { el.hidden = admin; });
 }
 
 function needsAgeAnswer() {
@@ -273,6 +298,7 @@ function needsAgeAnswer() {
 /** Montre ou cache tout ce qui suppose 18 ans. */
 function applyAgeRestrictions() {
   const adult = isAdultMember();
+  applyPublishMode();
   const minor = Boolean(state.user) && state.user.is_adult === false;
 
   // Onglet « Publier » : retire de la navigation et des raccourcis.
@@ -759,6 +785,20 @@ function saveButtonFor(offer, { variant = 'icon', disabled = false } = {}) {
 }
 
 /*
+ * Badge de l'offre. Mention en toutes lettres : « Publicité » seul était trop
+ * vague. Lien affilié = publié par un ADMIN ; fiche campagne = membre, avec un
+ * lien vers la page officielle.
+ */
+function kindBadge(offer) {
+  if (offer.kind === 'campaign') {
+    return h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
+      icon('i-info', 'icon sm'), 'Fiche campagne');
+  }
+  return h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.' },
+    icon('i-link', 'icon sm'), 'Lien affilié');
+}
+
+/*
  * Carte du fil d'offres (accueil, recherche, profil d'un membre, aperçu).
  * Elle résume l'offre ; la description, les conditions et le signalement
  * sont dans le détail (openOffer). Aucune photo : une icône de catégorie.
@@ -773,15 +813,14 @@ function communityCard(offer, { preview = false } = {}) {
           ? h('strong', { className: 'fc-author' }, author)
           : h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(offer.author.username) }, author),
         h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.published_at || offer.created_at))),
-      // Mention obligatoire, en toutes lettres : « Publicité » seul était trop vague.
-      h('span', { className: 'pill ad', title: 'Son auteur peut toucher une commission si tu réalises l’action.' },
-        icon('i-link', 'icon sm'), 'Lien affilié')),
+      kindBadge(offer)),
     h('div', { className: 'fc-body' },
       h('p', { className: 'fc-meta' },
         offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
         h('span', null, offer.category_label),
         offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
       h('h3', { className: 'fc-title' }, offer.title),
+      offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'fc-campaign' }, `Campagne : ${offer.campaign_name}`) : null,
       offer.domain ? h('p', { className: 'fc-domain' }, offer.domain) : null,
       h('p', { className: 'fc-todo' },
         icon('i-check-circle'),
@@ -840,13 +879,15 @@ function offerDetail(offer) {
     h('div', null, h('strong', null, title), h('span', null, text)));
   const author = offer.author.username;
   const published = offer.status === 'published';
+  const campaign = offer.kind === 'campaign';
+  const openLabel = campaign ? 'Voir la page officielle' : 'Ouvrir le lien (site officiel)';
 
   return [
     h('div', { className: 'od-top' },
       h('button', { className: 'round-button', type: 'button', 'aria-label': 'Retour', onclick: leaveOfferView }, icon('i-arrow-left')),
       h('div', { className: 'od-badges' },
         offer.countries ? h('span', { className: 'pill' }, icon('i-globe', 'icon sm'), offer.countries) : null,
-        h('span', { className: 'pill ad', title: 'Son auteur peut toucher une commission si tu réalises l’action.' }, icon('i-link', 'icon sm'), 'Lien affilié'))),
+        kindBadge(offer))),
 
     h('article', { className: 'od-card od-hero' },
       h('div', { className: 'od-hero-head' },
@@ -858,6 +899,7 @@ function offerDetail(offer) {
         icon('i-shield-check'), h('span', null, 'Vérifiée par l’équipe HAISSEL'),
         h('small', null, formatAgo(offer.published_at))) : null,
       h('dl', { className: 'od-facts' },
+        campaign ? fact('Campagne MyLead', offer.campaign_name) : null,
         fact('Catégorie', offer.category_label),
         fact('Pays', offer.countries),
         offer.min_age ? fact('Âge minimum', `${offer.min_age} ans`) : null,
@@ -869,13 +911,19 @@ function offerDetail(offer) {
       h('h3', { id: 'offer-todo-title', className: 'od-title-dot' }, 'Ce qu’il faut faire'),
       h('p', { className: 'od-description' }, offer.description),
       h('ol', { className: 'od-steps' },
-        step(1, 'Clique sur « Ouvrir le lien » ci-dessous', 'HAISSEL te demande de confirmer avant de quitter le site.'),
+        step(1, `Clique sur « ${campaign ? 'Voir la page officielle' : 'Ouvrir le lien'} » ci-dessous`, 'HAISSEL te demande de confirmer avant de quitter le site.'),
         step(2, offer.expected_action, 'C’est l’action attendue par le site partenaire.'),
         step(3, 'Lis les conditions du site partenaire', 'Elles priment toujours sur ce résumé.'))),
 
+    campaign && offer.tips ? h('section', { className: 'od-card', 'aria-labelledby': 'offer-tips-title' },
+      h('h3', { id: 'offer-tips-title' }, `Les conseils de @${author}`),
+      h('p', { className: 'od-description' }, offer.tips)) : null,
+
     h('section', { className: 'od-card', 'aria-labelledby': 'offer-terms-title' },
       h('h3', { id: 'offer-terms-title' }, 'Conditions claires'),
-      h('p', { className: 'od-muted' }, 'Ce lien est un lien affilié : le membre qui l’a publié peut toucher une commission. Ça ne te coûte rien de plus, et aucun gain n’est garanti.'),
+      h('p', { className: 'od-muted' }, campaign
+        ? 'Cette fiche mène à la page officielle : ce n’est pas un lien affilié. Pour participer à la campagne, récupère ton propre lien sur MyLead. Aucun gain n’est garanti.'
+        : 'Ce lien est un lien affilié publié par l’équipe : HAISSEL peut toucher une commission. Ça ne te coûte rien de plus, et aucun gain n’est garanti.'),
       offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
       h('div', { className: 'od-tags' },
         offer.min_age ? h('span', { className: 'pill' }, icon('i-shield', 'icon sm'), `Réservé aux ${offer.min_age} ans et +`) : null,
@@ -897,9 +945,9 @@ function offerDetail(offer) {
         ? h('p', { className: 'offer-blocked' }, icon('i-lock'), 'Accessible à partir de 18 ans : le lien n’est pas affiché.')
         : h('button', {
           className: 'offer-link-button od-open', type: 'button',
-          'aria-label': `Ouvrir « ${offer.title} » (site externe, nouvel onglet)`,
+          'aria-label': `${openLabel} : « ${offer.title} » (site externe, nouvel onglet)`,
           onclick: () => confirmLeave(offer),
-        }, 'Ouvrir le lien (site officiel)', icon('i-external')),
+        }, openLabel, icon('i-external')),
       offer.is_mine ? null : saveButtonFor(offer, { variant: 'text' }),
       offer.is_mine ? null : h('button', { className: 'text-button od-report', type: 'button', onclick: () => openReport(offer) },
         icon('i-flag', 'icon sm'), 'Un problème ? Signaler cette offre')),
@@ -1092,6 +1140,11 @@ function readPublishForm() {
     conditions: readConditions() || null,
     rights_confirmed: ui.pubRights.checked,
   };
+  // Fiche campagne (membre) : nom de la campagne et conseils.
+  if (!isAdminUser()) {
+    values.campaign_name = ui.pubCampaignName.value.trim();
+    values.tips = ui.pubTips.value.trim() || null;
+  }
   /*
    * La rémunération n'est plus saisie. Le serveur réécrit tous les champs
    * lors d'une modification : on renvoie celle de l'offre telle quelle,
@@ -1260,6 +1313,8 @@ function fillPublishChoices(offer) {
 const PUBLISH_FIELD_INPUTS = {
   title: 'pubTitle',
   url: 'pubUrl',
+  campaign_name: 'pubCampaignName',
+  tips: 'pubTips',
   description: 'pubDescription',
   category: 'pubCategory',
   countries: 'pubCountriesGroup',
@@ -1313,6 +1368,7 @@ function publishFeedback(kind, message) {
 function checkPublishForm(values) {
   if (values.title.length < 5) return 'Le titre doit contenir au moins 5 caractères.';
   if (!/^https:\/\//i.test(values.url)) return 'Le lien doit commencer par https://';
+  if (values.campaign_name !== undefined && values.campaign_name.length < 2) return 'Indique le nom de la campagne MyLead.';
   if (values.description.length < 20) return 'La description doit contenir au moins 20 caractères.';
   if (!values.category) return 'Choisis une catégorie.';
   if (values.countries.length < 2) return 'Choisis au moins un pays.';
@@ -1362,6 +1418,7 @@ function updatePublishPreview() {
   try { domain = new URL(values.url).hostname; } catch (error) { /* lien incomplet */ }
   const preview = {
     ...values,
+    kind: isAdminUser() ? 'affiliate' : 'campaign',
     domain,
     title: values.title || 'Titre de ton offre',
     expected_action: values.expected_action || 'L’action attendue apparaîtra ici.',
@@ -1392,6 +1449,8 @@ function startOfferEdit(offer) {
   state.community.editing = offer.id;
   ui.pubTitle.value = offer.title;
   ui.pubUrl.value = offer.url;
+  ui.pubCampaignName.value = offer.campaign_name || '';
+  ui.pubTips.value = offer.tips || '';
   ui.pubDescription.value = offer.description;
   ui.pubCategory.value = offer.category;
   state.community.editingPayout = offer.payout_text || null;
@@ -2124,6 +2183,7 @@ document.addEventListener('DOMContentLoaded', () => {
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
+    pubCampaignName: 'pub-campaign-name', pubTips: 'pub-tips',
     memberDialog: 'member-dialog', memberTitle: 'member-title', memberMeta: 'member-meta', memberOffers: 'member-offers',
     publishForm: 'publish-form', publishFormTitle: 'publish-form-title', publishError: 'publish-error',
     publishSuccess: 'publish-success', publishPreview: 'publish-preview', publishPreviewCard: 'publish-preview-card',

@@ -363,16 +363,16 @@
               <nav id="home-chips" class="chip-row" aria-label="Chercher par catégorie"></nav>
 
               <details class="home-note">
-                <summary aria-label="Des liens affiliés publiés par des membres : en savoir plus">
-                  <span>Des liens affiliés publiés par des membres</span>
+                <summary aria-label="Fiches campagne des membres et liens affiliés de l'équipe : en savoir plus">
+                  <span>Fiches campagne et liens affiliés</span>
                   <svg class="icon sm" aria-hidden="true"><use href="#i-info" /></svg>
                 </summary>
-                <p>Ces offres sont des <strong>publicités</strong> publiées par des membres, signalées par le badge « Lien affilié ». L'équipe vérifie chaque offre avant qu'elle soit visible.</p>
+                <p>Les membres partagent des <strong>fiches campagne</strong> (badge « Fiche campagne ») : leurs conseils et les conditions, avec un lien vers la page officielle, jamais leur lien affilié. Seule l'équipe HAISSEL publie des <strong>liens affiliés</strong> (badge « Lien affilié »), qui sont des publicités. L'équipe vérifie chaque offre avant qu'elle soit visible.</p>
               </details>
               <div id="home-offers" class="offer-feed" aria-live="polite"></div>
               <div class="feed-end">
                 <p class="feed-end-title">Tu as tout vu pour l'instant ! 🎉</p>
-                <p data-publish-only>Partage ton propre bon plan pour aider la communauté.</p>
+                <p data-publish-only>Partage une fiche campagne : tes conseils et les conditions, sans ton lien.</p>
               </div>
 
               <!-- Anciens encadrés de l'accueil : masqués (un seul fil d'offres),
@@ -450,7 +450,7 @@
                   <span>Seulement mes offres sauvegardées</span>
                 </label>
               </form>
-              <p class="ad-notice">Toutes ces offres sont des <strong>liens affiliés</strong> (badge « Lien affilié ») : la personne qui a publié le lien (un membre ou l'équipe HAISSEL) peut toucher une commission si tu réalises l'action demandée. <strong>Aucun gain n'est garanti</strong>, ni pour toi ni pour elle. Rien ne t'oblige à cliquer.</p>
+              <p class="ad-notice">Les offres marquées « Lien affilié » sont publiées par l'équipe HAISSEL : HAISSEL peut toucher une commission si tu réalises l'action demandée. Les « Fiches campagne » des membres mènent à la page officielle et ne rapportent rien à leur auteur. <strong>Aucun gain n'est garanti.</strong> Rien ne t'oblige à cliquer.</p>
 
               <h3 class="subsection-title">Offres de la communauté</h3>
               <div id="community-list" class="offer-feed" aria-live="polite"></div>
@@ -604,8 +604,10 @@
             <section id="publish-view" class="view-panel hidden" aria-labelledby="publish-title">
               <div class="publish-hero">
                 <span class="publish-hero-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-send" /></svg></span>
-                <h2 id="publish-title" class="section-title">Partager un bon plan 🚀</h2>
-                <p class="eyebrow">Partage ton lien d'affiliation avec la communauté.</p>
+                <!-- Texte selon le rôle (app.js, applyPublishMode) : fiche campagne pour
+                     un membre, lien affilié pour un ADMIN. -->
+                <h2 id="publish-title" class="section-title">Partager une fiche campagne</h2>
+                <p id="publish-eyebrow" class="eyebrow">Tes conseils et les conditions d'une campagne, sans ton lien affilié.</p>
               </div>
               <details class="pub-rules">
                 <summary>
@@ -614,6 +616,8 @@
                   <svg class="icon pub-more-chevron" aria-hidden="true"><use href="#i-chevron-down" /></svg>
                 </summary>
                 <p>Chaque offre est <strong>vérifiée par l'équipe</strong> avant d'être visible. Décris-la honnêtement : pas de promesse de gains, pas de fausse information. Les jeux d'argent, la crypto, le crédit, les rencontres, les contenus pour adultes, le tabac et l'alcool sont refusés. HAISSEL ne te demandera jamais ton mot de passe MyLead.</p>
+                <p><strong>Ne partage jamais ton lien affilié</strong> : seulement la page officielle. Chacun récupère son propre lien sur MyLead.</p>
+                <p><strong>Il est interdit de demander aux membres de s'inscrire sur un lien</strong>, même en échange d'une inscription sur le tien. Ce sont de faux leads : ils sont refusés, les gains sont annulés et les comptes peuvent être fermés.</p>
               </details>
 
               <form id="publish-form" class="publish-form" novalidate>
@@ -623,14 +627,20 @@
                 <section class="pub-step" aria-labelledby="pub-step-1">
                   <h4 id="pub-step-1" class="pub-step-title"><span class="pub-step-no" aria-hidden="true">1</span>Colle ton lien</h4>
                   <label class="field icon-field">
-                    <span>Lien <small>(doit commencer par https://)</small></span>
+                    <span><span id="pub-url-label">Lien vers la page officielle (site de l'annonceur ou page de la campagne sur MyLead)</span> <small>(doit commencer par https://)</small></span>
                     <svg class="icon" aria-hidden="true"><use href="#i-link" /></svg>
-                    <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required />
+                    <input id="pub-url" type="url" inputmode="url" maxlength="2000" placeholder="https://…" autocomplete="off" required aria-describedby="pub-url-hint" />
                   </label>
+                  <p id="pub-url-hint" class="field-hint" data-campaign-only>Lien officiel uniquement. Chacun récupère son propre lien sur MyLead.</p>
                   <p class="field-error hidden" id="err-url" role="alert"></p>
+                  <label class="field" data-campaign-only>
+                    <span>Nom de la campagne MyLead</span>
+                    <input id="pub-campaign-name" type="text" minlength="2" maxlength="120" placeholder="ex. Notion – inscription gratuite" autocomplete="off" />
+                  </label>
+                  <p class="field-error hidden" id="err-campaign_name" role="alert"></p>
                   <label class="toggle-row rights-check">
                     <input id="pub-rights" type="checkbox" required />
-                    <span>Ce lien vient de <strong>mon propre compte éditeur</strong> et je respecte les conditions de la campagne.</span>
+                    <span id="pub-rights-text">Ce lien mène à la <strong>page officielle</strong>, pas à mon lien affilié, et ma fiche respecte les conditions de la campagne.</span>
                   </label>
                   <p class="field-error hidden" id="err-rights_confirmed" role="alert"></p>
                 </section>
@@ -670,6 +680,11 @@
                     <textarea id="pub-description" rows="4" minlength="20" maxlength="1500" placeholder="Ce que c'est, pour qui, et pourquoi c'est utile." required></textarea>
                   </label>
                   <p class="field-error hidden" id="err-description" role="alert"></p>
+                  <label class="field" data-campaign-only>
+                    <span>Mes conseils <small>(facultatif)</small></span>
+                    <textarea id="pub-tips" rows="4" maxlength="1500" placeholder="Ce qui t'a aidé, les pièges à éviter, à qui la campagne convient."></textarea>
+                  </label>
+                  <p class="field-error hidden" id="err-tips" role="alert"></p>
                   <fieldset id="pub-countries-group" class="choice-group">
                     <legend>Pays concernés <small>(au moins un)</small></legend>
                     <div id="pub-country-chips" class="choice-chips"></div>
@@ -989,6 +1004,7 @@
             <option value="dangerous">Lien dangereux ou arnaque</option>
             <option value="minors">Inadaptée aux mineurs</option>
             <option value="rights">L'auteur n'a pas le droit de la promouvoir</option>
+            <option value="signup_exchange">Échange d'inscriptions</option>
             <option value="other">Autre</option>
           </select>
         </label>
