@@ -630,7 +630,9 @@ async function createOffer(req, res, next) {
       success: true,
       data: {
         offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id, req.user),
-        message: 'Ton offre a été envoyée. Elle sera visible après vérification par l’équipe.',
+        message: kind === 'campaign'
+          ? 'Ta fiche a été envoyée. Elle sera visible après vérification par l’équipe.'
+          : 'Ton offre a été envoyée. Elle sera visible après vérification par l’équipe.',
       },
     });
   } catch (error) {

@@ -289,6 +289,9 @@ function applyPublishMode() {
     ? ['Ce lien vient de ', h('strong', null, 'mon propre compte éditeur'), ' et je respecte les conditions de la campagne.']
     : ['Ce lien mène à la ', h('strong', null, 'page officielle'), ', pas à mon lien affilié, et ma fiche respecte les conditions de la campagne.']));
   document.querySelectorAll('[data-campaign-only]').forEach((el) => { el.hidden = admin; });
+  if (!state.community.editing) ui.publishFormTitle.textContent = admin ? 'Nouvelle offre' : 'Nouvelle fiche';
+  document.getElementById('pub-step-1-label').textContent = admin ? 'Colle ton lien' : 'Lien officiel';
+  document.getElementById('my-offers-label').textContent = admin ? 'Mes offres' : 'Mes fiches';
 }
 
 function needsAgeAnswer() {
@@ -1437,7 +1440,7 @@ function resetPublishForm() {
   state.community.editingPayout = null;
   ui.publishForm.reset();
   renderPublishChoices();
-  ui.publishFormTitle.textContent = 'Nouvelle offre';
+  ui.publishFormTitle.textContent = isAdminUser() ? 'Nouvelle offre' : 'Nouvelle fiche';
   ui.pubCancelEdit.classList.add('hidden');
   syncCategoryTiles();
   updateTitleCount();
