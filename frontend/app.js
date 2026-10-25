@@ -378,18 +378,32 @@ function renderHomeLearnCard() {
   }
 }
 
-/** Puces de catégories de l'accueil : raccourcis vers « Chercher ». */
+/** Puces de catégories de « Recherche » (pilotent la liste déroulante du filtre). */
 function renderHomeChips() {
   if (!ui.homeChips) return;
-  ui.homeChips.replaceChildren(...Object.entries(state.community.categories).map(([value, label]) => h('button', {
-    className: 'chip', type: 'button',
+  const current = ui.communityCategory.value;
+  const chip = (value, label, iconNode) => h('button', {
+    className: `chip${current === value ? ' active' : ''}`, type: 'button', 'aria-pressed': String(current === value),
     onclick: () => {
       ui.communityCategory.value = value;
       syncFiltersToUrl();
-      setActiveView('links');
+      renderHomeChips();
       loadCommunity();
     },
-  }, categoryIcon(value, 'icon sm'), label)));
+  }, iconNode, label);
+  ui.homeChips.replaceChildren(chip('', 'Toutes', null),
+    ...Object.entries(state.community.categories).map(([value, label]) => chip(value, label, categoryIcon(value, 'icon sm'))));
+}
+
+/* Vignette carrée de la grille « Recherche » : toucher ouvre le détail. */
+function gridTile(offer) {
+  return h('button', {
+    className: `grid-cell${offer.expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`,
+    onclick: () => openOffer(offer),
+  }, categoryVisual(offer.category, 'grid-tile',
+    h('span', { className: 'grid-tile-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('span', { className: 'grid-tile-title' }, offer.title),
+    offer.kind === 'affiliate' ? h('span', { className: 'grid-tile-tag', title: 'Lien affilié' }, icon('i-link', 'icon sm')) : null));
 }
 
 function showLoggedIn(user) {
@@ -1140,7 +1154,7 @@ async function loadCommunity() {
     const items = data.items || [];
     ui.communityList.setAttribute('aria-busy', 'false');
     ui.communityList.replaceChildren(...(items.length
-      ? items.map((offer) => communityCard(offer))
+      ? items.map((offer) => gridTile(offer))
       : [h('div', { className: 'panel-card' }, query
         ? 'Aucune offre ne correspond à ta recherche.'
         : 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));

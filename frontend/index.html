@@ -362,7 +362,6 @@
                 <ul id="home-stories" class="stories-row"></ul>
               </nav>
 
-              <nav id="home-chips" class="chip-row" aria-label="Chercher par catégorie"></nav>
 
               <details class="home-note">
                 <summary aria-label="Fiches campagne des membres et liens affiliés de l'équipe : en savoir plus">
@@ -437,6 +436,8 @@
                   <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
                   <input id="community-q" type="search" maxlength="80" placeholder="Une marque, une appli, un jeu…" />
                 </label>
+                <!-- Catégories en puces (app.js) ; la liste déroulante reste la source du filtre. -->
+                <nav id="home-chips" class="chip-row search-chips" aria-label="Catégories"></nav>
                 <div class="filters-row">
                   <label class="field">
                     <span>Catégorie</span>
@@ -454,8 +455,8 @@
               </form>
               <p class="ad-notice">Les offres marquées « Lien affilié » sont publiées par l'équipe HAISSEL : HAISSEL peut toucher une commission si tu réalises l'action demandée. Les « Fiches campagne » des membres mènent à la page officielle et ne rapportent rien à leur auteur. <strong>Aucun gain n'est garanti.</strong> Rien ne t'oblige à cliquer.</p>
 
-              <h3 class="subsection-title">Offres de la communauté</h3>
-              <div id="community-list" class="offer-feed" aria-live="polite"></div>
+              <h3 class="subsection-title visually-hidden">Offres</h3>
+              <div id="community-list" class="offer-grid" aria-live="polite"></div>
 
               <h3 class="subsection-title">Liens de l'équipe HAISSEL</h3>
               <div id="links-list" class="offer-feed" aria-live="polite"></div>
