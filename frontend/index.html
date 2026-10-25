@@ -118,6 +118,12 @@
       <!-- ====================== EN-TÊTE ====================== -->
       <header class="topbar">
         <div class="topbar-inner">
+          <!-- En-tête façon Instagram : + (Publier, majeurs) | HAISSEL | cloche -->
+          <div class="topbar-left">
+            <button class="topbar-icon topbar-publish member-only" type="button" data-view="publish" data-publish-only aria-label="Publier une fiche">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-add" /></svg>
+            </button>
+          </div>
           <a class="wordmark" href="/" aria-label="HAISSEL — accueil">
             <span class="wordmark-logo" aria-hidden="true">H</span>
             <span class="wordmark-text">HAISSEL</span>
@@ -355,18 +361,6 @@
               <nav class="stories-bar hidden" aria-label="Fiches campagne des membres">
                 <ul id="home-stories" class="stories-row"></ul>
               </nav>
-
-              <!-- « Apprendre » : bandeau d'une ligne (rempli par app.js), masquable -->
-              <aside id="home-learn-card" class="learn-banner" aria-label="Apprendre">
-                <button id="home-learn-go" class="lb-go" type="button">
-                  <span class="lb-icon" aria-hidden="true"><svg class="icon"><use href="#i-book" /></svg></span>
-                  <span class="lb-text"><strong id="home-learn-step">Guides</strong> <span id="home-learn-text">Les bases de l'affiliation</span></span>
-                  <svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>
-                </button>
-                <button id="home-learn-close" class="lb-close" type="button" aria-label="Masquer ce bandeau">
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-close" /></svg>
-                </button>
-              </aside>
 
               <nav id="home-chips" class="chip-row" aria-label="Chercher par catégorie"></nav>
 

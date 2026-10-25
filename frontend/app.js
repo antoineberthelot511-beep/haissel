@@ -361,7 +361,7 @@ function setProfileTab(name) {
  * Apprendre reste accessible depuis le profil.
  */
 function renderHomeLearnCard() {
-  if (!ui.homeLearnCard) return;
+  if (!ui.homeLearnCard || !ui.homeLearnStep) return;
   const guide = window.HaisselMyLeadGuide;
   ui.homeLearnCard.hidden = Boolean(guide?.bannerHidden?.());
   const progress = isAdultMember() && guide?.progress ? guide.progress() : null;
@@ -808,6 +808,59 @@ function storyTimeLeft(offer) {
   return hours < 1 ? 'moins d’1 h' : `encore ${Math.round(hours)} h`;
 }
 
+/*
+ * Couleurs des catégories (grande zone visuelle des publications, vignettes).
+ * Catégorie inconnue (créée depuis la console) : couleur neutre.
+ */
+const CATEGORY_COLORS = {
+  applications: ['#2563eb', '#60a5fa'],
+  jeux: ['#7c3aed', '#c084fc'],
+  shopping: ['#db2777', '#f9a8d4'],
+  services: ['#0d9488', '#5eead4'],
+  education: ['#ea580c', '#fdba74'],
+  sondages: ['#ca8a04', '#fde047'],
+};
+
+function categoryVisual(category, className, ...children) {
+  const [from, to] = CATEGORY_COLORS[category] || ['#475569', '#94a3b8'];
+  const element = h('div', { className }, ...children);
+  element.style.setProperty('--cat-from', from);
+  element.style.setProperty('--cat-to', to);
+  return element;
+}
+
+/*
+ * Publication du fil d'Accueil, façon Instagram : en-tête, grande zone
+ * carrée, actions, texte. Toucher la zone ouvre le détail habituel (règles
+ * d'âge et confirmation de sortie inchangées).
+ */
+function postCard(offer) {
+  const left = storyTimeLeft(offer);
+  const visual = categoryVisual(offer.category, 'post-visual',
+    h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('h3', { className: 'post-visual-title' }, offer.title),
+    offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
+  return h('article', { className: 'post-card' },
+    h('header', { className: 'post-head' },
+      storyAvatar(offer.author.username, 'story-avatar sm'),
+      h('div', { className: 'post-who' },
+        h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
+        h('span', null, [offer.category_label, formatAgo(offer.shown_at || offer.published_at)].filter(Boolean).join(' · '))),
+      kindBadge(offer)),
+    h('button', { className: 'post-open', type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`, onclick: () => openOffer(offer) }, visual),
+    h('div', { className: 'post-actions' },
+      offer.is_mine ? null : saveButtonFor(offer),
+      offer.is_mine ? null : h('button', {
+        className: 'post-action', type: 'button', 'aria-label': `Signaler « ${offer.title} »`, onclick: () => openReport(offer),
+      }, icon('i-flag', 'icon lg')),
+      h('span', { className: 'post-spacer' }),
+      offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
+    h('p', { className: 'post-todo' }, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+    h('p', { className: 'post-meta' },
+      offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
+      left ? h('span', null, icon('i-clock', 'icon sm'), left) : null));
+}
+
 function storyBadge(offer) {
   if (offer.expired) return h('span', { className: 'pill expired' }, 'Expirée');
   const left = storyTimeLeft(offer);
@@ -1065,7 +1118,7 @@ async function loadCommunity() {
       // Fil de l'accueil : les offres ADMIN d'abord, puis les fiches.
       const feed = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
       ui.homeOffers.replaceChildren(...(feed.length
-        ? feed.map((offer) => communityCard(offer))
+        ? feed.map((offer) => postCard(offer))
         : [h('div', { className: 'panel-card' },
           'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
     }
@@ -2821,14 +2874,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.learn-tab').forEach((tab) => {
     tab.addEventListener('click', () => setLearnTab(tab.dataset.learnTab));
   });
-  ui.homeLearnGo.addEventListener('click', () => {
-    setActiveView('learn');
-    setLearnTab(ui.homeLearnGo.dataset.tab || 'guides');
-  });
-  document.getElementById('home-learn-close').addEventListener('click', () => {
-    window.HaisselMyLeadGuide?.hideBanner?.();
-    ui.homeLearnCard.hidden = true;
-  });
+  // Bandeau « Apprendre » retiré de l'accueil pour l'instant (renderHomeLearnCard ne fait rien sans lui).
   ui.oppAge.addEventListener('input', renderOpportunities);
   ui.oppCountry.addEventListener('input', renderOpportunities);
 
