@@ -1160,3 +1160,8 @@ body.story-open { position: fixed; left: 0; right: 0; overflow: hidden; }
 }
 .sv-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 0; background: none; color: var(--v2-error); font: inherit; cursor: pointer; border-radius: var(--v2-r-sm); }
 .story-viewer .hidden { display: none; }
+
+/* Messages : écran d'attente. */
+.messages-soon { display: grid; justify-items: center; gap: 8px; padding: 18vh 16px 0; text-align: center; color: var(--v2-on-surface-variant); }
+.messages-soon-icon { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; border: 2px solid currentColor; }
+.messages-soon .section-title { margin: 8px 0 0; color: var(--v2-on-surface); }

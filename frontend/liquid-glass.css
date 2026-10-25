@@ -129,3 +129,21 @@
   backdrop-filter: blur(18px) saturate(180%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 4px 14px rgba(0, 0, 0, .3);
 }
+
+/* --- Barre à icônes seules (5 onglets) ------------------------------------ */
+.topbar-nav .topbar-nav-inner { padding: 6px; gap: 2px; }
+.topbar-nav .nav-button { flex: 1 1 0; min-width: 0; min-height: 50px; padding: 0; }
+.nav-avatar {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--v2-primary-fixed); color: var(--v2-on-primary-fixed); font-size: 12px; font-weight: 800;
+  box-shadow: 0 0 0 2px transparent; transition: box-shadow .2s ease;
+}
+.topbar-nav .nav-button.active .nav-avatar { box-shadow: 0 0 0 2px currentColor; }
+
+/* Découvrir : verre sombre par-dessus les offres plein écran. */
+body[data-view="discover"] .topbar-nav .topbar-nav-inner {
+  --lg-tint: rgba(10, 12, 20, .5); --lg-edge: rgba(255, 255, 255, .28); --lg-edge-low: rgba(255, 255, 255, .04);
+  --lg-line: rgba(255, 255, 255, .14); --lg-drop: rgba(255, 255, 255, .16); --lg-drop-edge: rgba(255, 255, 255, .4);
+}
+body[data-view="discover"] .topbar-nav .nav-button { color: rgba(235, 238, 248, .8); }
+body[data-view="discover"] .topbar-nav .nav-button.active { color: #fff; }

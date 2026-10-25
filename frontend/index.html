@@ -28,6 +28,8 @@
       <!-- Navigation et actions -->
       <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></symbol>
       <symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" /><path d="M3.5 8.5h17M8 3.5l3 5M13.5 3.5l3 5M10.5 12.2v5l4.3-2.5z" /></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" /><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17" /></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.4-4.4" /></symbol>
       <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6.5 4h11v16l-5.5-4-5.5 4z" /></symbol>
       <symbol id="i-bookmark-fill" viewBox="0 0 24 24"><path d="M6.5 4h11v16l-5.5-4-5.5 4z" fill="currentColor" /></symbol>
@@ -139,24 +141,24 @@
           </div>
         </div>
 
-        <!-- Navigation principale : barre flottante en bas d'écran.
-             « Apprendre » est accessible depuis l'accueil et le profil. -->
+        <!-- Navigation principale : barre flottante en bas d'écran, icônes
+             seules (façon Instagram). Publier : le + de l'en-tête d'Accueil. -->
         <nav class="topbar-nav" aria-label="Navigation principale">
           <div class="topbar-nav-inner">
-            <button class="nav-button active" type="button" data-view="home" aria-current="page">
+            <button class="nav-button active" type="button" data-view="home" aria-current="page" aria-label="Accueil">
               <svg class="icon lg" aria-hidden="true"><use href="#i-home" /></svg>
-              <span>Accueil</span>
             </button>
-            <button class="nav-button" type="button" data-view="links">
-              <svg class="icon lg" aria-hidden="true"><use href="#i-compass" /></svg>
-              <span>Chercher</span>
+            <button class="nav-button" type="button" data-view="discover" aria-label="Découvrir">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-play" /></svg>
             </button>
-            <button class="nav-button nav-fab" type="button" data-view="publish" aria-label="Publier une offre">
-              <span class="nav-fab-circle" aria-hidden="true"><svg class="icon"><use href="#i-add" /></svg></span>
+            <button class="nav-button" type="button" data-view="messages" aria-label="Messages">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-send" /></svg>
             </button>
-            <button class="nav-button" type="button" data-view="profile">
-              <svg class="icon lg" aria-hidden="true"><use href="#i-user" /></svg>
-              <span>Profil</span>
+            <button class="nav-button" type="button" data-view="links" aria-label="Recherche">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-search" /></svg>
+            </button>
+            <button class="nav-button" type="button" data-view="profile" aria-label="Profil">
+              <span id="nav-avatar" class="nav-avatar" aria-hidden="true">H</span>
             </button>
           </div>
         </nav>
@@ -578,6 +580,20 @@
                   </ul>
                   <a class="secondary-button" href="transparence.html">Lire la page Transparence complète</a>
                 </div>
+              </div>
+            </section>
+
+            <!-- Découvrir : une offre par écran (rempli par app.js) -->
+            <section id="discover-view" class="view-panel hidden" aria-label="Découvrir">
+              <div id="discover-feed" class="discover-feed" aria-live="polite"></div>
+            </section>
+
+            <!-- Messages : à venir -->
+            <section id="messages-view" class="view-panel hidden" aria-labelledby="messages-title">
+              <div class="messages-soon">
+                <span class="messages-soon-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-send" /></svg></span>
+                <h2 id="messages-title" class="section-title">Messages</h2>
+                <p>Bientôt : écris à l'équipe Haissel.</p>
               </div>
             </section>
 

@@ -197,6 +197,7 @@ function updateUserSummary() {
   ui.sidebarAvatar.textContent = initials;
   ui.profileAvatar.textContent = initials;
   ui.topbarAvatar.textContent = initials;
+  ui.navAvatar.textContent = initials;
 
   ui.homeName.textContent = ui.welcomeName.textContent;
   ui.homeUsername.textContent = state.user ? `@${state.user.username}` : '—';
@@ -221,6 +222,8 @@ function setActiveView(viewName) {
   document.querySelectorAll('.view-panel').forEach((panel) => {
     panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
   });
+  // Découvrir : barre du bas en version sombre (liquid-glass.css).
+  document.body.dataset.view = viewName;
   if (viewName === 'home' && state.user) renderHomeLearnCard();
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
   if ((viewName === 'links' || viewName === 'home') && state.user && !state.community.loaded) loadCommunity();
@@ -2728,7 +2731,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', homeStories: 'home-stories', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
