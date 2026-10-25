@@ -1111,6 +1111,8 @@ function storyRing({ username, label, unseen, onclick, extra = null, ariaLabel }
   return h('li', { className: 'story-item' },
     h('button', {
       className: `story-ring${unseen ? ' is-unseen' : ' is-seen'}`, type: 'button', 'aria-label': ariaLabel, onclick,
+      // Le lecteur s'ouvre depuis ce rond et s'y referme (openStoryViewer).
+      'data-author': username,
     }, storyAvatar(username), extra),
     h('span', { className: 'story-name', 'aria-hidden': 'true' }, label));
 }
@@ -1129,7 +1131,7 @@ function renderStories(items) {
     rings.push(mine.length
       ? storyRing({
         username: me, label: 'Toi', unseen: false, ariaLabel: `Voir tes fiches en cours (${mine.length})`,
-        onclick: () => openStoryViewer([{ username: me, offers: mine }], 0, 0),
+        onclick: (event) => openStoryViewer([{ username: me, offers: mine }], 0, 0, event.currentTarget),
       })
       : storyRing({
         username: me, label: 'Toi', unseen: false, ariaLabel: 'Partager une fiche campagne',
@@ -1142,7 +1144,7 @@ function renderStories(items) {
     rings.push(storyRing({
       username: group.username, label: group.username, unseen: group.unseen,
       ariaLabel: `Fiches de @${group.username} : ${count} fiche${count > 1 ? 's' : ''}${group.unseen ? ', non vues' : ', déjà vues'}`,
-      onclick: () => openStoryViewer(groups, index, Stories.startIndex(group.offers, seen)),
+      onclick: (event) => openStoryViewer(groups, index, Stories.startIndex(group.offers, seen), event.currentTarget),
     }));
   });
   ui.homeStories.replaceChildren(...rings);
@@ -1155,9 +1157,17 @@ function refreshStoryRings() {
 
 /* Lecteur ------------------------------------------------------------------ */
 
+/*
+ * Gestes et animations façon Instagram. Seuls transform et opacity sont
+ * animés (plus les coins arrondis à l'ouverture et à la fermeture) ; le doigt
+ * est suivi dans requestAnimationFrame. La décision des gestes est dans
+ * stories.js (fonctions pures, testées).
+ */
 const viewer = {
-  root: null, groups: [], g: 0, i: 0, elapsed: 0, last: 0, frame: 0, paused: false, holdTimer: 0,
-  held: false, startY: 0, startX: 0, returnFocus: null,
+  root: null, backdrop: null, cube: null, face: null, neighbor: null, neighborDir: 0,
+  groups: [], g: 0, i: 0, elapsed: 0, last: 0, frame: 0, anim: 0, render: 0,
+  paused: false, holding: false, closing: false, gesture: null, holdTimer: 0,
+  returnFocus: null, scrollY: 0,
 };
 
 function reducedMotion() {
@@ -1202,14 +1212,17 @@ function storyMenu(offer) {
   return [toggle, menu];
 }
 
-function paintStory() {
-  const offer = currentStory();
-  if (!offer) { closeStoryViewer(); return; }
-  const group = viewer.groups[viewer.g];
-  const bars = group.offers.map((_, index) => h('span', { className: 'sv-bar' },
-    h('span', { className: 'sv-bar-fill', style: `width:${index < viewer.i ? 100 : 0}%` })));
+/* Un écran du lecteur : la fiche i de l'auteur g. */
+function storyFace(g, i) {
+  const group = viewer.groups[g];
+  const offer = group.offers[i];
+  const bars = group.offers.map((_, index) => {
+    const fill = h('span', { className: 'sv-bar-fill' });
+    fill.style.transform = `scaleX(${index < i ? 1 : 0})`;
+    return h('span', { className: 'sv-bar' }, fill);
+  });
   const [menuButton, menu] = storyMenu(offer);
-  viewer.root.replaceChildren(
+  return h('div', { className: 'sv-face' },
     h('div', { className: 'sv-bars', 'aria-hidden': 'true' }, bars),
     h('header', { className: 'sv-head' },
       storyAvatar(offer.author.username, 'story-avatar sm'),
@@ -1217,10 +1230,12 @@ function paintStory() {
         h('strong', null, `@${offer.author.username}`),
         h('span', null, formatAgo(offer.shown_at || offer.published_at))),
       kindBadge(offer),
-      h('button', { className: 'sv-round', type: 'button', 'aria-label': 'Fermer', onclick: closeStoryViewer }, icon('i-close'))),
+      h('button', { className: 'sv-round', type: 'button', 'aria-label': 'Fermer', onclick: () => closeStoryViewer() }, icon('i-close'))),
     h('p', { className: 'visually-hidden', 'aria-live': 'polite' },
-      `Fiche ${viewer.i + 1} sur ${group.offers.length} de @${group.username}`),
+      `Fiche ${i + 1} sur ${group.offers.length} de @${group.username}`),
     h('div', { className: 'sv-stage' },
+      // Boutons pour le clavier et les lecteurs d'écran ; au doigt, la zone
+      // entière réagit (voir onStoryPointerUp).
       h('button', { className: 'sv-nav prev', type: 'button', onclick: () => stepStory(-1) }, h('span', { className: 'visually-hidden' }, 'Précédente')),
       storyCard(offer),
       h('button', { className: 'sv-nav next', type: 'button', onclick: () => stepStory(1) }, h('span', { className: 'visually-hidden' }, 'Suivante'))),
@@ -1232,22 +1247,34 @@ function paintStory() {
       offer.is_mine ? null : saveButtonFor(offer),
       offer.is_mine ? null : menuButton,
       offer.is_mine ? null : menu));
-  viewer.fill = viewer.root.querySelectorAll('.sv-bar-fill')[viewer.i];
+}
+
+function paintStory() {
+  const offer = currentStory();
+  if (!offer) { closeStoryViewer(); return; }
+  const face = storyFace(viewer.g, viewer.i);
+  if (viewer.face) viewer.face.replaceWith(face);
+  else viewer.cube.append(face);
+  viewer.face = face;
+  viewer.fill = face.querySelectorAll('.sv-bar-fill')[viewer.i];
   viewer.elapsed = 0;
-  if (reducedMotion()) viewer.fill.style.width = '100%';
+  if (reducedMotion()) viewer.fill.style.transform = 'scaleX(1)';
   const storage = safeStorage();
   if (storage) Stories.markSeen(storage, offer);
 }
 
 function tickStory(now) {
   viewer.frame = window.requestAnimationFrame(tickStory);
-  if (viewer.paused || reducedMotion() || document.querySelector('dialog[open]')) { viewer.last = now; return; }
+  const stopped = viewer.paused || viewer.holding || viewer.closing || viewer.anim
+    || (viewer.gesture && viewer.gesture.kind && viewer.gesture.kind !== 'ignore');
+  if (stopped || reducedMotion() || document.querySelector('dialog[open]')) { viewer.last = now; return; }
   viewer.elapsed += now - (viewer.last || now);
   viewer.last = now;
-  if (viewer.fill) viewer.fill.style.width = `${Math.min(100, (viewer.elapsed / STORY_DURATION) * 100)}%`;
+  if (viewer.fill) viewer.fill.style.transform = `scaleX(${Math.min(1, viewer.elapsed / STORY_DURATION)})`;
   if (viewer.elapsed >= STORY_DURATION) stepStory(1);
 }
 
+/* Changement instantané (toucher, flèches, boutons). */
 function stepStory(delta) {
   const group = viewer.groups[viewer.g];
   let { g, i } = viewer;
@@ -1274,62 +1301,289 @@ function onStoryKey(event) {
   else if (event.key === 'ArrowLeft') { event.preventDefault(); stepStory(-1); }
 }
 
+/* Transformations ----------------------------------------------------------- */
+
+/* Transformation qui ramène l'écran entier sur le rond (ouverture, fermeture). */
+function ringTransform(rect) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const tx = rect.left + rect.width / 2 - vw / 2;
+  const ty = rect.top + rect.height / 2 - vh / 2;
+  return `translate(${tx}px, ${ty}px) scale(${rect.width / vw}, ${rect.height / vh})`;
+}
+
+function ringRectFor(username) {
+  const ring = ui.homeStories?.querySelector(`.story-ring[data-author="${CSS.escape(username)}"]`);
+  if (!ring) return null;
+  const rect = ring.getBoundingClientRect();
+  const visible = rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
+  return visible ? rect : null;
+}
+
+/* Fermeture en cours de geste : la story suit le doigt et rétrécit. */
+function applyDismiss(dx, dy) {
+  const down = Math.max(0, dy);
+  const k = Math.min(1, down / (window.innerHeight * 0.5));
+  if (reducedMotion()) {
+    viewer.face.style.opacity = String(1 - k * 0.6);
+  } else {
+    viewer.face.style.transform = `translate(${dx * 0.4}px, ${down}px) scale(${1 - 0.15 * k})`;
+    viewer.face.style.borderRadius = `${Math.min(24, down / 6)}px`;
+  }
+  viewer.backdrop.style.opacity = String(1 - k);
+}
+
+function setFace(face, tx, deg, origin) {
+  face.style.transformOrigin = origin;
+  face.style.transform = `translateX(${tx}px) rotateY(${deg}deg)`;
+}
+
 /*
- * Gestes : toucher à droite = suivante, à gauche = précédente ; rester
- * appuyé = pause ; glisser vers le bas = fermer. Les boutons gardent leur
- * propre action.
+ * Cube : p = déplacement / largeur (-1 = auteur suivant arrivé, +1 = auteur
+ * précédent arrivé). Chaque face tourne autour de l'arête commune.
  */
+function applyCube(p) {
+  const w = window.innerWidth;
+  if (!viewer.neighbor) {
+    // Premier ou dernier auteur : résistance élastique.
+    viewer.face.style.transform = `translateX(${p * w * 0.25}px)`;
+    return;
+  }
+  if (p < 0) {
+    setFace(viewer.face, p * w, p * 90, '100% 50%');
+    setFace(viewer.neighbor, w + p * w, 90 * (1 + p), '0% 50%');
+  } else {
+    setFace(viewer.face, p * w, p * 90, '0% 50%');
+    setFace(viewer.neighbor, -w + p * w, -90 * (1 - p), '100% 50%');
+  }
+}
+
+function prepareNeighbor(dir) {
+  if (viewer.neighborDir === dir) return;
+  viewer.neighbor?.remove();
+  viewer.neighbor = null;
+  viewer.neighborDir = dir;
+  const g = viewer.g + dir;
+  if (reducedMotion() || g < 0 || g >= viewer.groups.length) return;
+  viewer.neighbor = storyFace(g, Stories.startIndex(viewer.groups[g].offers, storiesSeen()));
+  viewer.neighbor.setAttribute('aria-hidden', 'true');
+  viewer.cube.append(viewer.neighbor);
+}
+
+function resetFaceStyles(face) {
+  face.style.transform = '';
+  face.style.transformOrigin = '';
+  face.style.borderRadius = '';
+  face.style.opacity = '';
+}
+
+/* Interpolation dans requestAnimationFrame (cube qui se termine ou revient). */
+function tween(from, to, ms, onFrame, done) {
+  const start = performance.now();
+  const ease = (t) => 1 - (1 - t) ** 3;
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / ms);
+    onFrame(from + (to - from) * ease(t));
+    if (t < 1) viewer.anim = window.requestAnimationFrame(step);
+    else { viewer.anim = 0; done(); }
+  };
+  viewer.anim = window.requestAnimationFrame(step);
+}
+
+function finishCube(decision, dx) {
+  const w = window.innerWidth;
+  const p0 = Math.max(-1, Math.min(1, dx / w));
+  const target = decision === 'next-author' ? -1 : decision === 'prev-author' ? 1 : 0;
+  const done = () => {
+    viewer.neighbor?.remove();
+    viewer.neighbor = null;
+    viewer.neighborDir = 0;
+    if (target !== 0) {
+      viewer.g -= target;
+      viewer.i = Stories.startIndex(viewer.groups[viewer.g].offers, storiesSeen());
+      paintStory();
+      if (reducedMotion()) viewer.face.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+    } else {
+      resetFaceStyles(viewer.face);
+    }
+  };
+  if (reducedMotion()) { done(); return; }
+  tween(p0, target, target === 0 ? 300 : 260, applyCube, done);
+}
+
+function restoreDismiss() {
+  const { face, backdrop } = viewer;
+  const from = { transform: face.style.transform || 'none', borderRadius: face.style.borderRadius || '0px', opacity: face.style.opacity || '1' };
+  const fromBackdrop = backdrop.style.opacity || '1';
+  resetFaceStyles(face);
+  backdrop.style.opacity = '';
+  if (reducedMotion()) return;
+  face.animate([from, { transform: 'none', borderRadius: '0px', opacity: '1' }],
+    { duration: 320, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+  backdrop.animate([{ opacity: fromBackdrop }, { opacity: 1 }], { duration: 200 });
+}
+
+/* Gestes ------------------------------------------------------------------- */
+
+function velocity(samples) {
+  const last = samples[samples.length - 1];
+  const first = samples.find((s) => last.t - s.t <= 100) || samples[0];
+  const dt = Math.max(1, last.t - first.t);
+  return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+}
+
 function onStoryPointerDown(event) {
+  if (viewer.closing || viewer.anim || viewer.gesture) return;
   if (event.target.closest('button, a, [role="menu"]')) return;
-  viewer.startX = event.clientX;
-  viewer.startY = event.clientY;
-  viewer.held = false;
-  viewer.tracking = true;
+  viewer.gesture = {
+    id: event.pointerId, x0: event.clientX, y0: event.clientY, dx: 0, dy: 0, kind: null,
+    samples: [{ t: event.timeStamp, x: event.clientX, y: event.clientY }],
+  };
+  try { viewer.root.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
   clearTimeout(viewer.holdTimer);
-  viewer.holdTimer = setTimeout(() => { viewer.held = true; pauseStory(true); }, 250);
+  viewer.holdTimer = setTimeout(() => {
+    if (!viewer.gesture || viewer.gesture.kind) return;
+    viewer.holding = true;
+    viewer.root.classList.add('is-holding');
+  }, Stories.GESTURE.holdMs);
 }
 
-function onStoryPointerUp(event) {
-  if (!viewer.tracking) return;
-  viewer.tracking = false;
-  clearTimeout(viewer.holdTimer);
-  const dy = event.clientY - viewer.startY;
-  if (dy > 80) { closeStoryViewer(); return; }
-  if (viewer.held) { pauseStory(false); return; }
-  if (Math.abs(event.clientX - viewer.startX) > 30) return;
-  stepStory(event.clientX < window.innerWidth / 2 ? -1 : 1);
+function renderGesture() {
+  viewer.render = 0;
+  const gesture = viewer.gesture;
+  if (!gesture || !viewer.face) return;
+  if (gesture.kind === 'dismiss') applyDismiss(gesture.dx, gesture.dy);
+  else if (gesture.kind === 'author' && !reducedMotion()) {
+    prepareNeighbor(gesture.dx < 0 ? 1 : -1);
+    applyCube(Math.max(-1, Math.min(1, gesture.dx / window.innerWidth)));
+  }
 }
 
-function openStoryViewer(groups, g, i) {
-  if (viewer.root) closeStoryViewer();
-  viewer.groups = groups; viewer.g = g; viewer.i = i;
+function onStoryPointerMove(event) {
+  const gesture = viewer.gesture;
+  if (!gesture || event.pointerId !== gesture.id) return;
+  gesture.dx = event.clientX - gesture.x0;
+  gesture.dy = event.clientY - gesture.y0;
+  gesture.samples.push({ t: event.timeStamp, x: event.clientX, y: event.clientY });
+  if (gesture.samples.length > 12) gesture.samples.shift();
+  // Appui long en cours : les mouvements ne lancent plus de geste.
+  if (viewer.holding) return;
+  if (!gesture.kind) {
+    gesture.kind = Stories.classifyGesture(gesture.dx, gesture.dy);
+    if (!gesture.kind) return;
+    clearTimeout(viewer.holdTimer);
+  }
+  if (gesture.kind === 'ignore') return;
+  if (!viewer.render) viewer.render = window.requestAnimationFrame(renderGesture);
+}
+
+function onStoryPointerUp(event, cancelled = false) {
+  const gesture = viewer.gesture;
+  if (!gesture || event.pointerId !== gesture.id) return;
+  viewer.gesture = null;
+  clearTimeout(viewer.holdTimer);
+  if (viewer.render) { window.cancelAnimationFrame(viewer.render); viewer.render = 0; }
+  if (viewer.holding) {
+    viewer.holding = false;
+    viewer.root.classList.remove('is-holding');
+    return;
+  }
+  if (!gesture.kind) {
+    if (!cancelled) stepStory(Stories.tapZone(event.clientX, window.innerWidth) === 'prev' ? -1 : 1);
+    return;
+  }
+  if (gesture.kind === 'ignore') return;
+  const { vx, vy } = velocity(gesture.samples);
+  const decision = cancelled ? 'restore' : Stories.decideRelease(gesture.kind, {
+    dx: gesture.dx, dy: gesture.dy, vx, vy, width: window.innerWidth, height: window.innerHeight,
+    hasPrev: viewer.g > 0, hasNext: viewer.g < viewer.groups.length - 1,
+  });
+  if (gesture.kind === 'dismiss') {
+    if (decision === 'close') closeStoryViewer();
+    else restoreDismiss();
+  } else {
+    finishCube(decision, gesture.dx);
+  }
+}
+
+/* Ouverture et fermeture ---------------------------------------------------- */
+
+function openStoryViewer(groups, g, i, fromElement = null) {
+  if (viewer.root) teardownStoryViewer();
+  Object.assign(viewer, { groups, g, i, face: null, neighbor: null, neighborDir: 0, closing: false, holding: false, gesture: null });
   viewer.returnFocus = document.activeElement;
+
+  // Page derrière figée sans saut : position fixe décalée du défilement.
+  viewer.scrollY = window.scrollY;
+  document.body.style.top = `-${viewer.scrollY}px`;
+  document.body.classList.add('story-open');
+
+  viewer.backdrop = h('div', { className: 'sv-backdrop' });
+  viewer.cube = h('div', { className: 'sv-cube' });
   viewer.root = h('div', {
     className: 'story-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'story-title',
-    onpointerdown: onStoryPointerDown, onpointerup: onStoryPointerUp,
-    onpointercancel: () => { viewer.tracking = false; clearTimeout(viewer.holdTimer); pauseStory(false); },
+    onpointerdown: onStoryPointerDown, onpointermove: onStoryPointerMove,
+    onpointerup: (event) => onStoryPointerUp(event),
+    onpointercancel: (event) => onStoryPointerUp(event, true),
     oncontextmenu: (event) => event.preventDefault(),
-  });
+  }, viewer.backdrop, viewer.cube);
   document.body.append(viewer.root);
-  document.body.classList.add('story-open');
   document.addEventListener('keydown', onStoryKey);
   pauseStory(false);
   paintStory();
+
+  const rect = fromElement?.getBoundingClientRect();
+  if (rect && rect.width && !reducedMotion()) {
+    viewer.face.animate([
+      { transform: ringTransform(rect), borderRadius: '50%' },
+      { transform: 'none', borderRadius: '0px' },
+    ], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+    viewer.backdrop.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280 });
+  } else {
+    viewer.root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+  }
   viewer.last = 0;
   viewer.frame = window.requestAnimationFrame(tickStory);
   viewer.root.querySelector('.sv-nav.next')?.focus({ preventScroll: true });
 }
 
-function closeStoryViewer() {
-  if (!viewer.root) return;
+function teardownStoryViewer() {
   window.cancelAnimationFrame(viewer.frame);
+  window.cancelAnimationFrame(viewer.anim);
+  window.cancelAnimationFrame(viewer.render);
+  viewer.anim = 0;
+  viewer.render = 0;
   clearTimeout(viewer.holdTimer);
   document.removeEventListener('keydown', onStoryKey);
-  viewer.root.remove();
+  viewer.root?.remove();
   viewer.root = null;
+  viewer.face = null;
+  viewer.neighbor = null;
+  viewer.closing = false;
   document.body.classList.remove('story-open');
+  document.body.style.top = '';
+  window.scrollTo(0, viewer.scrollY);
   refreshStoryRings();
   viewer.returnFocus?.focus?.({ preventScroll: true });
+}
+
+/* Se referme en se réduisant vers le rond de l'auteur (sinon fondu). */
+function closeStoryViewer() {
+  if (!viewer.root || viewer.closing) return;
+  viewer.closing = true;
+  const { face, backdrop } = viewer;
+  const rect = !reducedMotion() && ringRectFor(viewer.groups[viewer.g].username);
+  let animation;
+  if (rect && face) {
+    animation = face.animate([
+      { transform: face.style.transform || 'none', borderRadius: face.style.borderRadius || '0px', opacity: 1 },
+      { transform: ringTransform(rect), borderRadius: '50%', opacity: 0.4 },
+    ], { duration: 250, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+    backdrop.animate([{ opacity: backdrop.style.opacity || 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' });
+  } else {
+    animation = viewer.root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' });
+  }
+  animation.finished.then(teardownStoryViewer, teardownStoryViewer);
 }
 
 let communityTimer;

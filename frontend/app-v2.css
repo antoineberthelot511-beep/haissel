@@ -1102,15 +1102,26 @@ body:has(#auth-screen:not(.hidden)) .notif-stack { bottom: var(--v2-margin); }
 }
 .story-name { max-width: 68px; font-size: 12px; color: var(--v2-on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-body.story-open { overflow: hidden; }
+/* Page derrière figée (iPhone compris) : app.js fixe body.style.top. */
+body.story-open { position: fixed; left: 0; right: 0; overflow: hidden; }
 .story-viewer {
-  position: fixed; inset: 0; z-index: 900; display: flex; flex-direction: column; gap: 12px;
-  padding: max(10px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom));
-  background: #0f1220; color: #fff; touch-action: none; user-select: none; -webkit-user-select: none;
+  position: fixed; inset: 0; z-index: 900; color: #fff;
+  /* Ni défilement, ni retour arrière, ni rafraîchissement de Safari. */
+  touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none;
 }
+.sv-backdrop { position: absolute; inset: 0; background: #000; }
+.sv-cube { position: absolute; inset: 0; perspective: 1000px; overflow: hidden; }
+.sv-face {
+  position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; overflow: hidden;
+  padding: max(10px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom));
+  background: #0f1220; backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;
+}
+/* Appui long : en-tête, barres et boutons s'effacent. */
+.sv-bars, .sv-head, .sv-foot { transition: opacity .2s ease; }
+.story-viewer.is-holding .sv-bars, .story-viewer.is-holding .sv-head, .story-viewer.is-holding .sv-foot { opacity: 0; }
 .sv-bars { display: flex; gap: 4px; }
 .sv-bar { flex: 1; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .3); overflow: hidden; }
-.sv-bar-fill { display: block; height: 100%; background: #fff; }
+.sv-bar-fill { display: block; width: 100%; height: 100%; background: #fff; transform-origin: 0 50%; transform: scaleX(0); }
 .sv-head { display: flex; align-items: center; gap: 10px; }
 .sv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sv-who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1120,7 +1131,8 @@ body.story-open { overflow: hidden; }
   background: rgba(255, 255, 255, .14); color: #fff; font-size: 20px; cursor: pointer;
 }
 .sv-stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; }
-.sv-nav { position: absolute; top: 0; bottom: 0; width: 30%; border: 0; background: transparent; z-index: 1; cursor: pointer; }
+/* Au doigt, toute la zone réagit (app.js) ; ces boutons servent au clavier et aux lecteurs d'écran. */
+.sv-nav { position: absolute; top: 0; bottom: 0; width: 30%; border: 0; background: transparent; z-index: 1; pointer-events: none; }
 .sv-nav.prev { left: 0; }
 .sv-nav.next { right: 0; }
 .sv-nav:focus-visible { outline: 2px solid #fff; outline-offset: -4px; border-radius: 1rem; }

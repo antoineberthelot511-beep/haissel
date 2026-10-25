@@ -81,4 +81,42 @@ describe('stories', () => {
     S.markSeen(storage, list[0]);
     expect(S.startIndex(list, S.readSeen(storage))).toBe(1);
   });
+
+  describe('gestes du lecteur', () => {
+    const size = { width: 393, height: 727 };
+
+    test('seuil de démarrage et direction', () => {
+      expect(S.classifyGesture(3, 4)).toBeNull();
+      expect(S.classifyGesture(2, 30)).toBe('dismiss');
+      expect(S.classifyGesture(2, -30)).toBe('ignore');
+      expect(S.classifyGesture(-40, 10)).toBe('author');
+    });
+
+    test('fermer au-delà de 25 % ou vite, sinon revenir', () => {
+      expect(S.decideRelease('dismiss', { ...size, dy: 200 })).toBe('close');
+      expect(S.decideRelease('dismiss', { ...size, dy: 60, vy: 0.9 })).toBe('close');
+      expect(S.decideRelease('dismiss', { ...size, dy: 120, vy: 0.2 })).toBe('restore');
+    });
+
+    test('auteur suivant ou précédent au-delà de 30 % ou vite', () => {
+      const ends = { hasPrev: true, hasNext: true };
+      expect(S.decideRelease('author', { ...size, ...ends, dx: -150 })).toBe('next-author');
+      expect(S.decideRelease('author', { ...size, ...ends, dx: 150 })).toBe('prev-author');
+      expect(S.decideRelease('author', { ...size, ...ends, dx: -40, vx: -0.8 })).toBe('next-author');
+      expect(S.decideRelease('author', { ...size, ...ends, dx: -80, vx: 0.1 })).toBe('restore');
+      // Vitesse dans le sens contraire du déplacement : pas de changement.
+      expect(S.decideRelease('author', { ...size, ...ends, dx: -40, vx: 0.8 })).toBe('restore');
+    });
+
+    test('premier ou dernier auteur : retour élastique', () => {
+      expect(S.decideRelease('author', { ...size, dx: -300, hasNext: false, hasPrev: true })).toBe('restore');
+      expect(S.decideRelease('author', { ...size, dx: 300, hasPrev: false, hasNext: true })).toBe('restore');
+    });
+
+    test('toucher : tiers gauche = précédente, le reste = suivante', () => {
+      expect(S.tapZone(100, 393)).toBe('prev');
+      expect(S.tapZone(140, 393)).toBe('next');
+      expect(S.tapZone(380, 393)).toBe('next');
+    });
+  });
 });

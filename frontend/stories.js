@@ -77,5 +77,43 @@
     return index === -1 ? 0 : index;
   }
 
-  root.HaisselStories = { SEEN_KEY, seenId, readSeen, markSeen, groupStories, ownStories, startIndex, isStory };
+  /*
+   * Gestes du lecteur, en fonctions pures (testées) :
+   * - classifyGesture : au-delà du seuil de démarrage, surtout vertical vers
+   *   le bas = fermeture (« dismiss »), vers le haut = ignoré, surtout
+   *   horizontal = changement d'auteur (« author »). null : pas encore un geste.
+   * - decideRelease : au relâchement, que faire ?
+   * - tapZone : tiers gauche = précédente, le reste = suivante.
+   * Distances en px, vitesses en px/ms (positives vers la droite / le bas).
+   */
+  const GESTURE = { start: 8, holdMs: 200, closeRatio: 0.25, closeVelocity: 0.6, authorRatio: 0.3, authorVelocity: 0.5 };
+
+  function classifyGesture(dx, dy, start = GESTURE.start) {
+    if (Math.hypot(dx, dy) < start) return null;
+    if (Math.abs(dy) > Math.abs(dx)) return dy > 0 ? 'dismiss' : 'ignore';
+    return 'author';
+  }
+
+  function decideRelease(kind, { dx = 0, dy = 0, vx = 0, vy = 0, width, height, hasPrev = false, hasNext = false }) {
+    if (kind === 'dismiss') {
+      return dy > height * GESTURE.closeRatio || vy > GESTURE.closeVelocity ? 'close' : 'restore';
+    }
+    if (kind === 'author') {
+      const fast = Math.abs(vx) > GESTURE.authorVelocity && Math.sign(vx) === Math.sign(dx);
+      if (!(Math.abs(dx) > width * GESTURE.authorRatio || fast)) return 'restore';
+      // Glisser vers la gauche = auteur suivant ; au bout : retour élastique.
+      if (dx < 0) return hasNext ? 'next-author' : 'restore';
+      return hasPrev ? 'prev-author' : 'restore';
+    }
+    return 'restore';
+  }
+
+  function tapZone(x, width) {
+    return x < width / 3 ? 'prev' : 'next';
+  }
+
+  root.HaisselStories = {
+    SEEN_KEY, seenId, readSeen, markSeen, groupStories, ownStories, startIndex, isStory,
+    GESTURE, classifyGesture, decideRelease, tapZone,
+  };
 }(typeof window !== 'undefined' ? window : globalThis));
