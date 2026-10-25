@@ -101,6 +101,22 @@ const SESSION_POLICY = {
   mfaPending: { absoluteSeconds: 10 * 60, idleSeconds: 10 * 60 },
 };
 
+/*
+ * Clés de test officielles de Cloudflare Turnstile (« 1x0000…AA »,
+ * « 2x0000…AA »…) : elles valident ou refusent tout jeton, sans protection.
+ * - Vercel, VERCEL_ENV=preview : autorisées, pour tester les Previews sans
+ *   domaine déclaré chez Cloudflare ;
+ * - Vercel, VERCEL_ENV=production : interdites ;
+ * - hors Vercel (ou autre VERCEL_ENV) : interdites si NODE_ENV=production.
+ */
+const TURNSTILE_TEST_KEY = /^[123]x0{20,}[A-Z]{2}$/;
+
+function areTurnstileTestKeysAllowed() {
+  if (process.env.VERCEL_ENV === 'production') return false;
+  if (process.env.VERCEL_ENV === 'preview') return true;
+  return !isProduction();
+}
+
 /**
  * Validation au démarrage : échoue de façon sûre si un secret critique
  * manque ou garde une valeur d'exemple en production. Ne révèle aucune valeur.
@@ -134,7 +150,7 @@ function validateSecurityConfig() {
     errors.push('TURNSTILE_SITE_KEY et TURNSTILE_SECRET_KEY doivent être définies ensemble.');
   } else if (!turnstileSite) {
     warnings.push('Cloudflare Turnstile non configuré : connexion et inscription sans vérification anti-robot.');
-  } else if (isProduction() && [turnstileSite, turnstileSecret].some((key) => /^[123]x0{20,}[A-Z]{2}$/.test(key))) {
+  } else if (!areTurnstileTestKeysAllowed() && [turnstileSite, turnstileSecret].some((key) => TURNSTILE_TEST_KEY.test(key))) {
     errors.push('Clés Turnstile de test interdites en production : utilisez les clés du tableau de bord Cloudflare.');
   }
 
@@ -154,6 +170,7 @@ function validateSecurityConfig() {
 
 module.exports = {
   isProduction,
+  areTurnstileTestKeysAllowed,
   isTest,
   isVercel,
   isInternalAffiliationEnabled,

@@ -228,3 +228,52 @@ describe('rate limit store: isolation des compteurs', () => {
     expect(store.windowMs).toBe(900000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Clés Turnstile de test : autorisées sur les Previews Vercel seulement
+// ---------------------------------------------------------------------------
+
+describe('security config: clés Turnstile de test', () => {
+  const KEYS = ['TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET_KEY', 'VERCEL_ENV', 'NODE_ENV'];
+  const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
+
+  beforeEach(() => {
+    process.env.TURNSTILE_SITE_KEY = '1x00000000000000000000AA';
+    process.env.TURNSTILE_SECRET_KEY = '2x0000000000000000000000000000000AA';
+  });
+
+  afterEach(() => {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  const testKeyError = () => validateSecurityConfig().errors.filter((error) => /Turnstile de test/.test(error));
+
+  it('acceptées avec VERCEL_ENV=preview (même en NODE_ENV=production)', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.VERCEL_ENV = 'preview';
+    expect(testKeyError()).toHaveLength(0);
+  });
+
+  it('refusées avec VERCEL_ENV=production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.VERCEL_ENV = 'production';
+    expect(testKeyError()).toHaveLength(1);
+  });
+
+  it('refusées avec VERCEL_ENV=production même hors NODE_ENV=production', () => {
+    process.env.NODE_ENV = 'test';
+    process.env.VERCEL_ENV = 'production';
+    expect(testKeyError()).toHaveLength(1);
+  });
+
+  it('hors Vercel : règle inchangée (refusées seulement en NODE_ENV=production)', () => {
+    delete process.env.VERCEL_ENV;
+    process.env.NODE_ENV = 'production';
+    expect(testKeyError()).toHaveLength(1);
+    process.env.NODE_ENV = 'test';
+    expect(testKeyError()).toHaveLength(0);
+  });
+});

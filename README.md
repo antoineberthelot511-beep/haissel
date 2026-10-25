@@ -91,6 +91,16 @@ Dans le widget Turnstile (tableau de bord Cloudflare), déclarez chaque adresse 
 
 Une adresse absente de la liste fait échouer le défi, donc la connexion et l'inscription.
 
+**Clés de test sur les Previews.** Pour tester une Preview sans déclarer son adresse chez Cloudflare, vous pouvez donner à l'environnement *Preview* les clés de test officielles de Cloudflare (`TURNSTILE_SITE_KEY=1x00000000000000000000AA`, `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`). Elles valident tout jeton : la vérification anti-robot est alors sans effet sur ces Previews.
+
+| `VERCEL_ENV` | Clés de test Turnstile |
+|---|---|
+| `preview` | acceptées |
+| `production` | refusées : le démarrage échoue |
+| absent (hors Vercel) | refusées si `NODE_ENV=production`, acceptées sinon |
+
+Ne les mettez jamais dans l'environnement *Production* de Vercel.
+
 ### Previews et base de données
 
 > **Attention : une Preview utilise la même base que la production si `DATABASE_URL` est commune aux deux environnements.** Comptes, offres et migrations sont alors partagés. Pour isoler les Previews, donnez-leur une autre base (variable limitée à l'environnement Preview, ou branche Neon dédiée).
