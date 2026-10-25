@@ -792,6 +792,25 @@ function saveButtonFor(offer, { variant = 'icon', disabled = false } = {}) {
  * vague. Lien affilié = publié par un ADMIN ; fiche campagne = membre, avec un
  * lien vers la page officielle.
  */
+/*
+ * Temps de visibilité restant d'une fiche campagne (format « story ») :
+ * « encore 5 h », arrondi à l'heure, puis « moins d'1 h ». null pour une
+ * offre sans limite (ADMIN) ou une fiche déjà expirée.
+ */
+function storyTimeLeft(offer) {
+  if (offer.kind !== 'campaign' || !offer.expires_at || offer.expired) return null;
+  const left = new Date(offer.expires_at).getTime() - Date.now();
+  if (left <= 0) return null;
+  const hours = left / 3600000;
+  return hours < 1 ? 'moins d’1 h' : `encore ${Math.round(hours)} h`;
+}
+
+function storyBadge(offer) {
+  if (offer.expired) return h('span', { className: 'pill expired' }, 'Expirée');
+  const left = storyTimeLeft(offer);
+  return left ? h('span', { className: 'pill story', title: 'Une fiche campagne reste visible 24 h.' }, icon('i-clock', 'icon sm'), left) : null;
+}
+
 function kindBadge(offer) {
   if (offer.kind === 'campaign') {
     return h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
@@ -808,20 +827,21 @@ function kindBadge(offer) {
  */
 function communityCard(offer, { preview = false } = {}) {
   const author = `@${offer.author.username}`;
-  return h('article', { className: 'offer-card community-card' },
+  return h('article', { className: `offer-card community-card${offer.expired ? ' is-expired' : ''}` },
     h('div', { className: 'fc-head' },
       h('span', { className: 'fc-avatar', 'aria-hidden': 'true' }, categoryIcon(offer.category)),
       h('div', { className: 'fc-who' },
         preview
           ? h('strong', { className: 'fc-author' }, author)
           : h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(offer.author.username) }, author),
-        h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.published_at || offer.created_at))),
+        h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.shown_at || offer.published_at || offer.created_at))),
       kindBadge(offer)),
     h('div', { className: 'fc-body' },
       h('p', { className: 'fc-meta' },
         offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
         h('span', null, offer.category_label),
-        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
+        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null,
+        preview ? null : storyBadge(offer)),
       h('h3', { className: 'fc-title' }, offer.title),
       offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'fc-campaign' }, `Campagne : ${offer.campaign_name}`) : null,
       offer.domain ? h('p', { className: 'fc-domain' }, offer.domain) : null,
@@ -1489,7 +1509,22 @@ async function removeMyOffer(offer) {
   }
 }
 
-const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected: 'i-alert' };
+const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected: 'i-alert', expired: 'i-clock' };
+
+/*
+ * Republier une fiche pour 24 h. Aucune condition liée aux fiches des autres
+ * membres : le serveur ne vérifie que l'auteur et le délai de 20 h.
+ */
+async function renewMyOffer(offer) {
+  try {
+    const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}/renew`, { method: 'POST' });
+    myOffersFeedback('info', data.message);
+    loadMyOffers();
+    state.community.loaded = false;
+  } catch (error) {
+    myOffersFeedback('error', error.message);
+  }
+}
 
 /*
  * Une offre de l'auteur : statut, et message de l'équipe quand il existe
@@ -1497,9 +1532,11 @@ const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected
  * serveur n'en fournit pas.
  */
 function myOfferCard(offer) {
-  const [label, kind] = OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending'];
+  const expired = offer.status === 'published' && offer.expired;
+  const [label, kind] = expired ? ['Expirée', 'expired'] : (OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending']);
+  const left = offer.status === 'published' ? storyTimeLeft(offer) : null;
   const sent = offer.status === 'published' && offer.published_at
-    ? `Publiée ${formatAgo(offer.published_at)}`
+    ? [`Publiée ${formatAgo(offer.shown_at || offer.published_at)}`, left].filter(Boolean).join(' · ')
     : `Envoyée ${formatAgo(offer.created_at)}`;
   let note = null;
   if (offer.moderation_note) {
@@ -1508,6 +1545,8 @@ function myOfferCard(offer) {
       h('p', null, offer.moderation_note));
   } else if (kind === 'pending') {
     note = h('p', { className: 'mo-note' }, icon('i-clock', 'icon sm'), 'L’équipe relit ton offre avant publication.');
+  } else if (expired) {
+    note = h('p', { className: 'mo-note' }, icon('i-clock', 'icon sm'), 'Ta fiche n’est plus visible dans le fil. Tu peux la republier pour 24 h, sans nouvelle vérification.');
   }
   return h('article', { className: 'my-offer-card my-offer' },
     h('div', { className: 'mo-head' },
@@ -1518,6 +1557,7 @@ function myOfferCard(offer) {
       h('span', { className: `status-tag ${kind}` }, icon(STATUS_ICONS[kind] || 'i-clock', 'icon sm'), label)),
     note,
     h('div', { className: 'mo-actions' },
+      expired ? h('button', { className: 'primary-button small-button', type: 'button', onclick: () => renewMyOffer(offer) }, icon('i-send', 'icon sm'), 'Republier pour 24 h') : null,
       h('button', { className: 'secondary-button small-button', type: 'button', onclick: () => startOfferEdit(offer) }, icon('i-edit', 'icon sm'), 'Modifier'),
       h('button', {
         className: 'round-button mo-remove', type: 'button', 'aria-label': `Retirer « ${offer.title} »`, onclick: () => removeMyOffer(offer),

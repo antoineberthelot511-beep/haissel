@@ -267,6 +267,19 @@ function domainOf(url) {
  * L'auteur voit toujours l'URL de sa propre offre, sinon il ne pourrait plus
  * la relire ni la corriger.
  */
+/*
+ * Fiches campagne au format « story » : visibles STORY_HOURS heures à partir
+ * de leur publication (validation par la modération) ou de leur
+ * republication. Les offres ADMIN (kind = 'affiliate') ont expires_at NULL.
+ */
+const STORY_HOURS = 24;
+const RENEW_COOLDOWN_HOURS = 20;
+const NOT_EXPIRED = '(o.expires_at IS NULL OR o.expires_at > NOW())';
+
+function isExpired(row) {
+  return Boolean(row.expires_at) && new Date(row.expires_at).getTime() <= Date.now();
+}
+
 function formatOffer(row, userId, viewer = null) {
   const mine = row.user_id === userId;
   /*
@@ -274,9 +287,10 @@ function formatOffer(row, userId, viewer = null) {
    * relire sa propre offre malgré un âge minimum que HAISSEL ne peut pas
    * certifier. Un mineur n'ouvre aucun lien affilié, pas même le sien.
    */
+  const expired = isExpired(row);
   const canOpen = !viewer
     || (mine && isAdult(viewer))
-    || refusalForAffiliateLink(viewer, row.min_age) === null;
+    || (!expired && refusalForAffiliateLink(viewer, row.min_age) === null);
   return {
     id: row.id,
     kind: row.kind || 'campaign',
@@ -296,6 +310,11 @@ function formatOffer(row, userId, viewer = null) {
     conditions: row.conditions,
     status: row.status,
     published_at: row.published_at,
+    renewed_at: row.renewed_at || null,
+    expires_at: row.expires_at || null,
+    expired,
+    // Date de mise en avant dans le fil : publication ou republication.
+    shown_at: row.renewed_at && row.renewed_at > row.published_at ? row.renewed_at : row.published_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
     author: { username: row.author_username },
@@ -343,7 +362,10 @@ async function listOffers(req, res, next) {
          AND ($4::text IS NULL OR upper(o.countries) ~ ('(^|[^A-Z])(' || $4 || '|MONDE|TOUS)([^A-Z]|$)'))
          AND ($5::text IS NULL OR u.username = $5)
          AND (NOT $6::boolean OR EXISTS (SELECT 1 FROM member_offer_saves s WHERE s.offer_id = o.id AND s.user_id = $1))
-       ORDER BY o.published_at DESC, o.id DESC
+         -- Fiche expirée : absente du fil et de la recherche, mais gardée
+         -- (grisée) dans « Sauvegardées ».
+         AND ($6::boolean OR ${NOT_EXPIRED})
+       ORDER BY GREATEST(o.published_at, COALESCE(o.renewed_at, o.published_at)) DESC, o.id DESC
        LIMIT $7 OFFSET $8`,
       [req.user.id, q.replace(/[\\%_]/g, (c) => `\\${c}`), category, country, author, savedOnly, limit, offset]
     );
@@ -391,12 +413,17 @@ async function openOffer(req, res, next) {
     if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
 
     const found = await pool.query(
-      `SELECT o.id, o.url, o.min_age, o.user_id, o.status
+      `SELECT o.id, o.url, o.min_age, o.user_id, o.status, o.expires_at
        FROM member_offers o JOIN users u ON u.id = o.user_id
        WHERE o.id = $1 AND o.status = 'published' AND u.is_active AND NOT u.is_banned`,
       [id]
     );
     const offer = found.rows[0];
+    const isAdmin = String(req.userRole || '').toUpperCase() === 'ADMIN';
+    // Fiche expirée : 404 pour les autres membres, comme si elle n'existait plus.
+    if (offer && isExpired(offer) && offer.user_id !== req.user.id && !isAdmin) {
+      return sendError(res, 404, 'NOT_FOUND', 'Cette offre n’est plus disponible.');
+    }
     if (!offer) return sendError(res, 404, 'NOT_FOUND', 'Cette offre n’est plus disponible.');
 
     // Même dérogation qu'à l'affichage : réservée aux majeurs.
@@ -572,7 +599,7 @@ async function getMemberProfile(req, res, next) {
     if (!/^[a-z0-9_.-]{1,50}$/.test(username)) return sendError(res, 404, 'NOT_FOUND', 'Membre introuvable.');
     const result = await pool.query(
       `SELECT u.username, u.created_at,
-              (SELECT COUNT(*) FROM member_offers o WHERE o.user_id = u.id AND o.status = 'published')::int AS published_offers
+              (SELECT COUNT(*) FROM member_offers o WHERE o.user_id = u.id AND o.status = 'published' AND ${NOT_EXPIRED})::int AS published_offers
        FROM users u
        WHERE u.username = $1 AND u.is_active AND NOT u.is_banned`,
       [username]
@@ -705,7 +732,7 @@ async function updateOffer(req, res, next) {
        SET title = $2, url = $3, description = $4, category = $5, countries = $6, expected_action = $7,
            payout_text = $8, min_age = $9, conditions = $10, rights_confirmed_at = NOW(),
            kind = $11, campaign_name = $12, tips = $13,
-           status = 'pending', moderation_note = NULL, published_at = NULL, updated_at = NOW()
+           status = 'pending', moderation_note = NULL, published_at = NULL, expires_at = NULL, updated_at = NOW()
        WHERE id = $1 AND status IN ('pending', 'published', 'rejected')
        RETURNING *`,
       [id, offer.title, offer.url, offer.description, offer.category, offer.countries,
@@ -758,7 +785,7 @@ async function saveOffer(req, res, next) {
     if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
     const result = await pool.query(
       `INSERT INTO member_offer_saves (user_id, offer_id)
-       SELECT $1, id FROM member_offers WHERE id = $2 AND status = 'published'
+       SELECT $1, o.id FROM member_offers o WHERE o.id = $2 AND o.status = 'published' AND ${NOT_EXPIRED}
        ON CONFLICT DO NOTHING RETURNING offer_id`,
       [req.user.id, id]
     );
@@ -908,7 +935,11 @@ async function adminModerateOffer(req, res, next) {
       const result = await client.query(
         `UPDATE member_offers
          SET status = $2::text, moderation_note = $3, moderated_by = $4, moderated_at = NOW(), updated_at = NOW(),
-             published_at = CASE WHEN $2::text = 'published' THEN NOW() ELSE NULL END
+             published_at = CASE WHEN $2::text = 'published' THEN NOW() ELSE NULL END,
+             -- Fiche campagne : 24 h à partir de la validation, pas de l'envoi.
+             expires_at = CASE WHEN $2::text = 'published' AND kind = 'campaign'
+                               THEN NOW() + make_interval(hours => ${STORY_HOURS}) ELSE NULL END,
+             renewed_at = NULL
          WHERE id = $1 RETURNING id, title`,
         [id, status, note, req.user.id]
       );
@@ -930,7 +961,98 @@ async function adminModerateOffer(req, res, next) {
   }
 }
 
+/*
+ * POST /api/community/offers/:id/renew : l'auteur republie sa fiche pour 24 h.
+ *
+ * Le contenu ne change pas, donc pas de nouvelle modération. Modifier le
+ * contenu passe par PATCH et repasse en modération.
+ *
+ * RÈGLE VOULUE : republier ne dépend D'AUCUNE action sur les fiches ou les
+ * liens des autres membres (pas de « j'aime », de clic, d'inscription ni de
+ * republication d'autrui en échange). N'ajoutez jamais une telle condition :
+ * ce serait organiser l'échange d'inscriptions que le règlement interdit.
+ * Seules conditions : être l'auteur, fiche campagne publiée, 20 h depuis la
+ * dernière publication.
+ */
+async function renewOffer(req, res, next) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return sendError(res, 400, 'INVALID_ID', 'Fiche invalide.');
+    const found = await pool.query(
+      `SELECT id, user_id, kind, status,
+              GREATEST(published_at, COALESCE(renewed_at, published_at))
+                > NOW() - make_interval(hours => ${RENEW_COOLDOWN_HOURS}) AS too_soon
+       FROM member_offers WHERE id = $1`,
+      [id]
+    );
+    const offer = found.rows[0];
+    if (!offer || offer.user_id !== req.user.id || offer.status === 'removed') {
+      return sendError(res, 404, 'NOT_FOUND', 'Fiche introuvable.');
+    }
+    if (offer.kind !== 'campaign' || offer.status !== 'published') {
+      return sendError(res, 409, 'NOT_RENEWABLE', 'Seule une fiche campagne publiée peut être republiée.');
+    }
+    if (offer.too_soon) {
+      return sendError(res, 403, 'RENEW_TOO_SOON',
+        `Tu as publié cette fiche il y a moins de ${RENEW_COOLDOWN_HOURS} h. Tu pourras la republier plus tard.`);
+    }
+    const result = await pool.query(
+      `UPDATE member_offers
+       SET renewed_at = NOW(), expires_at = NOW() + make_interval(hours => ${STORY_HOURS}), updated_at = NOW()
+       WHERE id = $1 AND status = 'published' RETURNING *`,
+      [id]
+    );
+    if (!result.rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Fiche introuvable.');
+    return res.status(200).json({
+      success: true,
+      data: {
+        offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id, req.user),
+        message: 'Ta fiche est de nouveau visible 24 h.',
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/*
+ * POST /api/admin/community/offers/:id/extend : un ADMIN prolonge une fiche
+ * campagne publiée de 24 h (à partir de maintenant si elle a déjà expiré).
+ * Le retrait passe par la décision « remove » de adminModerateOffer.
+ */
+async function adminExtendOffer(req, res, next) {
+  try {
+    const id = parseId(req.params.id);
+    if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
+    const offer = await withTransaction(async (client) => {
+      const result = await client.query(
+        `UPDATE member_offers
+         SET expires_at = GREATEST(COALESCE(expires_at, NOW()), NOW()) + make_interval(hours => ${STORY_HOURS}),
+             updated_at = NOW()
+         WHERE id = $1 AND kind = 'campaign' AND status = 'published' RETURNING id, expires_at`,
+        [id]
+      );
+      if (!result.rows[0]) return null;
+      await client.query(
+        `INSERT INTO admin_actions (admin_user_id, action, target_type, target_id, details)
+         VALUES ($1, 'member_offer.extend', 'member_offer', $2, $3)`,
+        [req.user.id, id, JSON.stringify({ expires_at: result.rows[0].expires_at })]
+      );
+      return result.rows[0];
+    });
+    if (!offer) return sendError(res, 409, 'NOT_EXTENDABLE', 'Seule une fiche campagne publiée peut être prolongée.');
+    logger.info('Admin action', { adminId: req.user.id, action: 'member_offer.extend', targetId: id });
+    return res.status(200).json({ success: true, data: { id: offer.id, expires_at: offer.expires_at } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
+  renewOffer,
+  adminExtendOffer,
+  STORY_HOURS,
+  RENEW_COOLDOWN_HOURS,
   openOffer,
   listOffers,
   listMyOffers,

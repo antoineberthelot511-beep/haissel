@@ -71,6 +71,7 @@ router.put('/learn/settings', learn.updateSettings);
 // Modération des offres publiées par les membres.
 router.get('/community/offers', community.adminListOffers);
 router.post('/community/offers/:id/moderate', community.adminModerateOffer);
+router.post('/community/offers/:id/extend', community.adminExtendOffer);
 
 /*
  * Catégories des offres (table offer_categories). L'identifiant n'est pas

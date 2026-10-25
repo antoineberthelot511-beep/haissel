@@ -956,12 +956,25 @@ async function moderate(offer, decision) {
   }
 }
 
+/** Fiche campagne : 24 h de visibilité de plus (journalisé côté serveur). */
+async function extendOffer(offer) {
+  try {
+    await api(`/api/admin/community/offers/${encodeURIComponent(offer.id)}/extend`, { method: 'POST' });
+    toast('Fiche prolongée de 24 h.');
+    await loadModeration();
+  } catch (error) {
+    if (error.status === 409) toast(error.message, 'error');
+    else handleError(error);
+  }
+}
+
 function moderationCard(offer) {
   const [label, kind] = MEMBER_STATUS_BADGES[offer.status] || [offer.status, 'muted'];
   const row = (name, value) => (value ? h('li', null, h('span', { className: 'muted' }, `${name} : `), value) : null);
   const actions = [];
   if (offer.status !== 'published') actions.push(h('button', { className: 'btn small primary', type: 'button', onclick: () => moderate(offer, 'publish') }, 'Publier'));
   if (offer.status === 'pending') actions.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => moderate(offer, 'reject') }, 'Refuser'));
+  if (offer.status === 'published' && offer.kind === 'campaign') actions.push(h('button', { className: 'btn small ghost', type: 'button', onclick: () => extendOffer(offer) }, 'Prolonger 24 h'));
   if (offer.status !== 'removed') actions.push(h('button', { className: 'btn small danger', type: 'button', onclick: () => moderate(offer, 'remove') }, 'Retirer'));
 
   return h('article', { className: 'panel moderation-card' },
@@ -976,6 +989,7 @@ function moderationCard(offer) {
     h('ul', { className: 'moderation-meta' },
       row(offer.kind === 'affiliate' ? 'Lien affilié' : 'Page officielle', h('code', { className: 'url' }, offer.url)),
       row('Campagne MyLead', offer.campaign_name),
+      row('Visible jusqu’au', offer.expires_at ? `${date(offer.expires_at)}${offer.expired ? ' (expirée)' : ''}` : null),
       row('Conseils', offer.tips),
       row('Domaine', offer.domain),
       row('Action', offer.expected_action),

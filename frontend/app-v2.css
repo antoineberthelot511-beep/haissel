@@ -1067,5 +1067,9 @@ body:has(#auth-screen:not(.hidden)) .notif-stack { bottom: var(--v2-margin); }
 /* Fiches campagne des membres (lien vers la page officielle) */
 .pill.campaign { background: var(--v2-primary-soft); border-color: transparent; color: var(--v2-primary); }
 .fc-head .pill.campaign { flex: none; }
+.pill.story { background: transparent; color: var(--v2-secondary); }
+.pill.expired { background: var(--v2-surface-container); color: var(--v2-secondary); }
+.community-card.is-expired { opacity: .55; filter: grayscale(1); }
+.status-tag.expired { color: var(--v2-secondary); }
 .fc-campaign { margin-top: -2px; font-size: 13px; font-weight: 600; color: var(--v2-secondary); overflow-wrap: anywhere; }
 .field-hint { margin: 4px 0 0; font-size: 13px; color: var(--v2-secondary); }

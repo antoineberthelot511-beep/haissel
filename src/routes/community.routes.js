@@ -22,6 +22,8 @@ router.get('/offers/mine', community.listMyOffers);
 router.post('/offers', requireAdult, requireTurnstile('publish'), community.createOffer);
 router.patch('/offers/:id', requireAdult, community.updateOffer);
 router.delete('/offers/:id', community.removeOffer);
+// Republier une fiche campagne pour 24 h (auteur, sans nouvelle modération).
+router.post('/offers/:id/renew', requireAdult, community.renewOffer);
 router.post('/offers/:id/save', community.saveOffer);
 router.delete('/offers/:id/save', community.unsaveOffer);
 router.post('/offers/:id/report', community.reportOffer);
