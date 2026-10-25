@@ -1058,8 +1058,11 @@ async function loadCommunity() {
      * la page d'accueil.
      */
     if (!query && ui.homeOffers) {
-      ui.homeOffers.replaceChildren(...(items.length
-        ? items.map((offer) => communityCard(offer))
+      renderStories(items);
+      // Fil de l'accueil : les offres ADMIN d'abord, puis les fiches.
+      const feed = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
+      ui.homeOffers.replaceChildren(...(feed.length
+        ? feed.map((offer) => communityCard(offer))
         : [h('div', { className: 'panel-card' },
           'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
     }
@@ -1074,6 +1077,259 @@ async function loadCommunity() {
         'Offres indisponibles pour le moment.'));
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Stories : barre de l'accueil et lecteur plein écran
+// ---------------------------------------------------------------------------
+
+/*
+ * Les fiches campagne des membres s'affichent comme des stories : un rond par
+ * auteur, un lecteur plein écran. Les offres ADMIN n'en sont jamais : elles
+ * restent dans le fil, sous la barre.
+ *
+ * Rien n'est chargé de l'extérieur (ni image ni script) et aucune vue n'est
+ * envoyée au serveur : « vu » reste dans ce navigateur (voir stories.js).
+ */
+const Stories = window.HaisselStories;
+const STORY_DURATION = 7000;
+
+function safeStorage() {
+  try { return window.localStorage; } catch (error) { return null; }
+}
+
+function storiesSeen() {
+  const storage = safeStorage();
+  return storage ? Stories.readSeen(storage) : new Set();
+}
+
+function storyAvatar(username, className = 'story-avatar') {
+  return h('span', { className, 'aria-hidden': 'true' }, initialsFromName(username));
+}
+
+function storyRing({ username, label, unseen, onclick, extra = null, ariaLabel }) {
+  return h('li', { className: 'story-item' },
+    h('button', {
+      className: `story-ring${unseen ? ' is-unseen' : ' is-seen'}`, type: 'button', 'aria-label': ariaLabel, onclick,
+    }, storyAvatar(username), extra),
+    h('span', { className: 'story-name', 'aria-hidden': 'true' }, label));
+}
+
+function renderStories(items) {
+  if (!ui.homeStories) return;
+  const seen = storiesSeen();
+  const groups = Stories.groupStories(items, seen);
+  state.stories = { groups, items };
+  const rings = [];
+
+  // « Toi » : réservé aux majeurs, qui seuls peuvent publier.
+  if (isAdultMember()) {
+    const mine = Stories.ownStories(items);
+    const me = state.user?.display_name || state.user?.username || 'toi';
+    rings.push(mine.length
+      ? storyRing({
+        username: me, label: 'Toi', unseen: false, ariaLabel: `Voir tes fiches en cours (${mine.length})`,
+        onclick: () => openStoryViewer([{ username: me, offers: mine }], 0, 0),
+      })
+      : storyRing({
+        username: me, label: 'Toi', unseen: false, ariaLabel: 'Partager une fiche campagne',
+        extra: h('span', { className: 'story-add', 'aria-hidden': 'true' }, '+'),
+        onclick: () => setActiveView('publish'),
+      }));
+  }
+  groups.forEach((group, index) => {
+    const count = group.offers.length;
+    rings.push(storyRing({
+      username: group.username, label: group.username, unseen: group.unseen,
+      ariaLabel: `Fiches de @${group.username} : ${count} fiche${count > 1 ? 's' : ''}${group.unseen ? ', non vues' : ', déjà vues'}`,
+      onclick: () => openStoryViewer(groups, index, Stories.startIndex(group.offers, seen)),
+    }));
+  });
+  ui.homeStories.replaceChildren(...rings);
+  ui.homeStories.closest('.stories-bar')?.classList.toggle('hidden', rings.length === 0);
+}
+
+function refreshStoryRings() {
+  if (state.stories) renderStories(state.stories.items);
+}
+
+/* Lecteur ------------------------------------------------------------------ */
+
+const viewer = {
+  root: null, groups: [], g: 0, i: 0, elapsed: 0, last: 0, frame: 0, paused: false, holdTimer: 0,
+  held: false, startY: 0, startX: 0, returnFocus: null,
+};
+
+function reducedMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (error) { return false; }
+}
+
+function currentStory() {
+  return viewer.groups[viewer.g]?.offers[viewer.i] || null;
+}
+
+function storyCard(offer) {
+  const fact = (label, value) => (value ? h('div', { className: 'sv-fact' }, h('dt', null, label), h('dd', null, value)) : null);
+  return h('article', { className: 'sv-card' },
+    h('span', { className: 'sv-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon lg')),
+    h('p', { className: 'sv-category' }, offer.category_label),
+    h('h2', { className: 'sv-title', id: 'story-title' }, offer.title),
+    offer.campaign_name ? h('p', { className: 'sv-campaign' }, `Campagne : ${offer.campaign_name}`) : null,
+    h('dl', { className: 'sv-facts' },
+      fact('Ce qu’il faut faire', offer.expected_action),
+      fact('Pays', offer.countries),
+      fact('Âge', offer.min_age ? `${offer.min_age} ans et +` : 'Pas d’âge minimum indiqué')),
+    offer.tips ? h('section', { className: 'sv-tips' },
+      h('h3', null, `Les conseils de @${offer.author.username}`),
+      h('p', null, offer.tips)) : null);
+}
+
+function storyMenu(offer) {
+  const menu = h('div', { className: 'sv-menu hidden', role: 'menu' },
+    h('button', {
+      type: 'button', role: 'menuitem',
+      // Le lecteur reste en pause tant qu'une fenêtre est ouverte (voir tickStory).
+      onclick: () => { menu.classList.add('hidden'); pauseStory(false); openReport(offer); },
+    }, icon('i-flag', 'icon sm'), 'Signaler'));
+  const toggle = h('button', {
+    className: 'sv-round', type: 'button', 'aria-label': 'Plus d’actions', 'aria-haspopup': 'menu',
+    onclick: () => {
+      const open = menu.classList.toggle('hidden') === false;
+      toggle.setAttribute('aria-expanded', String(open));
+      pauseStory(open);
+    },
+  }, '…');
+  return [toggle, menu];
+}
+
+function paintStory() {
+  const offer = currentStory();
+  if (!offer) { closeStoryViewer(); return; }
+  const group = viewer.groups[viewer.g];
+  const bars = group.offers.map((_, index) => h('span', { className: 'sv-bar' },
+    h('span', { className: 'sv-bar-fill', style: `width:${index < viewer.i ? 100 : 0}%` })));
+  const [menuButton, menu] = storyMenu(offer);
+  viewer.root.replaceChildren(
+    h('div', { className: 'sv-bars', 'aria-hidden': 'true' }, bars),
+    h('header', { className: 'sv-head' },
+      storyAvatar(offer.author.username, 'story-avatar sm'),
+      h('div', { className: 'sv-who' },
+        h('strong', null, `@${offer.author.username}`),
+        h('span', null, formatAgo(offer.shown_at || offer.published_at))),
+      kindBadge(offer),
+      h('button', { className: 'sv-round', type: 'button', 'aria-label': 'Fermer', onclick: closeStoryViewer }, icon('i-close'))),
+    h('p', { className: 'visually-hidden', 'aria-live': 'polite' },
+      `Fiche ${viewer.i + 1} sur ${group.offers.length} de @${group.username}`),
+    h('div', { className: 'sv-stage' },
+      h('button', { className: 'sv-nav prev', type: 'button', onclick: () => stepStory(-1) }, h('span', { className: 'visually-hidden' }, 'Précédente')),
+      storyCard(offer),
+      h('button', { className: 'sv-nav next', type: 'button', onclick: () => stepStory(1) }, h('span', { className: 'visually-hidden' }, 'Suivante'))),
+    h('footer', { className: 'sv-foot' },
+      h('button', {
+        className: 'primary-button sv-open', type: 'button', disabled: !offer.can_open,
+        onclick: () => confirmLeave(offer),
+      }, 'Voir la page officielle', icon('i-arrow-right')),
+      offer.is_mine ? null : saveButtonFor(offer),
+      offer.is_mine ? null : menuButton,
+      offer.is_mine ? null : menu));
+  viewer.fill = viewer.root.querySelectorAll('.sv-bar-fill')[viewer.i];
+  viewer.elapsed = 0;
+  if (reducedMotion()) viewer.fill.style.width = '100%';
+  const storage = safeStorage();
+  if (storage) Stories.markSeen(storage, offer);
+}
+
+function tickStory(now) {
+  viewer.frame = window.requestAnimationFrame(tickStory);
+  if (viewer.paused || reducedMotion() || document.querySelector('dialog[open]')) { viewer.last = now; return; }
+  viewer.elapsed += now - (viewer.last || now);
+  viewer.last = now;
+  if (viewer.fill) viewer.fill.style.width = `${Math.min(100, (viewer.elapsed / STORY_DURATION) * 100)}%`;
+  if (viewer.elapsed >= STORY_DURATION) stepStory(1);
+}
+
+function stepStory(delta) {
+  const group = viewer.groups[viewer.g];
+  let { g, i } = viewer;
+  i += delta;
+  if (i >= group.offers.length) { g += 1; i = 0; }
+  if (i < 0) {
+    if (g === 0) { i = 0; } else { g -= 1; i = viewer.groups[g].offers.length - 1; }
+  }
+  if (g >= viewer.groups.length) { closeStoryViewer(); return; }
+  viewer.g = g; viewer.i = i;
+  pauseStory(false);
+  paintStory();
+}
+
+function pauseStory(paused) {
+  viewer.paused = paused;
+  viewer.root?.classList.toggle('is-paused', paused);
+}
+
+function onStoryKey(event) {
+  if (!viewer.root || document.querySelector('dialog[open]')) return;
+  if (event.key === 'Escape') { event.preventDefault(); closeStoryViewer(); }
+  else if (event.key === 'ArrowRight') { event.preventDefault(); stepStory(1); }
+  else if (event.key === 'ArrowLeft') { event.preventDefault(); stepStory(-1); }
+}
+
+/*
+ * Gestes : toucher à droite = suivante, à gauche = précédente ; rester
+ * appuyé = pause ; glisser vers le bas = fermer. Les boutons gardent leur
+ * propre action.
+ */
+function onStoryPointerDown(event) {
+  if (event.target.closest('button, a, [role="menu"]')) return;
+  viewer.startX = event.clientX;
+  viewer.startY = event.clientY;
+  viewer.held = false;
+  viewer.tracking = true;
+  clearTimeout(viewer.holdTimer);
+  viewer.holdTimer = setTimeout(() => { viewer.held = true; pauseStory(true); }, 250);
+}
+
+function onStoryPointerUp(event) {
+  if (!viewer.tracking) return;
+  viewer.tracking = false;
+  clearTimeout(viewer.holdTimer);
+  const dy = event.clientY - viewer.startY;
+  if (dy > 80) { closeStoryViewer(); return; }
+  if (viewer.held) { pauseStory(false); return; }
+  if (Math.abs(event.clientX - viewer.startX) > 30) return;
+  stepStory(event.clientX < window.innerWidth / 2 ? -1 : 1);
+}
+
+function openStoryViewer(groups, g, i) {
+  if (viewer.root) closeStoryViewer();
+  viewer.groups = groups; viewer.g = g; viewer.i = i;
+  viewer.returnFocus = document.activeElement;
+  viewer.root = h('div', {
+    className: 'story-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'story-title',
+    onpointerdown: onStoryPointerDown, onpointerup: onStoryPointerUp,
+    onpointercancel: () => { viewer.tracking = false; clearTimeout(viewer.holdTimer); pauseStory(false); },
+    oncontextmenu: (event) => event.preventDefault(),
+  });
+  document.body.append(viewer.root);
+  document.body.classList.add('story-open');
+  document.addEventListener('keydown', onStoryKey);
+  pauseStory(false);
+  paintStory();
+  viewer.last = 0;
+  viewer.frame = window.requestAnimationFrame(tickStory);
+  viewer.root.querySelector('.sv-nav.next')?.focus({ preventScroll: true });
+}
+
+function closeStoryViewer() {
+  if (!viewer.root) return;
+  window.cancelAnimationFrame(viewer.frame);
+  clearTimeout(viewer.holdTimer);
+  document.removeEventListener('keydown', onStoryKey);
+  viewer.root.remove();
+  viewer.root = null;
+  document.body.classList.remove('story-open');
+  refreshStoryRings();
+  viewer.returnFocus?.focus?.({ preventScroll: true });
 }
 
 let communityTimer;
@@ -2218,7 +2474,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', homeStories: 'home-stories', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
