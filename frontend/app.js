@@ -226,7 +226,7 @@ function setActiveView(viewName) {
   document.body.dataset.view = viewName;
   if (viewName === 'home' && state.user) renderHomeLearnCard();
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
-  if ((viewName === 'links' || viewName === 'home') && state.user && !state.community.loaded) loadCommunity();
+  if ((viewName === 'links' || viewName === 'home' || viewName === 'discover') && state.user && !state.community.loaded) loadCommunity();
   if (viewName === 'publish' && state.user) loadMyOffers();
   if (viewName === 'profile' && state.user) {
     if (isAdultMember()) loadMyOffers();
@@ -861,6 +861,43 @@ function postCard(offer) {
       left ? h('span', null, icon('i-clock', 'icon sm'), left) : null));
 }
 
+/*
+ * Découvrir (façon Reels) : une offre par écran, défilement vertical aimanté
+ * (scroll-snap). Rien n'est lu automatiquement ; « Voir » passe par la
+ * confirmation de sortie habituelle et n'apparaît que si le serveur permet
+ * d'ouvrir le lien (mineurs, âge minimum : règles inchangées).
+ */
+function discoverSlide(offer) {
+  const left = storyTimeLeft(offer);
+  const sideButton = (label, iconName, onclick) => h('button', { className: 'discover-action', type: 'button', onclick },
+    icon(iconName, 'icon lg'), h('span', null, label));
+  const save = offer.is_mine ? null : saveButtonFor(offer);
+  return h('section', { className: 'discover-slide', 'aria-label': offer.title },
+    categoryVisual(offer.category, 'discover-card',
+      h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+      h('h2', { className: 'discover-title' }, offer.title),
+      offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null),
+    h('div', { className: 'discover-text' },
+      h('p', { className: 'discover-who' },
+        storyAvatar(offer.author.username, 'story-avatar sm'),
+        h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
+        kindBadge(offer)),
+      h('p', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+      h('p', { className: 'discover-meta' },
+        [offer.countries, offer.min_age ? `${offer.min_age} ans et +` : null, left].filter(Boolean).join(' · '))),
+    h('div', { className: 'discover-side' },
+      save,
+      offer.is_mine ? null : sideButton('Signaler', 'i-flag', () => openReport(offer)),
+      offer.can_open ? sideButton('Voir', 'i-external', () => confirmLeave(offer)) : null));
+}
+
+function renderDiscover(items) {
+  if (!ui.discoverFeed) return;
+  const list = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
+  ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide)
+    : [h('section', { className: 'discover-slide is-empty' }, h('p', null, 'Rien à découvrir pour le moment.'))]));
+}
+
 function storyBadge(offer) {
   if (offer.expired) return h('span', { className: 'pill expired' }, 'Expirée');
   const left = storyTimeLeft(offer);
@@ -1115,6 +1152,7 @@ async function loadCommunity() {
      */
     if (!query && ui.homeOffers) {
       renderStories(items);
+      renderDiscover(items);
       // Fil de l'accueil : les offres ADMIN d'abord, puis les fiches.
       const feed = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
       ui.homeOffers.replaceChildren(...(feed.length

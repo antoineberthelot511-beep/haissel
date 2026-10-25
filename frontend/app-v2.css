@@ -1175,7 +1175,8 @@ body.story-open { position: fixed; left: 0; right: 0; overflow: hidden; }
 .topbar .topbar-actions { justify-content: flex-end; }
 .topbar .topbar-avatar { display: none; }
 body:not([data-view="home"]) .topbar-publish { visibility: hidden; }
-body[data-view="discover"] .topbar { display: none; }
+body[data-view="discover"] .topbar { position: static; border: 0; box-shadow: none; }
+body[data-view="discover"] .topbar .topbar-inner { display: none; }
 
 /* Accueil : stories puis fil ; les anciens blocs sont masqués. */
 #home-view .home-greet, #home-view .home-note, #home-view #home-chips, #home-view .feed-end p[data-publish-only] { display: none; }
@@ -1206,3 +1207,41 @@ body[data-view="discover"] .topbar { display: none; }
 .post-todo, .post-meta { margin: 0; padding: 2px 14px; }
 .post-meta { display: flex; gap: 14px; padding-bottom: 14px; font-size: 13px; color: var(--v2-secondary); }
 .post-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Découvrir (façon Reels) : plein écran, une offre par écran. */
+/* Sans transformation : sinon le fil « fixed » se cale sur ce panneau (animation d'entrée des vues). */
+#discover-view { margin: 0; transform: none !important; animation: none !important; }
+.discover-feed {
+  position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain;
+  scroll-snap-type: y mandatory; background: #000; color: #fff;
+}
+.discover-slide {
+  position: relative; height: 100vh; height: 100dvh; scroll-snap-align: start; scroll-snap-stop: always;
+  display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 16px 0; overflow: hidden;
+}
+.discover-slide.is-empty { color: rgba(255, 255, 255, .7); }
+.discover-card {
+  width: min(calc(100% - 56px), 360px); aspect-ratio: 4 / 5; margin: -190px 56px 0 0; border-radius: 28px;
+  display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+}
+.discover-title { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 800; text-wrap: balance; }
+.discover-text {
+  position: absolute; left: 16px; right: 84px; bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 6px; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+.discover-text p { margin: 0; }
+.discover-who { display: flex; align-items: center; gap: 8px; }
+.discover-who .post-author { color: #fff; }
+.discover-meta { font-size: 13px; opacity: .8; }
+.discover-side {
+  position: absolute; right: 10px; bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: 14px; justify-items: center;
+}
+.discover-action, .discover-side .save-button {
+  display: grid; justify-items: center; gap: 2px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 700; box-shadow: none; width: auto; height: auto;
+}
+.discover-side .save-button .icon { width: 30px; height: 30px; }
+.discover-action .icon { width: 30px; height: 30px; }
+body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-footer { display: none; }
