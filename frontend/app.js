@@ -348,7 +348,7 @@ function setProfileTab(name) {
     tab.setAttribute('aria-selected', String(active));
     tab.tabIndex = active ? 0 : -1;
   });
-  for (const key of ['offers', 'saved', 'security']) {
+  for (const key of ['offers', 'saved', 'account', 'security']) {
     document.getElementById(`ppanel-${key}`).hidden = key !== name;
   }
 }
@@ -2182,6 +2182,29 @@ function myOfferCard(offer) {
       }, icon('i-trash'))));
 }
 
+/*
+ * Vignette d'une de mes fiches (grille du profil), avec son statut en
+ * pastille. Toucher affiche au-dessus de la grille la carte complète :
+ * message de l'équipe, Republier, Modifier, Retirer.
+ */
+function myOfferTile(offer) {
+  const expired = offer.status === 'published' && offer.expired;
+  const [label] = expired ? ['Expirée'] : (OFFER_STATUS_LABELS[offer.status] || [offer.status]);
+  return h('button', {
+    className: `grid-cell${expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `${offer.title} : ${label}. Gérer cette fiche`,
+    onclick: () => {
+      ui.myOfferDetail.replaceChildren(
+        h('button', { className: 'text-button my-offer-detail-close', type: 'button', onclick: () => { ui.myOfferDetail.hidden = true; } }, icon('i-close', 'icon sm'), 'Fermer'),
+        myOfferCard(offer));
+      ui.myOfferDetail.hidden = false;
+      ui.myOfferDetail.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    },
+  }, categoryVisual(offer.category, 'grid-tile',
+    h('span', { className: 'grid-tile-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('span', { className: 'grid-tile-title' }, offer.title),
+    h('span', { className: `grid-badge status-${expired ? 'expired' : offer.status}` }, label)));
+}
+
 /** Offres sauvegardées (profil). */
 async function loadSavedOffers() {
   ui.savedOffers.setAttribute('aria-busy', 'true');
@@ -2190,9 +2213,10 @@ async function loadSavedOffers() {
     const data = await api('/api/community/offers?saved=1');
     const items = data.items || [];
     ui.savedCount.textContent = `(${items.length})`;
+    ui.statSaved.textContent = String(items.length);
     ui.savedOffers.setAttribute('aria-busy', 'false');
     ui.savedOffers.replaceChildren(...(items.length
-      ? items.map((offer) => communityCard(offer))
+      ? items.map((offer) => gridTile(offer))
       : [h('div', { className: 'panel-card' }, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.')]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -2210,7 +2234,9 @@ async function loadMyOffers() {
     renderCategoryTiles();
     ui.myOffers.setAttribute('aria-busy', 'false');
     ui.myOffersCount.textContent = `(${data.items.length})`;
-    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferCard)
+    ui.statPublished.textContent = String(data.items.filter((offer) => offer.status === 'published' && !offer.expired).length);
+    ui.myOfferDetail.hidden = true;
+    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferTile)
       : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.')]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -2857,7 +2883,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pubConditionsGroup: 'pub-conditions-group', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
     myOffers: 'my-offers', myleadGuide: 'mylead-guide',
     pubCategoryTiles: 'pub-category-tiles', pubTitleCount: 'pub-title-count',
-    myOffersFeedback: 'my-offers-feedback', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
+    myOffersFeedback: 'my-offers-feedback', myOfferDetail: 'my-offer-detail', statPublished: 'stat-published', statSaved: 'stat-saved', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -2950,6 +2976,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelectorAll('.profile-tab').forEach((tab) => {
     tab.addEventListener('click', () => setProfileTab(tab.dataset.profileTab));
+  });
+  document.querySelectorAll('[data-profile-open]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setProfileTab(button.dataset.profileOpen);
+      document.getElementById(`ppanel-${button.dataset.profileOpen}`).scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
   });
   document.getElementById('publish-my-offers').addEventListener('click', () => {
     setActiveView('profile');

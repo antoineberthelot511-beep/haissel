@@ -770,22 +770,30 @@
 
               <div class="profile-hero">
                 <div class="avatar large" id="profile-avatar" aria-hidden="true">H</div>
-                <div class="profile-hero-id">
-                  <p id="profile-username" class="profile-handle">@username</p>
-                  <p id="profile-display-name" class="profile-name">Utilisateur</p>
-                  <p class="profile-since">Membre depuis le <span id="profile-created-at">-</span></p>
-                </div>
+                <!-- Chiffres façon Instagram (remplis par app.js) -->
+                <dl class="profile-stats">
+                  <div data-adult-only><dt>Fiches publiées</dt><dd id="stat-published">0</dd></div>
+                  <div><dt>Sauvegardées</dt><dd id="stat-saved">0</dd></div>
+                </dl>
+              </div>
+              <div class="profile-hero-id">
+                <p id="profile-display-name" class="profile-name">Utilisateur</p>
+                <p id="profile-username" class="profile-handle">@username</p>
+                <p class="profile-since">Membre depuis le <span id="profile-created-at">-</span></p>
+              </div>
+              <div class="profile-buttons">
+                <button class="secondary-button small-button" type="button" data-profile-open="account">Modifier le profil</button>
+                <button class="secondary-button small-button" type="button" data-profile-open="security">Sécurité</button>
               </div>
 
+              <!-- Deux onglets en icônes : mes fiches (majeurs) et sauvegardées.
+                   « Modifier le profil » et « Sécurité » ouvrent leurs panneaux. -->
               <div class="profile-tabs" role="tablist" aria-label="Rubriques du profil">
                 <button class="profile-tab" type="button" role="tab" id="ptab-offers" aria-controls="ppanel-offers" aria-selected="false" data-profile-tab="offers" data-adult-only>
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-tag" /></svg><span><span id="my-offers-label">Mes offres</span> <span id="my-offers-count"></span></span>
+                  <svg class="icon lg" aria-hidden="true"><use href="#i-grid" /></svg><span class="visually-hidden"><span id="my-offers-label">Mes offres</span> <span id="my-offers-count"></span></span>
                 </button>
                 <button class="profile-tab" type="button" role="tab" id="ptab-saved" aria-controls="ppanel-saved" aria-selected="false" data-profile-tab="saved">
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-bookmark" /></svg><span>Sauvegardées <span id="saved-count"></span></span>
-                </button>
-                <button class="profile-tab" type="button" role="tab" id="ptab-security" aria-controls="ppanel-security" aria-selected="false" data-profile-tab="security">
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-shield" /></svg><span>Sécurité</span>
+                  <svg class="icon lg" aria-hidden="true"><use href="#i-bookmark" /></svg><span class="visually-hidden">Sauvegardées <span id="saved-count"></span></span>
                 </button>
               </div>
 
@@ -798,7 +806,9 @@
                   </button>
                 </div>
                 <div id="my-offers-feedback" class="auth-info hidden" role="status" aria-live="polite"></div>
-                <div id="my-offers" class="my-offers-list" aria-live="polite"></div>
+                <!-- Détail de la fiche touchée dans la grille : statut, Republier, Modifier, Retirer -->
+                <div id="my-offer-detail" class="my-offer-detail" hidden></div>
+                <div id="my-offers" class="offer-grid" aria-live="polite"></div>
               </div>
 
               <!-- Offres sauvegardées -->
@@ -806,14 +816,14 @@
                 <div class="profile-panel-head">
                   <h3>Tes offres sauvegardées</h3>
                 </div>
-                <div id="saved-offers" class="offer-feed" aria-live="polite"></div>
+                <div id="saved-offers" class="offer-grid" aria-live="polite"></div>
                 <button id="profile-saved" class="secondary-button" type="button">
                   <svg class="icon sm" aria-hidden="true"><use href="#i-search" /></svg>Filtrer dans Chercher
                 </button>
               </div>
 
-              <!-- Sécurité : compte, sessions, mot de passe, double authentification, données -->
-              <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-labelledby="ptab-security" hidden>
+              <!-- Modifier le profil : compte, notifications, données personnelles -->
+              <div id="ppanel-account" class="profile-panel profile-grid" role="tabpanel" aria-label="Modifier le profil" hidden>
                 <div class="profile-card-box">
                   <h3 class="card-title">Mon compte</h3>
                   <ul class="profile-list">
@@ -821,15 +831,37 @@
                     <li><span>E-mail</span><strong id="profile-email">-</strong></li>
                   </ul>
                   <div class="profile-links">
-                    <button class="profile-link" type="button" data-goto="learn">
-                      <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg><span>Apprendre l'affiliation</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
-                    </button>
                     <button class="profile-link" type="button" data-goto="notifications">
                       <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg><span>Notifications</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
                     </button>
                   </div>
                 </div>
 
+                <div class="profile-card-box security-box">
+                  <h3 class="card-title">Mes données personnelles</h3>
+                  <p class="security-note">Tes droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
+                  <a class="secondary-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
+                  <details class="danger-zone">
+                    <summary>Supprimer mon compte</summary>
+                    <form id="delete-account-form" class="auth-form" novalidate>
+                      <div id="delete-account-error" class="auth-error hidden" role="alert"></div>
+                      <p class="security-note">Cette action est définitive.</p>
+                      <label class="field">
+                        <span>Mot de passe</span>
+                        <input id="delete-account-password" type="password" autocomplete="current-password" maxlength="128" required />
+                      </label>
+                      <label class="field">
+                        <span>Tape SUPPRIMER pour confirmer</span>
+                        <input id="delete-account-confirm" type="text" autocomplete="off" maxlength="20" required />
+                      </label>
+                      <button class="ghost-button danger-button" type="submit">Supprimer définitivement mon compte</button>
+                    </form>
+                  </details>
+                </div>
+              </div>
+
+              <!-- Sécurité : sessions, mot de passe, double authentification -->
+              <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-label="Sécurité" hidden>
                 <div class="profile-card-box security-box">
                   <h3 class="card-title">Sessions</h3>
                   <p class="session-row">
@@ -945,27 +977,6 @@
                   <button id="mfa-enable-start" class="primary-button hidden" type="button">Activer la double authentification</button>
                 </div>
 
-                <div class="profile-card-box security-box">
-                  <h3 class="card-title">Mes données personnelles</h3>
-                  <p class="security-note">Tes droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
-                  <a class="secondary-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
-                  <details class="danger-zone">
-                    <summary>Supprimer mon compte</summary>
-                    <form id="delete-account-form" class="auth-form" novalidate>
-                      <div id="delete-account-error" class="auth-error hidden" role="alert"></div>
-                      <p class="security-note">Cette action est définitive.</p>
-                      <label class="field">
-                        <span>Mot de passe</span>
-                        <input id="delete-account-password" type="password" autocomplete="current-password" maxlength="128" required />
-                      </label>
-                      <label class="field">
-                        <span>Tape SUPPRIMER pour confirmer</span>
-                        <input id="delete-account-confirm" type="text" autocomplete="off" maxlength="20" required />
-                      </label>
-                      <button class="ghost-button danger-button" type="submit">Supprimer définitivement mon compte</button>
-                    </form>
-                  </details>
-                </div>
               </div>
 
               <div class="charter-card">
