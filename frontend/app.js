@@ -383,23 +383,6 @@ function renderHomeLearnCard() {
   }
 }
 
-/** Puces de catégories de « Recherche » (pilotent la liste déroulante du filtre). */
-function renderHomeChips() {
-  if (!ui.homeChips) return;
-  const current = ui.communityCategory.value;
-  const chip = (value, label, iconNode) => h('button', {
-    className: `chip${current === value ? ' active' : ''}`, type: 'button', 'aria-pressed': String(current === value),
-    onclick: () => {
-      ui.communityCategory.value = value;
-      syncFiltersToUrl();
-      renderHomeChips();
-      loadCommunity();
-    },
-  }, iconNode, label);
-  ui.homeChips.replaceChildren(chip('', 'Toutes', null),
-    ...Object.entries(state.community.categories).map(([value, label]) => chip(value, label, categoryIcon(value, 'icon sm'))));
-}
-
 /* Vignette carrée de la grille « Recherche » : toucher ouvre le détail. */
 function gridTile(offer) {
   return h('button', {
@@ -1093,10 +1076,10 @@ function offerDetail(offer) {
 function communityQuery() {
   const params = new URLSearchParams();
   const q = ui.communityQ.value.trim();
-  const country = ui.communityCountry.value.trim();
   if (q) params.set('q', q);
   if (ui.communityCategory.value) params.set('category', ui.communityCategory.value);
-  if (/^[A-Za-z]{2}$/.test(country)) params.set('country', country);
+  if (ui.communityKind.value) params.set('kind', ui.communityKind.value);
+  if (ui.communitySort.value) params.set('sort', ui.communitySort.value);
   if (ui.communitySaved.checked) params.set('saved', '1');
   return params.toString();
 }
@@ -1125,10 +1108,12 @@ function readFiltersFromUrl() {
   }
   const q = params.get('q');
   const category = params.get('category');
-  const country = params.get('country');
   if (q) ui.communityQ.value = q.slice(0, 80);
-  if (country && /^[A-Za-z]{2}$/.test(country)) ui.communityCountry.value = country.toUpperCase();
+  const kind = params.get('kind');
+  if (kind === 'campaign' || kind === 'affiliate') ui.communityKind.value = kind;
+  if (params.get('sort') === 'popular') ui.communitySort.value = 'popular';
   ui.communitySaved.checked = params.get('saved') === '1';
+  paintSearchControls();
   // La catégorie est appliquée après le remplissage de la liste déroulante.
   state.community.pendingCategory = category || '';
 }
@@ -1144,7 +1129,6 @@ async function loadCommunity() {
     fillCategorySelect(ui.communityCategory, state.community.categories, 'Toutes');
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
     renderCategoryTiles();
-    renderHomeChips();
 
     /*
      * La catégorie venant de l'adresse ne peut être appliquée qu'ici : la liste
@@ -1155,15 +1139,18 @@ async function loadCommunity() {
         ui.communityCategory.value = state.community.pendingCategory;
       }
       state.community.pendingCategory = '';
+      paintSearchControls();
     }
 
     const items = data.items || [];
     ui.communityList.setAttribute('aria-busy', 'false');
     ui.communityList.replaceChildren(...(items.length
       ? items.map((offer) => gridTile(offer))
-      : [h('div', { className: 'panel-card' }, query
-        ? 'Aucune offre ne correspond à ta recherche.'
-        : 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
+      : [query
+        ? h('div', { className: 'search-empty' },
+          h('p', null, 'Aucun résultat'),
+          h('button', { className: 'secondary-button', type: 'button', onclick: clearSearch }, 'Effacer les filtres'))
+        : h('div', { className: 'panel-card' }, 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
 
     /*
      * Accueil : le fil complet, sans filtre. On ne le met à jour que lorsque
@@ -1191,6 +1178,120 @@ async function loadCommunity() {
         'Offres indisponibles pour le moment.'));
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Recherche : barre, bouton « Filtres » et feuille du bas
+// ---------------------------------------------------------------------------
+
+const filterFields = () => ({
+  category: ui.communityCategory.value, kind: ui.communityKind.value,
+  sort: ui.communitySort.value, saved: ui.communitySaved.checked,
+});
+
+function setFilterFields({ category = '', kind = '', sort = '', saved = false }) {
+  ui.communityCategory.value = category;
+  ui.communityKind.value = kind;
+  ui.communitySort.value = sort;
+  ui.communitySaved.checked = saved;
+}
+
+/** Bouton ✕ du champ et pastille du nombre de filtres actifs. */
+function paintSearchControls() {
+  ui.communityQClear.hidden = !ui.communityQ.value;
+  const count = window.HaisselChat.countActiveFilters(filterFields());
+  ui.filtersCount.hidden = !count;
+  ui.filtersCount.textContent = count ? String(count) : '';
+  ui.filtersOpen.setAttribute('aria-label', count ? `Filtres (${count} actif${count > 1 ? 's' : ''})` : 'Filtres');
+}
+
+function runSearch() {
+  paintSearchControls();
+  syncFiltersToUrl();
+  loadCommunity();
+}
+
+/** État vide : on efface le texte ET les filtres. */
+function clearSearch() {
+  ui.communityQ.value = '';
+  setFilterFields({});
+  runSearch();
+}
+
+/*
+ * Feuille du bas : même entrée et même geste de fermeture que le lecteur de
+ * stories (glisser vers le bas au-delà de 25 % de la hauteur, ou vite).
+ * Les valeurs ne s'appliquent qu'avec « Afficher les résultats » ; fermer
+ * autrement rétablit les filtres d'avant.
+ */
+const sheet = { saved: null, closing: false, drag: null };
+
+function openFilters() {
+  if (ui.filtersSheet.open) return;
+  sheet.saved = filterFields();
+  sheet.closing = false;
+  ui.filtersSheet.showModal();
+  const panel = ui.filtersSheet.querySelector('.sheet-panel');
+  panel.style.transform = '';
+  if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+  else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+}
+
+function closeFilters({ apply = false } = {}) {
+  if (!ui.filtersSheet.open || sheet.closing) return;
+  sheet.closing = true;
+  if (!apply && sheet.saved) setFilterFields(sheet.saved);
+  const panel = ui.filtersSheet.querySelector('.sheet-panel');
+  const done = () => {
+    ui.filtersSheet.close();
+    panel.style.transform = '';
+    sheet.closing = false;
+    if (apply) runSearch();
+    ui.filtersOpen.focus({ preventScroll: true });
+  };
+  const animation = reducedMotion()
+    ? panel.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
+    : panel.animate([{ transform: panel.style.transform || 'none' }, { transform: 'translateY(100%)' }],
+      { duration: 250, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+  animation.finished.then(() => { done(); animation.cancel(); }, done);
+}
+
+function bindFiltersSheet() {
+  const panel = ui.filtersSheet.querySelector('.sheet-panel');
+  // Échap : fermeture animée, filtres d'avant rétablis.
+  ui.filtersSheet.addEventListener('cancel', (event) => { event.preventDefault(); closeFilters(); });
+  // Toucher le fond assombri ferme la feuille.
+  ui.filtersSheet.addEventListener('click', (event) => { if (event.target === ui.filtersSheet) closeFilters(); });
+  panel.addEventListener('pointerdown', (event) => {
+    // Les contrôles natifs gardent leur comportement (roue iOS, menu Android).
+    if (event.target.closest('select, input, button, label, a') || event.button > 0) return;
+    sheet.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
+    panel.setPointerCapture(event.pointerId);
+  });
+  panel.addEventListener('pointermove', (event) => {
+    const drag = sheet.drag;
+    if (!drag || drag.id !== event.pointerId) return;
+    const dy = Math.max(0, event.clientY - drag.y);
+    const dt = Math.max(1, event.timeStamp - drag.t);
+    drag.vy = (dy - drag.dy) / dt;
+    drag.dy = dy;
+    drag.t = event.timeStamp;
+    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+  });
+  const release = (event) => {
+    const drag = sheet.drag;
+    if (!drag || drag.id !== event.pointerId) return;
+    sheet.drag = null;
+    const decision = event.type === 'pointercancel' ? 'restore'
+      : window.HaisselStories.decideRelease('dismiss', { dy: drag.dy, vy: drag.vy, height: panel.offsetHeight });
+    if (decision === 'close') { closeFilters(); return; }
+    if (!drag.dy) return;
+    const from = panel.style.transform;
+    panel.style.transform = '';
+    if (!reducedMotion()) panel.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+  };
+  panel.addEventListener('pointerup', release);
+  panel.addEventListener('pointercancel', release);
 }
 
 // ---------------------------------------------------------------------------
@@ -1713,12 +1814,23 @@ function closeStoryViewer() {
  */
 const CHAT_POLL_MS = 15000;
 const UNREAD_POLL_MS = 60000;
-const chat = { timer: 0, unreadTimer: 0, lastCount: -1 };
+// Champ de saisie : 5 lignes au plus, puis il défile.
+const CHAT_MAX_LINES = 5;
+const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null };
 
 function paintUnread(count) {
   ui.navMessagesBadge.hidden = !count;
   ui.teamThreadDot.hidden = !count;
+  ui.teamThreadOpen.classList.toggle('is-unread', Boolean(count));
   ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
+}
+
+/** Ligne de la liste : aperçu du dernier message (textContent) et heure. */
+function paintThreadPreview(last) {
+  if (!last) return;
+  ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content}`;
+  ui.teamThreadTime.textContent = window.HaisselChat.listTimeLabel(last.created_at);
+  ui.teamThreadTime.setAttribute('datetime', last.created_at);
 }
 
 async function refreshUnread() {
@@ -1726,6 +1838,7 @@ async function refreshUnread() {
   try {
     const data = await api('/api/messages/unread');
     paintUnread(data.unread);
+    paintThreadPreview(data.last);
   } catch (error) { /* pastille seulement : on réessaiera */ }
 }
 
@@ -1735,23 +1848,41 @@ function startUnreadPolling() {
   chat.unreadTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshUnread(); }, UNREAD_POLL_MS);
 }
 
-function chatBubble(message) {
-  return h('div', { className: `bubble ${message.from_team ? 'from-team' : 'from-me'}` },
-    h('p', null, message.content),
-    h('time', { datetime: message.created_at }, formatAgo(message.created_at)));
+/* Lignes de la conversation (chat-thread.js) : texte toujours via h(), donc textContent. */
+function chatRow(row) {
+  if (row.type === 'stamp') {
+    return h('p', { className: 'chat-stamp' }, h('time', { datetime: row.at }, window.HaisselChat.stampLabel(row.at)));
+  }
+  const classes = ['bubble', row.mine ? 'from-me' : 'from-team'];
+  if (row.groupStart) classes.push('group-start');
+  if (row.tail) classes.push('tail');
+  const bubble = h('div', { className: classes.join(' '), title: new Date(row.message.created_at).toLocaleString('fr-FR') },
+    h('span', { className: 'visually-hidden' }, row.mine ? 'Toi : ' : 'Équipe Haissel : '),
+    h('p', null, row.message.content));
+  if (!row.sent) return bubble;
+  return h('div', { className: 'bubble-wrap from-me' }, bubble, h('span', { className: 'chat-receipt' }, 'Envoyé'));
+}
+
+function scrollChatToEnd() {
+  ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
 }
 
 function renderChat(messages) {
   if (!messages.length) {
+    chat.signature = '';
     ui.chatMessages.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
     return;
   }
-  const atBottom = ui.chatMessages.scrollHeight - ui.chatMessages.scrollTop - ui.chatMessages.clientHeight < 40;
-  ui.chatMessages.replaceChildren(...messages.map(chatBubble));
-  if (atBottom || chat.lastCount !== messages.length) ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
-  chat.lastCount = messages.length;
+  // Rien de neuf : on ne touche pas au DOM (pas de saut de défilement).
   const last = messages[messages.length - 1];
-  ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content.slice(0, 80)}`;
+  const signature = `${messages.length}:${last.id}`;
+  if (signature === chat.signature) return;
+  const atBottom = ui.chatMessages.scrollHeight - ui.chatMessages.scrollTop - ui.chatMessages.clientHeight < 60;
+  const grew = chat.signature !== '';
+  chat.signature = signature;
+  ui.chatMessages.replaceChildren(...window.HaisselChat.layoutThread(messages).map(chatRow));
+  if (atBottom || !grew || !last.from_team) scrollChatToEnd();
+  paintThreadPreview(last);
 }
 
 async function loadChat() {
@@ -1766,12 +1897,55 @@ async function loadChat() {
   }
 }
 
+/*
+ * Clavier iOS : la page ne rétrécit pas, seul visualViewport change. La
+ * conversation (position fixe) suit donc la zone visible : la barre de
+ * saisie reste collée au-dessus du clavier et le dernier message visible.
+ */
+function fitChatToViewport() {
+  const vv = window.visualViewport;
+  if (!vv || ui.teamThread.hidden) return;
+  ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop}px`);
+  ui.teamThread.style.setProperty('--chat-height', `${vv.height}px`);
+  // Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
+  ui.teamThread.classList.toggle('keyboard-open', window.innerHeight - vv.height > 120);
+  scrollChatToEnd();
+}
+
+function watchViewport(on) {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  if (on && !chat.viewport) {
+    chat.viewport = () => window.requestAnimationFrame(fitChatToViewport);
+    vv.addEventListener('resize', chat.viewport);
+    vv.addEventListener('scroll', chat.viewport);
+    fitChatToViewport();
+  } else if (!on && chat.viewport) {
+    vv.removeEventListener('resize', chat.viewport);
+    vv.removeEventListener('scroll', chat.viewport);
+    chat.viewport = null;
+  }
+}
+
+/** Hauteur du champ : suit le texte jusqu'à 5 lignes ; bouton d'envoi seulement s'il y a du texte. */
+function fitChatInput() {
+  const input = ui.chatInput;
+  const style = window.getComputedStyle(input);
+  const line = parseFloat(style.lineHeight) || 20;
+  const extra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  input.style.height = '';
+  input.style.height = `${Math.min(input.scrollHeight + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth), line * CHAT_MAX_LINES + extra)}px`;
+  ui.chatSend.hidden = !input.value.trim();
+}
+
 function openChat() {
   ui.messagesInbox.hidden = true;
   ui.teamThread.hidden = false;
   document.body.classList.add('chat-open');
   ui.chatError.classList.add('hidden');
-  chat.lastCount = -1;
+  chat.signature = '';
+  fitChatInput();
+  watchViewport(true);
   loadChat();
   clearInterval(chat.timer);
   chat.timer = setInterval(loadChat, CHAT_POLL_MS);
@@ -1782,6 +1956,7 @@ function closeChat() {
   clearInterval(chat.timer);
   chat.timer = 0;
   if (!ui.teamThread) return;
+  watchViewport(false);
   ui.teamThread.hidden = true;
   ui.messagesInbox.hidden = false;
   document.body.classList.remove('chat-open');
@@ -1796,9 +1971,9 @@ async function handleChatSubmit(event) {
   try {
     await api('/api/messages/team', { method: 'POST', body: { content } });
     ui.chatInput.value = '';
-    ui.chatInput.style.height = '';
-    chat.lastCount = -1;
+    fitChatInput();
     await loadChat();
+    scrollChatToEnd();
   } catch (error) {
     ui.chatError.textContent = error.message;
     ui.chatError.classList.remove('hidden');
@@ -1811,7 +1986,7 @@ async function handleChatSubmit(event) {
 let communityTimer;
 function scheduleCommunityLoad() {
   clearTimeout(communityTimer);
-  communityTimer = setTimeout(() => { syncFiltersToUrl(); loadCommunity(); }, 300);
+  communityTimer = setTimeout(() => { syncFiltersToUrl(); loadCommunity(); }, 250);
 }
 
 async function toggleSave(offer, button) {
@@ -2966,7 +3141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebarName: 'sidebar-name', sidebarEmail: 'sidebar-email', sidebarAvatar: 'sidebar-avatar',
     welcomeName: 'welcome-name', profileDisplayName: 'profile-display-name', profileUsername: 'profile-username',
     profileEmail: 'profile-email', profileFullName: 'profile-full-name', profileCreatedAt: 'profile-created-at',
-    profileAvatar: 'profile-avatar', linksList: 'links-list', refreshLinks: 'refresh-links',
+    profileAvatar: 'profile-avatar', linksList: 'links-list',
     profileLogout: 'profile-logout', forgotLink: 'forgot-link', forgotEmail: 'forgot-email',
     resetPassword: 'reset-password', resetConfirmPassword: 'reset-confirm-password',
     mfaCode: 'mfa-code', mfaRecovery: 'mfa-recovery', mfaRecoveryField: 'mfa-recovery-field',
@@ -2976,11 +3151,12 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
-    communityCountry: 'community-country', communitySaved: 'community-saved', communityFilters: 'community-filters',
+    communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
+    communityQClear: 'community-q-clear', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -3057,7 +3233,6 @@ document.addEventListener('DOMContentLoaded', () => {
   wireMfa();
   document.getElementById('age-gate-yes').addEventListener('click', () => answerAgeGate(true));
   document.getElementById('age-gate-no').addEventListener('click', () => answerAgeGate(false));
-  ui.refreshLinks.addEventListener('click', loadLinks);
   mirrorText(document.getElementById('realtime-status'), document.getElementById('home-realtime'));
   mirrorText(document.getElementById('notif-permission-status'), document.getElementById('home-notif-permission'));
   document.querySelectorAll('[data-goto]').forEach((button) => {
@@ -3072,23 +3247,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Offres de la communauté
   // Filtres : on recharge ET on reporte l'état dans l'adresse de la page.
-  const reloadCommunity = () => { syncFiltersToUrl(); loadCommunity(); };
-  ui.communityFilters.addEventListener('submit', (event) => { event.preventDefault(); reloadCommunity(); });
-  ui.communityQ.addEventListener('input', scheduleCommunityLoad);
-  ui.communityCountry.addEventListener('input', scheduleCommunityLoad);
-  ui.communityCategory.addEventListener('change', reloadCommunity);
-  ui.communitySaved.addEventListener('change', reloadCommunity);
+  ui.communityFilters.addEventListener('submit', (event) => {
+    event.preventDefault();
+    clearTimeout(communityTimer);
+    ui.communityQ.blur();
+    runSearch();
+  });
+  // Recherche pendant la frappe (250 ms après la dernière touche).
+  ui.communityQ.addEventListener('input', () => { paintSearchControls(); scheduleCommunityLoad(); });
+  ui.communityQClear.addEventListener('click', () => {
+    ui.communityQ.value = '';
+    clearTimeout(communityTimer);
+    runSearch();
+    ui.communityQ.focus({ preventScroll: true });
+  });
+  ui.filtersOpen.addEventListener('click', openFilters);
+  document.getElementById('filters-apply').addEventListener('click', () => closeFilters({ apply: true }));
+  document.getElementById('filters-reset').addEventListener('click', () => setFilterFields({}));
+  bindFiltersSheet();
   // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
   readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
   // Messages
-  document.getElementById('team-thread-open').addEventListener('click', openChat);
+  document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
   document.getElementById('chat-back').addEventListener('click', closeChat);
   ui.chatForm.addEventListener('submit', handleChatSubmit);
-  ui.chatInput.addEventListener('input', () => {
-    ui.chatInput.style.height = '';
-    ui.chatInput.style.height = `${Math.min(ui.chatInput.scrollHeight, 140)}px`;
-  });
+  ui.chatInput.addEventListener('input', fitChatInput);
   ui.chatInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ui.chatForm.requestSubmit(); }
   });
@@ -3114,6 +3298,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('profile-saved').addEventListener('click', () => {
     ui.communitySaved.checked = true;
+    paintSearchControls();
     state.community.loaded = false;
     setActiveView('links');
   });

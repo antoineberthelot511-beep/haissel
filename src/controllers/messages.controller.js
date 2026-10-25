@@ -61,7 +61,10 @@ async function getTeamConversation(req, res, next) {
   }
 }
 
-/** GET /api/messages/unread : nombre de réponses de l'équipe non lues (pastille). */
+/*
+ * GET /api/messages/unread : nombre de réponses de l'équipe non lues (pastille)
+ * et dernier message (aperçu de la liste). Lecture seule : rien ne passe en « lu ».
+ */
 async function getUnreadCount(req, res, next) {
   try {
     const { rows } = await pool.query(
@@ -69,7 +72,19 @@ async function getUnreadCount(req, res, next) {
        WHERE c.member_id = $1 AND m.from_team AND NOT m.is_read`,
       [req.user.id]
     );
-    return res.status(200).json({ success: true, data: { unread: rows[0].n } });
+    const last = await pool.query(
+      `SELECT m.content, m.from_team, m.created_at FROM messages m JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.member_id = $1 ORDER BY m.created_at DESC, m.id DESC LIMIT 1`,
+      [req.user.id]
+    );
+    const row = last.rows[0];
+    return res.status(200).json({
+      success: true,
+      data: {
+        unread: rows[0].n,
+        last: row ? { content: row.content.slice(0, 120), from_team: row.from_team, created_at: row.created_at } : null,
+      },
+    });
   } catch (error) {
     return next(error);
   }

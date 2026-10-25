@@ -353,6 +353,12 @@ async function listOffers(req, res, next) {
     const country = typeof req.query.country === 'string' && /^[A-Za-z]{2}$/.test(req.query.country) ? req.query.country.toUpperCase() : null;
     const author = typeof req.query.author === 'string' && /^[a-z0-9_.-]{1,50}$/i.test(req.query.author) ? req.query.author.toLowerCase() : null;
     const savedOnly = req.query.saved === '1';
+    // Filtres de la feuille « Filtres » : valeurs en liste blanche, sinon ignorées.
+    const kind = req.query.kind === 'campaign' || req.query.kind === 'affiliate' ? req.query.kind : null;
+    // « Plus populaires » : nombre de sauvegardes, seul signal stocké ; à égalité, les plus récentes.
+    const order = req.query.sort === 'popular'
+      ? '(SELECT COUNT(*) FROM member_offer_saves s WHERE s.offer_id = o.id) DESC, '
+      : '';
 
     const result = await pool.query(
       `${OFFER_SELECT}
@@ -365,9 +371,10 @@ async function listOffers(req, res, next) {
          -- Fiche expirée : absente du fil et de la recherche, mais gardée
          -- (grisée) dans « Sauvegardées ».
          AND ($6::boolean OR ${NOT_EXPIRED})
-       ORDER BY GREATEST(o.published_at, COALESCE(o.renewed_at, o.published_at)) DESC, o.id DESC
+         AND ($9::text IS NULL OR COALESCE(o.kind, 'campaign') = $9)
+       ORDER BY ${order}GREATEST(o.published_at, COALESCE(o.renewed_at, o.published_at)) DESC, o.id DESC
        LIMIT $7 OFFSET $8`,
-      [req.user.id, q.replace(/[\\%_]/g, (c) => `\\${c}`), category, country, author, savedOnly, limit, offset]
+      [req.user.id, q.replace(/[\\%_]/g, (c) => `\\${c}`), category, country, author, savedOnly, limit, offset, kind]
     );
     return res.status(200).json({
       success: true,
