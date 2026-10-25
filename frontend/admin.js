@@ -358,7 +358,7 @@ async function handleLogout() {
 // Navigation
 // ---------------------------------------------------------------------------
 
-const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'categories',
+const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'inbox', 'categories',
   'content', 'opportunities', 'referral'];
 
 function sectionFromHash() {
@@ -1145,6 +1145,60 @@ async function loadCategories() {
   ], data.items, 'Aucune catégorie. Ajoutez-en une ci-dessus.');
 }
 
+// ---------------------------------------------------------------------------
+// Messages des membres
+// ---------------------------------------------------------------------------
+
+/*
+ * Boîte de réception de l'équipe. Contenu des membres affiché en texte brut
+ * (h() crée des nœuds texte) : aucun lien cliquable, aucun HTML interprété.
+ */
+state.inboxOpen = null;
+
+async function loadInbox() {
+  const data = await api('/api/admin/messages');
+  const list = $('inbox-list');
+  list.replaceChildren(...(data.items.length ? data.items.map((item) => h('li', null,
+    h('button', {
+      className: `inbox-item${item.unread ? ' unread' : ''}${state.inboxOpen === item.id ? ' active' : ''}`, type: 'button',
+      onclick: () => openInboxThread(item.id).catch(handleError),
+    },
+    h('strong', null, `@${item.username}`),
+    item.unread ? badge(`${item.unread} non lu${item.unread > 1 ? 's' : ''}`, 'bad') : null,
+    h('span', { className: 'muted' }, `${item.last_from_team ? 'Équipe : ' : ''}${item.preview}`),
+    h('small', { className: 'muted' }, date(item.last_message_at)))))
+    : [h('li', { className: 'empty' }, 'Aucune conversation pour le moment.')]));
+  if (state.inboxOpen) await openInboxThread(state.inboxOpen, { refreshList: false });
+}
+
+async function openInboxThread(id, { refreshList = true } = {}) {
+  state.inboxOpen = id;
+  const data = await api(`/api/admin/messages/${encodeURIComponent(id)}`);
+  const input = h('textarea', { id: 'inbox-reply', rows: '3', maxlength: '2000', required: true, 'aria-label': 'Réponse' });
+  const form = h('form', { className: 'inbox-reply', novalidate: true },
+    input,
+    h('button', { className: 'btn primary', type: 'submit' }, 'Répondre'));
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const content = input.value.trim();
+    if (!content) return;
+    try {
+      await api(`/api/admin/messages/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ content }) });
+      toast('Réponse envoyée.');
+      await loadInbox();
+    } catch (error) {
+      if (error.status === 400) toast(error.message, 'error');
+      else handleError(error);
+    }
+  });
+  const messages = h('div', { className: 'inbox-messages' }, ...data.messages.map((message) => h('div', {
+    className: `inbox-bubble ${message.from_team ? 'team' : 'member'}`,
+  }, h('p', null, message.content), h('small', { className: 'muted' }, `${message.from_team ? 'Équipe' : `@${data.username}`} · ${date(message.created_at)}`))));
+  $('inbox-thread').replaceChildren(h('h2', null, `@${data.username}`), messages, form);
+  messages.scrollTop = messages.scrollHeight;
+  if (refreshList) await loadInbox();
+}
+
 const LOADERS = {
   dashboard: loadDashboard,
   links: loadLinks,
@@ -1155,6 +1209,7 @@ const LOADERS = {
   opportunities: loadOpportunities,
   referral: loadReferral,
   moderation: loadModeration,
+  inbox: loadInbox,
   categories: loadCategories,
 };
 

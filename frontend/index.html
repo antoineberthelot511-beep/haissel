@@ -159,6 +159,7 @@
             </button>
             <button class="nav-button" type="button" data-view="messages" aria-label="Messages">
               <svg class="icon lg" aria-hidden="true"><use href="#i-send" /></svg>
+              <span id="nav-messages-badge" class="nav-badge" hidden><span class="visually-hidden">Nouveaux messages</span></span>
             </button>
             <button class="nav-button" type="button" data-view="links" aria-label="Recherche">
               <svg class="icon lg" aria-hidden="true"><use href="#i-search" /></svg>
@@ -583,12 +584,39 @@
               <div id="discover-feed" class="discover-feed" aria-live="polite"></div>
             </section>
 
-            <!-- Messages : à venir -->
+            <!-- Messages : une seule conversation, avec l'équipe (app.js). Pas de messages entre membres. -->
             <section id="messages-view" class="view-panel hidden" aria-labelledby="messages-title">
-              <div class="messages-soon">
-                <span class="messages-soon-icon" aria-hidden="true"><svg class="icon lg"><use href="#i-send" /></svg></span>
+              <div id="messages-inbox">
                 <h2 id="messages-title" class="section-title">Messages</h2>
-                <p>Bientôt : écris à l'équipe Haissel.</p>
+                <button id="team-thread-open" class="thread-row" type="button">
+                  <span class="thread-avatar" aria-hidden="true">H</span>
+                  <span class="thread-text">
+                    <strong>Équipe Haissel <svg class="icon sm verified" aria-label="Compte vérifié" role="img"><use href="#i-check-circle" /></svg></strong>
+                    <span id="team-thread-preview">Une question, un signalement ? Écris-nous.</span>
+                  </span>
+                  <span id="team-thread-dot" class="thread-dot" hidden><span class="visually-hidden">Nouveau message</span></span>
+                  <svg class="icon sm thread-pin" aria-label="Épinglée" role="img"><use href="#i-chevron-right" /></svg>
+                </button>
+                <p class="security-note">Seule l'équipe Haissel lit tes messages ; tu ne peux pas écrire aux autres membres. Texte uniquement, les liens ne sont pas cliquables. Messages supprimés 12 mois après le dernier échange.</p>
+              </div>
+
+              <div id="team-thread" class="chat" hidden>
+                <header class="chat-head">
+                  <button id="chat-back" class="round-button" type="button" aria-label="Retour aux messages">
+                    <svg class="icon" aria-hidden="true"><use href="#i-arrow-left" /></svg>
+                  </button>
+                  <span class="thread-avatar sm" aria-hidden="true">H</span>
+                  <strong>Équipe Haissel <svg class="icon sm verified" aria-label="Compte vérifié" role="img"><use href="#i-check-circle" /></svg></strong>
+                </header>
+                <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+                <div id="chat-error" class="auth-error hidden" role="alert"></div>
+                <form id="chat-form" class="chat-form" novalidate>
+                  <label class="visually-hidden" for="chat-input">Ton message</label>
+                  <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Écris ton message…" required></textarea>
+                  <button class="chat-send" type="submit" aria-label="Envoyer">
+                    <svg class="icon" aria-hidden="true"><use href="#i-send" /></svg>
+                  </button>
+                </form>
               </div>
             </section>
 

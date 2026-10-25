@@ -3,6 +3,7 @@ const admin = require('../controllers/admin.controller');
 const broadcast = require('../controllers/broadcast.controller');
 const learn = require('../controllers/learn.controller');
 const community = require('../controllers/community.controller');
+const messages = require('../controllers/messages.controller');
 const { broadcastBurstLimiter, broadcastHourlyLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
@@ -72,6 +73,11 @@ router.put('/learn/settings', learn.updateSettings);
 router.get('/community/offers', community.adminListOffers);
 router.post('/community/offers/:id/moderate', community.adminModerateOffer);
 router.post('/community/offers/:id/extend', community.adminExtendOffer);
+
+// Messagerie : conversations des membres avec l'équipe.
+router.get('/messages', messages.adminListConversations);
+router.get('/messages/:id', messages.adminGetConversation);
+router.post('/messages/:id', messages.adminReply);
 
 /*
  * Catégories des offres (table offer_categories). L'identifiant n'est pas

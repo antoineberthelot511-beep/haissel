@@ -224,6 +224,9 @@ function setActiveView(viewName) {
   });
   // Découvrir : barre du bas en version sombre (liquid-glass.css).
   document.body.dataset.view = viewName;
+  // Quitter Messages arrête l'interrogation de la conversation.
+  if (viewName !== 'messages') closeChat();
+  refreshUnread();
   if (viewName === 'home' && state.user) renderHomeLearnCard();
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
   if ((viewName === 'links' || viewName === 'home' || viewName === 'discover') && state.user && !state.community.loaded) loadCommunity();
@@ -237,6 +240,8 @@ function setActiveView(viewName) {
 
 function showLoggedOut() {
   if (notificationCenter) notificationCenter.stop();
+  clearInterval(chat.unreadTimer);
+  closeChat();
   state.user = null;
   state.links = [];
   state.learn = { loaded: false, opportunities: [] };
@@ -418,6 +423,7 @@ function showLoggedIn(user) {
   setActiveView('home');
   loadLinks();
   if (notificationCenter) notificationCenter.start();
+  startUnreadPolling();
 }
 
 // ---------------------------------------------------------------------------
@@ -1694,6 +1700,114 @@ function closeStoryViewer() {
   animation.finished.then(teardownStoryViewer, teardownStoryViewer);
 }
 
+// ---------------------------------------------------------------------------
+// Messages : conversation avec l'équipe
+// ---------------------------------------------------------------------------
+
+/*
+ * Une seule conversation, avec l'équipe. Texte brut affiché par textContent
+ * (h() crée des nœuds texte) : rien n'est interprété, aucun lien cliquable.
+ * Pas de flux temps réel sur Vercel : interrogation toutes les 15 s tant
+ * que la conversation est ouverte ; pastille vérifiée à chaque changement de
+ * vue et toutes les 60 s quand la page est visible.
+ */
+const CHAT_POLL_MS = 15000;
+const UNREAD_POLL_MS = 60000;
+const chat = { timer: 0, unreadTimer: 0, lastCount: -1 };
+
+function paintUnread(count) {
+  ui.navMessagesBadge.hidden = !count;
+  ui.teamThreadDot.hidden = !count;
+  ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
+}
+
+async function refreshUnread() {
+  if (!state.user) return;
+  try {
+    const data = await api('/api/messages/unread');
+    paintUnread(data.unread);
+  } catch (error) { /* pastille seulement : on réessaiera */ }
+}
+
+function startUnreadPolling() {
+  clearInterval(chat.unreadTimer);
+  refreshUnread();
+  chat.unreadTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshUnread(); }, UNREAD_POLL_MS);
+}
+
+function chatBubble(message) {
+  return h('div', { className: `bubble ${message.from_team ? 'from-team' : 'from-me'}` },
+    h('p', null, message.content),
+    h('time', { datetime: message.created_at }, formatAgo(message.created_at)));
+}
+
+function renderChat(messages) {
+  if (!messages.length) {
+    ui.chatMessages.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
+    return;
+  }
+  const atBottom = ui.chatMessages.scrollHeight - ui.chatMessages.scrollTop - ui.chatMessages.clientHeight < 40;
+  ui.chatMessages.replaceChildren(...messages.map(chatBubble));
+  if (atBottom || chat.lastCount !== messages.length) ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+  chat.lastCount = messages.length;
+  const last = messages[messages.length - 1];
+  ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content.slice(0, 80)}`;
+}
+
+async function loadChat() {
+  try {
+    const data = await api('/api/messages/team');
+    renderChat(data.messages || []);
+    paintUnread(0);
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    ui.chatError.textContent = error.message;
+    ui.chatError.classList.remove('hidden');
+  }
+}
+
+function openChat() {
+  ui.messagesInbox.hidden = true;
+  ui.teamThread.hidden = false;
+  document.body.classList.add('chat-open');
+  ui.chatError.classList.add('hidden');
+  chat.lastCount = -1;
+  loadChat();
+  clearInterval(chat.timer);
+  chat.timer = setInterval(loadChat, CHAT_POLL_MS);
+  ui.chatInput.focus({ preventScroll: true });
+}
+
+function closeChat() {
+  clearInterval(chat.timer);
+  chat.timer = 0;
+  if (!ui.teamThread) return;
+  ui.teamThread.hidden = true;
+  ui.messagesInbox.hidden = false;
+  document.body.classList.remove('chat-open');
+}
+
+async function handleChatSubmit(event) {
+  event.preventDefault();
+  const content = ui.chatInput.value.trim();
+  if (!content) return;
+  ui.chatError.classList.add('hidden');
+  setBusy(ui.chatForm, true);
+  try {
+    await api('/api/messages/team', { method: 'POST', body: { content } });
+    ui.chatInput.value = '';
+    ui.chatInput.style.height = '';
+    chat.lastCount = -1;
+    await loadChat();
+  } catch (error) {
+    ui.chatError.textContent = error.message;
+    ui.chatError.classList.remove('hidden');
+  } finally {
+    setBusy(ui.chatForm, false);
+    ui.chatInput.focus({ preventScroll: true });
+  }
+}
+
 let communityTimer;
 function scheduleCommunityLoad() {
   clearTimeout(communityTimer);
@@ -2862,7 +2976,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
@@ -2967,6 +3081,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
   readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
+  // Messages
+  document.getElementById('team-thread-open').addEventListener('click', openChat);
+  document.getElementById('chat-back').addEventListener('click', closeChat);
+  ui.chatForm.addEventListener('submit', handleChatSubmit);
+  ui.chatInput.addEventListener('input', () => {
+    ui.chatInput.style.height = '';
+    ui.chatInput.style.height = `${Math.min(ui.chatInput.scrollHeight, 140)}px`;
+  });
+  ui.chatInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ui.chatForm.requestSubmit(); }
+  });
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });
