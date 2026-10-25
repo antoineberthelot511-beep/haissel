@@ -1063,3 +1063,9 @@ body.age-gate-open { overflow: hidden; }
 }
 .notif-card-close:hover { background: var(--v2-surface-low); color: var(--v2-on-surface); }
 body:has(#auth-screen:not(.hidden)) .notif-stack { bottom: var(--v2-margin); }
+
+/* Fiches campagne des membres (lien vers la page officielle) */
+.pill.campaign { background: var(--v2-primary-soft); border-color: transparent; color: var(--v2-primary); }
+.fc-head .pill.campaign { flex: none; }
+.fc-campaign { margin-top: -2px; font-size: 13px; font-weight: 600; color: var(--v2-secondary); overflow-wrap: anywhere; }
+.field-hint { margin: 4px 0 0; font-size: 13px; color: var(--v2-secondary); }

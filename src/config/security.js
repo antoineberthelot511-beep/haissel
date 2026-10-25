@@ -34,13 +34,6 @@ const isVercel = () => process.env.VERCEL === '1';
  */
 const isInternalAffiliationEnabled = () => process.env.ENABLE_INTERNAL_AFFILIATION === 'true';
 
-/*
- * Publication d'offres par les membres. FERMÉE par défaut : seuls les comptes
- * ADMIN publient ou modifient des offres. Le retrait de ses propres offres
- * reste permis à tous. Voir README, « Variables d'environnement ».
- */
-const isMemberPublishingEnabled = () => process.env.MEMBER_PUBLISHING_ENABLED === 'true';
-
 function getMasterSecret() {
   return process.env.APP_SECRET || process.env.JWT_SECRET || '';
 }
@@ -164,7 +157,6 @@ module.exports = {
   isTest,
   isVercel,
   isInternalAffiliationEnabled,
-  isMemberPublishingEnabled,
   getMasterSecret,
   deriveKey,
   getMfaKey,

@@ -928,7 +928,7 @@ async function handleReferralSubmit(event) {
 // ---------------------------------------------------------------------------
 
 const REPORT_REASON_LABELS = {
-  misleading: 'Trompeuse', spam: 'Spam', dangerous: 'Dangereuse', minors: 'Inadaptée aux mineurs', rights: 'Droits', other: 'Autre',
+  misleading: 'Trompeuse', spam: 'Spam', dangerous: 'Dangereuse', minors: 'Inadaptée aux mineurs', rights: 'Droits', signup_exchange: 'Échange d’inscriptions', other: 'Autre',
 };
 const MEMBER_STATUS_BADGES = {
   pending: ['En attente', 'warn'], published: ['Publiée', 'ok'], rejected: ['Refusée', 'bad'], removed: ['Retirée', 'muted'],
@@ -968,12 +968,15 @@ function moderationCard(offer) {
     h('div', { className: 'moderation-head' },
       h('strong', null, offer.title),
       badge(label, kind),
+      badge(offer.kind === 'affiliate' ? 'Lien affilié' : 'Fiche campagne', offer.kind === 'affiliate' ? 'warn' : 'muted'),
       offer.min_age && offer.min_age >= 18 ? badge(`${offer.min_age} ans et +`, 'bad') : null,
       offer.open_reports ? badge(`${offer.open_reports} signalement${offer.open_reports > 1 ? 's' : ''}`, 'bad') : null),
     h('p', { className: 'muted' }, `@${offer.author.username} · ${offer.category_label} · ${date(offer.updated_at)}`),
     h('p', { className: 'moderation-description' }, offer.description),
     h('ul', { className: 'moderation-meta' },
-      row('Lien', h('code', { className: 'url' }, offer.url)),
+      row(offer.kind === 'affiliate' ? 'Lien affilié' : 'Page officielle', h('code', { className: 'url' }, offer.url)),
+      row('Campagne MyLead', offer.campaign_name),
+      row('Conseils', offer.tips),
       row('Domaine', offer.domain),
       row('Action', offer.expected_action),
       row('Pays', offer.countries),

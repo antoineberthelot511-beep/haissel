@@ -69,6 +69,7 @@ const offerBody = (overrides = {}) => ({
   category: 'applications',
   countries: 'FR',
   expected_action: 'Créer un compte',
+  campaign_name: 'Campagne de test',
   rights_confirmed: true,
   ...overrides,
 });

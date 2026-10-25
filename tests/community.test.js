@@ -41,6 +41,7 @@ function offer(overrides = {}) {
     payout_text: null,
     min_age: null,
     conditions: 'Pas de trafic incité.',
+    campaign_name: 'Campagne de test',
     rights_confirmed: true,
     ...overrides,
   };
