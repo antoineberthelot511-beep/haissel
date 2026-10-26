@@ -16,8 +16,10 @@
  * L'affichage, la déduplication et les accusés sont communs aux deux canaux.
  * - Reconnexion avec délai exponentiel et nombre de tentatives limité.
  * - Notifications système uniquement après un clic explicite sur
- *   « Activer les notifications » ; la permission n'est jamais demandée
- *   automatiquement et un refus est respecté.
+ *   l'interrupteur de Profil › Réglages (app.js) ; la permission n'est jamais
+ *   demandée automatiquement et un refus est respecté.
+ * - Aucun texte technique dans la page du membre : l'état du canal est
+ *   seulement exposé par status() (débogage), jamais affiché.
  * - Le contenu reçu est du texte brut, inséré via textContent : il n'est
  *   jamais interprété comme du HTML ni exécuté.
  */
@@ -37,16 +39,9 @@ window.createNotificationCenter = function createNotificationCenter(options) {
 
   const el = {
     stack: document.getElementById('notif-stack'),
-    realtime: document.getElementById('realtime-status'),
-    permission: document.getElementById('notif-permission-status'),
-    help: document.getElementById('notif-permission-help'),
-    enable: document.getElementById('notif-enable'),
-    enableTop: document.getElementById('notif-enable-top'),
-    retry: document.getElementById('realtime-retry'),
-    test: document.getElementById('notif-test'),
-    result: document.getElementById('notif-last-result'),
-    diagnostic: document.getElementById('notif-diagnostic'),
   };
+  // État interne, lisible par status() pour le débogage ; jamais affiché au membre.
+  const debug = { channel: 'Hors ligne', canRetry: false, lastResult: '', lastError: false };
 
   let source = null;
   let running = false;
@@ -71,8 +66,8 @@ window.createNotificationCenter = function createNotificationCenter(options) {
   }
 
   function setRealtimeStatus(text, { canRetry = false } = {}) {
-    el.realtime.textContent = text;
-    el.retry.classList.toggle('hidden', !canRetry);
+    debug.channel = text;
+    debug.canRetry = canRetry;
   }
 
   function supportsSystemNotifications() {
@@ -84,43 +79,14 @@ window.createNotificationCenter = function createNotificationCenter(options) {
   }
 
   function setLastResult(text, isError = false) {
-    el.result.textContent = text;
-    el.result.classList.toggle('notif-error', isError);
+    debug.lastResult = text;
+    debug.lastError = isError;
   }
 
-  function renderPermission() {
-    let status;
-    let help = '';
-    let canAsk = false;
-
-    if (!supportsSystemNotifications()) {
-      status = 'Non prises en charge';
-      help = 'Ce navigateur ne gère pas les notifications système. Les messages s’affichent seulement dans la page.';
-    } else if (!window.isSecureContext) {
-      status = 'Indisponibles : HTTPS requis';
-      help = `Le navigateur bloque les notifications Windows sur ${window.location.origin} (connexion non sécurisée). `
-        + 'Ouvre Haissel via son adresse https:// (voir l’administrateur). Les messages s’affichent dans la page en attendant.';
-    } else if (Notification.permission === 'granted') {
-      status = 'Autorisées';
-      help = 'Pour les désactiver : icône à gauche de l’adresse du site › Notifications › Bloquer. '
-        + 'Si rien n’apparaît, vérifie aussi Windows : Paramètres › Système › Notifications (navigateur autorisé, mode « Ne pas déranger » désactivé).';
-    } else if (Notification.permission === 'denied') {
-      status = 'Refusées';
-      help = 'Tu as refusé les notifications. Pour changer d’avis : icône à gauche de l’adresse du site › Notifications › Autoriser, puis recharge la page.';
-    } else {
-      status = 'Non configurées';
-      canAsk = true;
-    }
-
-    el.permission.textContent = status;
-    el.help.textContent = help;
-    el.diagnostic.textContent = `Adresse : ${window.location.origin} · contexte sécurisé pour le navigateur : `
-      + `${window.isSecureContext ? 'oui' : 'non'} · autorisation : `
-      + `${supportsSystemNotifications() ? Notification.permission : 'API absente'}`;
-    el.enable.disabled = !canAsk;
-    el.enable.textContent = canAsk ? 'Activer les notifications Windows' : `Notifications Windows : ${status.toLowerCase()}`;
-    el.enableTop.classList.toggle('hidden', !running || !canAsk);
-    el.test.classList.toggle('hidden', !systemNotificationsAllowed());
+  /** 'granted' | 'denied' | 'default' | 'unsupported' (API absente ou connexion non sécurisée). */
+  function permission() {
+    if (!supportsSystemNotifications() || !window.isSecureContext) return 'unsupported';
+    return Notification.permission;
   }
 
   /**
@@ -141,12 +107,9 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     return swRegistration;
   }
 
-  /** Appelé UNIQUEMENT depuis un clic de l'utilisateur. */
+  /** Appelé UNIQUEMENT depuis un clic de l'utilisateur. Renvoie la permission obtenue. */
   async function enableSystemNotifications() {
-    if (!supportsSystemNotifications() || !window.isSecureContext) {
-      renderPermission();
-      return;
-    }
+    if (permission() === 'unsupported') return 'unsupported';
     if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
       try {
         await Notification.requestPermission();
@@ -154,36 +117,8 @@ window.createNotificationCenter = function createNotificationCenter(options) {
         setLastResult(`La demande d’autorisation a échoué : ${error.message || error}`, true);
       }
     }
-    renderPermission();
     if (Notification.permission === 'granted') ensureServiceWorker();
-  }
-
-  /**
-   * Bouton « Tester » : crée une VRAIE notification système (jamais un
-   * élément de la page) et rend compte du résultat réel.
-   */
-  async function testSystemNotification() {
-    if (!systemNotificationsAllowed()) {
-      renderPermission();
-      setLastResult('Test impossible : les notifications Windows ne sont pas autorisées pour ce site.', true);
-      return;
-    }
-    setLastResult('Test en cours…');
-    try {
-      const result = await showSystem({
-        id: `test-${Date.now()}`,
-        title: 'HAISSEL — Test de notification',
-        message: 'Les notifications système fonctionnent correctement.',
-        url: null,
-      });
-      setLastResult(result === 'shown'
-        ? `Test ${timeNow()} : Chrome a transmis la notification à Windows. Si aucune bulle n’apparaît en bas à droite de l’écran, `
-          + 'les notifications sont masquées par Windows (Paramètres › Système › Notifications, ou « Ne pas déranger »).'
-        : `Test ${timeNow()} : notification créée, mais Chrome n’a pas confirmé son affichage. Vérifie les paramètres de notification de Windows.`,
-      result !== 'shown');
-    } catch (error) {
-      setLastResult(`Test ${timeNow()} : échec, aucune notification n’a été créée (${error.message}).`, true);
-    }
+    return permission();
   }
 
   // -------------------------------------------------------------------------
@@ -333,10 +268,12 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     // Identifiant déjà traité (reconnexion, écouteur en double) : ignoré.
     if (!notification || seen.has(notification.id)) return;
     seen.add(notification.id);
+    // La page « Activité » et la pastille de la cloche se mettent à jour.
+    if (typeof options.onNotification === 'function') options.onNotification(notification);
 
     if (!systemNotificationsAllowed()) {
       if (supportsSystemNotifications() && !window.isSecureContext) {
-        setLastResult('Message reçu, affiché dans la page : notification Windows impossible sur une connexion non sécurisée.', true);
+        setLastResult('Message reçu, affiché dans la page : notification système impossible sur une connexion non sécurisée.', true);
       }
       fallbackInApp(notification);
       return;
@@ -347,20 +284,20 @@ window.createNotificationCenter = function createNotificationCenter(options) {
       return;
     }
 
-    // Autorisée : vraie notification Windows, dans un seul onglet (verrou +
+    // Autorisée : vraie notification système, dans un seul onglet (verrou +
     // tag commun). Pas d'encadré dans la page en plus : pas de doublon.
     inSingleTab(notification.id, async () => {
       lastSystemAt = Date.now();
       try {
         const result = await showSystem(notification);
         if (result === 'shown') {
-          setLastResult(`Notification Windows « ${notification.title} » transmise à ${timeNow()} (affichage confirmé par le navigateur).`);
+          setLastResult(`Notification système « ${notification.title} » transmise à ${timeNow()} (affichage confirmé par le navigateur).`);
           acknowledge(notification.id, 'system');
         } else {
-          setLastResult(`Notification transmise à Windows à ${timeNow()}, mais le navigateur n’a pas confirmé l’affichage.`, true);
+          setLastResult(`Notification transmise au système à ${timeNow()}, mais le navigateur n’a pas confirmé l’affichage.`, true);
         }
       } catch (error) {
-        setLastResult(`Échec de la notification Windows : ${error.message}. Message affiché dans la page à la place.`, true);
+        setLastResult(`Échec de la notification système : ${error.message}. Message affiché dans la page à la place.`, true);
         fallbackInApp(notification);
       }
     });
@@ -525,7 +462,6 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     running = true;
     attempts = 0;
     if (currentMode() === 'poll') startPolling(); else connect();
-    renderPermission();
   }
 
   function stop() {
@@ -537,13 +473,8 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     setRealtimeStatus('Hors ligne');
     el.stack.replaceChildren();
     pendingAcks.clear();
-    renderPermission();
   }
 
-  el.enable.addEventListener('click', enableSystemNotifications);
-  el.enableTop.addEventListener('click', enableSystemNotifications);
-  el.retry.addEventListener('click', retryNow);
-  el.test.addEventListener('click', testSystemNotification);
   window.addEventListener('online', () => { if (running && !source) retryNow(); });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') {
@@ -557,8 +488,7 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     if (running && currentMode() === 'poll') pollOnce();
   });
 
-  renderPermission();
   // Permission déjà accordée lors d'une visite précédente : prépare le secours.
   if (systemNotificationsAllowed()) ensureServiceWorker();
-  return { start, stop, retryNow, enableSystemNotifications, testSystemNotification };
+  return { start, stop, retryNow, enableSystemNotifications, permission, status: () => ({ ...debug }) };
 };

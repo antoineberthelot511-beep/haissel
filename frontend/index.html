@@ -2,11 +2,19 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
     <meta name="theme-color" content="#2563eb" />
+    <!-- Ajout à l'écran d'accueil (Android : manifeste ; iPhone : balises Apple). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="HAISSEL" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="stylesheet" href="app-v2.css" />
+    <link rel="stylesheet" href="liquid-glass.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
@@ -25,8 +33,9 @@
       <symbol id="i-tag" viewBox="0 0 24 24"><path d="M4 4h7.5l8.5 8.5-7.5 7.5L4 11.5zM8.2 8.2h.01" /></symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></symbol>
       <!-- Navigation et actions -->
-      <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></symbol>
+      <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="m15.2 8.8-2.1 4.3-4.3 2.1 2.1-4.3z" /></symbol>
       <symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" /><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17" /></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.4-4.4" /></symbol>
       <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6.5 4h11v16l-5.5-4-5.5 4z" /></symbol>
       <symbol id="i-bookmark-fill" viewBox="0 0 24 24"><path d="M6.5 4h11v16l-5.5-4-5.5 4z" fill="currentColor" /></symbol>
@@ -37,6 +46,9 @@
       <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5.5 20.5v-16M5.5 5h11l-2 4 2 4h-11" /></symbol>
       <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
       <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+      <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6" /></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5H6v9.5h12v-9.5h-2.5" /></symbol>
       <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.5 19.5h4l10-10-4-4-10 10zM13 7l4 4" /></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5" /></symbol>
       <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></symbol>
@@ -115,6 +127,12 @@
       <!-- ====================== EN-TÊTE ====================== -->
       <header class="topbar">
         <div class="topbar-inner">
+          <!-- En-tête façon Instagram : + (Publier, majeurs) | HAISSEL | cloche -->
+          <div class="topbar-left">
+            <button class="topbar-icon topbar-publish member-only" type="button" data-view="publish" data-publish-only aria-label="Publier une fiche">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-add" /></svg>
+            </button>
+          </div>
           <a class="wordmark" href="/" aria-label="HAISSEL — accueil">
             <span class="wordmark-logo" aria-hidden="true">H</span>
             <span class="wordmark-text">HAISSEL</span>
@@ -123,14 +141,14 @@
 
           <div class="topbar-actions">
             <span id="status-badge" class="status-pill offline">Connexion</span>
-            <button id="notif-enable-top" class="ghost-button on-brand hidden" type="button">Activer les notifications Windows</button>
             <button id="logout-button" class="ghost-button on-brand hidden" type="button">
               <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>
               Déconnexion
             </button>
             <!-- Raccourcis de l'en-tête (espace membre) -->
-            <button class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Notifications">
+            <button id="bell-button" class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Activité">
               <svg class="icon lg" aria-hidden="true"><use href="#i-bell" /></svg>
+              <span id="bell-badge" class="bell-badge" aria-hidden="true" hidden></span>
             </button>
             <button class="topbar-avatar member-only" type="button" data-view="profile" aria-label="Mon profil">
               <span id="topbar-avatar" class="avatar" aria-hidden="true">H</span>
@@ -138,24 +156,25 @@
           </div>
         </div>
 
-        <!-- Navigation principale : barre flottante en bas d'écran.
-             « Apprendre » est accessible depuis l'accueil et le profil. -->
+        <!-- Navigation principale : barre flottante en bas d'écran, icônes
+             seules (façon Instagram). Publier : le + de l'en-tête d'Accueil. -->
         <nav class="topbar-nav" aria-label="Navigation principale">
           <div class="topbar-nav-inner">
-            <button class="nav-button active" type="button" data-view="home" aria-current="page">
+            <button class="nav-button active" type="button" data-view="home" aria-current="page" aria-label="Accueil">
               <svg class="icon lg" aria-hidden="true"><use href="#i-home" /></svg>
-              <span>Accueil</span>
             </button>
-            <button class="nav-button" type="button" data-view="links">
+            <button class="nav-button" type="button" data-view="discover" aria-label="Découvrir">
               <svg class="icon lg" aria-hidden="true"><use href="#i-compass" /></svg>
-              <span>Chercher</span>
             </button>
-            <button class="nav-button nav-fab" type="button" data-view="publish" aria-label="Publier une offre">
-              <span class="nav-fab-circle" aria-hidden="true"><svg class="icon"><use href="#i-add" /></svg></span>
+            <button class="nav-button" type="button" data-view="messages" aria-label="Messages">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-send" /></svg>
+              <span id="nav-messages-badge" class="nav-badge" hidden><span class="visually-hidden">Nouveaux messages</span></span>
             </button>
-            <button class="nav-button" type="button" data-view="profile">
-              <svg class="icon lg" aria-hidden="true"><use href="#i-user" /></svg>
-              <span>Profil</span>
+            <button class="nav-button" type="button" data-view="links" aria-label="Recherche">
+              <svg class="icon lg" aria-hidden="true"><use href="#i-search" /></svg>
+            </button>
+            <button class="nav-button" type="button" data-view="profile" aria-label="Profil">
+              <span id="nav-avatar" class="nav-avatar" aria-hidden="true">H</span>
             </button>
           </div>
         </nav>
@@ -348,19 +367,11 @@
                 <h2 id="home-title" class="section-title">Les bons plans</h2>
               </div>
 
-              <!-- « Apprendre » : bandeau d'une ligne (rempli par app.js), masquable -->
-              <aside id="home-learn-card" class="learn-banner" aria-label="Apprendre">
-                <button id="home-learn-go" class="lb-go" type="button">
-                  <span class="lb-icon" aria-hidden="true"><svg class="icon"><use href="#i-book" /></svg></span>
-                  <span class="lb-text"><strong id="home-learn-step">Guides</strong> <span id="home-learn-text">Les bases de l'affiliation</span></span>
-                  <svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>
-                </button>
-                <button id="home-learn-close" class="lb-close" type="button" aria-label="Masquer ce bandeau">
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-close" /></svg>
-                </button>
-              </aside>
+              <!-- Stories : fiches campagne des membres, un rond par auteur (app.js) -->
+              <nav class="stories-bar hidden" aria-label="Fiches campagne des membres">
+                <ul id="home-stories" class="stories-row"></ul>
+              </nav>
 
-              <nav id="home-chips" class="chip-row" aria-label="Chercher par catégorie"></nav>
 
               <details class="home-note">
                 <summary aria-label="Fiches campagne des membres et liens affiliés de l'équipe : en savoir plus">
@@ -394,17 +405,6 @@
                   <ul id="home-learn" class="widget-list" aria-live="polite"><li class="widget-empty">Chargement…</li></ul>
                   <button class="widget-more" type="button" data-goto="learn">Ouvrir la formation</button>
                 </article>
-                <article class="widget" aria-labelledby="w-notif-title">
-                  <header class="widget-head">
-                    <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>
-                    <h3 id="w-notif-title">Notifications</h3>
-                  </header>
-                  <ul class="widget-list">
-                    <li><span>Canal temps réel</span><strong id="home-realtime">Hors ligne</strong></li>
-                    <li><span>Notifications Windows</span><strong id="home-notif-permission">Non configuré</strong></li>
-                  </ul>
-                  <button class="widget-more" type="button" data-goto="notifications">Réglages des notifications</button>
-                </article>
               </div>
               <section class="account-band" aria-labelledby="w-account-title" hidden>
                 <div class="account-band-id">
@@ -419,41 +419,57 @@
             </section>
 
             <section id="links-view" class="view-panel hidden" aria-labelledby="links-title">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Bonjour, <span id="welcome-name">utilisateur</span></p>
-                  <h2 id="links-title" class="section-title">Chercher une offre</h2>
-                </div>
-                <button id="refresh-links" class="round-button" type="button" aria-label="Actualiser les liens">
-                  <svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
-                </button>
-              </div>
+              <h2 id="links-title" class="visually-hidden">Chercher une offre <span id="welcome-name" hidden>utilisateur</span></h2>
 
-              <form id="community-filters" class="filters-bar" role="search" aria-label="Chercher une offre">
-                <label class="search-field">
+              <!-- Une barre de recherche + « Filtres » ; les filtres vivent dans la feuille #filters-sheet. -->
+              <form id="community-filters" class="search-bar" role="search" aria-label="Chercher une offre">
+                <label class="search-pill">
                   <span class="visually-hidden">Rechercher</span>
                   <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
-                  <input id="community-q" type="search" maxlength="80" placeholder="Une marque, une appli, un jeu…" />
+                  <input id="community-q" type="search" maxlength="80" placeholder="Rechercher" autocomplete="off" enterkeyhint="search" />
+                  <button id="community-q-clear" class="search-clear" type="button" aria-label="Effacer la recherche" hidden>
+                    <svg class="icon sm" aria-hidden="true"><use href="#i-close" /></svg>
+                  </button>
                 </label>
-                <div class="filters-row">
-                  <label class="field">
-                    <span>Catégorie</span>
-                    <select id="community-category"><option value="">Toutes</option></select>
-                  </label>
-                  <label class="field">
-                    <span>Pays (2 lettres)</span>
-                    <input id="community-country" type="text" maxlength="2" placeholder="FR" autocomplete="off" />
-                  </label>
-                </div>
-                <label class="toggle-row filter-saved">
-                  <input id="community-saved" type="checkbox" />
-                  <span>Seulement mes offres sauvegardées</span>
-                </label>
+                <button id="filters-open" class="filters-button" type="button" aria-haspopup="dialog" aria-controls="filters-sheet">
+                  <svg class="icon" aria-hidden="true"><use href="#i-sliders" /></svg>
+                  <span>Filtres</span>
+                  <span id="filters-count" class="filters-count" hidden></span>
+                </button>
               </form>
+
+              <!-- Feuille « Filtres » : <select> natifs (roue sur iPhone, menu système sur Android). -->
+              <dialog id="filters-sheet" class="sheet" aria-labelledby="filters-title">
+                <div class="sheet-panel">
+                  <div class="sheet-grabber" aria-hidden="true"></div>
+                  <h2 id="filters-title" class="sheet-title">Filtres</h2>
+                  <label class="sheet-field" for="community-category">Catégorie</label>
+                  <select id="community-category" class="sheet-select"><option value="">Toutes</option></select>
+                  <label class="sheet-field" for="community-kind">Type</label>
+                  <select id="community-kind" class="sheet-select">
+                    <option value="">Tous</option>
+                    <option value="campaign">Fiches campagne des membres</option>
+                    <option value="affiliate">Liens de l'équipe</option>
+                  </select>
+                  <label class="sheet-field" for="community-sort">Trier par</label>
+                  <select id="community-sort" class="sheet-select">
+                    <option value="">Plus récents</option>
+                    <option value="popular">Plus populaires</option>
+                  </select>
+                  <label class="sheet-toggle">
+                    <input id="community-saved" type="checkbox" />
+                    <span>Seulement mes offres sauvegardées</span>
+                  </label>
+                  <div class="sheet-actions">
+                    <button id="filters-reset" class="sheet-reset" type="button">Réinitialiser</button>
+                    <button id="filters-apply" class="primary-button sheet-apply" type="button">Afficher les résultats</button>
+                  </div>
+                </div>
+              </dialog>
               <p class="ad-notice">Les offres marquées « Lien affilié » sont publiées par l'équipe HAISSEL : HAISSEL peut toucher une commission si tu réalises l'action demandée. Les « Fiches campagne » des membres mènent à la page officielle et ne rapportent rien à leur auteur. <strong>Aucun gain n'est garanti.</strong> Rien ne t'oblige à cliquer.</p>
 
-              <h3 class="subsection-title">Offres de la communauté</h3>
-              <div id="community-list" class="offer-feed" aria-live="polite"></div>
+              <h3 class="subsection-title visually-hidden">Offres</h3>
+              <div id="community-list" class="offer-grid" aria-live="polite"></div>
 
               <h3 class="subsection-title">Liens de l'équipe HAISSEL</h3>
               <div id="links-list" class="offer-feed" aria-live="polite"></div>
@@ -575,30 +591,69 @@
               </div>
             </section>
 
-            <section id="notifications-view" class="view-panel hidden" aria-labelledby="notif-title">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Messages de l'équipe</p>
-                  <h2 id="notif-title" class="section-title">Notifications</h2>
+            <!-- Découvrir : une offre par écran (rempli par app.js) -->
+            <section id="discover-view" class="view-panel hidden" aria-label="Découvrir">
+              <div id="discover-feed" class="discover-feed" aria-live="polite"></div>
+            </section>
+
+            <!-- Messages : une seule conversation, avec l'équipe (app.js). Pas de messages entre membres. -->
+            <section id="messages-view" class="view-panel hidden" aria-labelledby="messages-title">
+              <div id="messages-inbox" class="msg-inbox">
+                <h2 id="messages-title" class="msg-title">Messages</h2>
+                <!-- Conversation épinglée : grand avatar rond, nom dessous. -->
+                <div class="msg-pinned">
+                  <button class="msg-pin" type="button" data-open-thread aria-label="Équipe Haissel, conversation épinglée">
+                    <span class="msg-pin-avatar" aria-hidden="true">H</span>
+                    <span class="msg-pin-name" aria-hidden="true">Équipe Haissel</span>
+                  </button>
                 </div>
+                <ul class="msg-list" aria-label="Conversations">
+                  <li>
+                    <button id="team-thread-open" class="msg-row" type="button" data-open-thread>
+                      <span id="team-thread-dot" class="msg-unread" hidden><span class="visually-hidden">Non lu</span></span>
+                      <span class="msg-avatar" aria-hidden="true">H</span>
+                      <span class="msg-row-body">
+                        <span class="msg-row-top">
+                          <strong>Équipe Haissel</strong>
+                          <time id="team-thread-time" class="msg-row-time"></time>
+                        </span>
+                        <span id="team-thread-preview" class="msg-row-preview">Une question, un signalement ? Écris-nous.</span>
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+                <p class="security-note msg-note">Seule l'équipe Haissel lit tes messages ; tu ne peux pas écrire aux autres membres. Texte uniquement, les liens ne sont pas cliquables. Messages supprimés 12 mois après le dernier échange.</p>
               </div>
 
-              <div class="profile-card-box notif-box">
-                <h3 class="card-title">Réception des messages</h3>
-                <p class="security-note">Les messages de l'administration s'affichent dans cette page tant qu'elle est ouverte. Tu peux aussi recevoir des notifications système de ton ordinateur.</p>
-                <ul class="profile-list">
-                  <li><span>Canal temps réel</span><strong id="realtime-status">Hors ligne</strong></li>
-                  <li><span>Notifications Windows</span><strong id="notif-permission-status">Non configuré</strong></li>
-                </ul>
-                <p id="notif-permission-help" class="security-note"></p>
-                <p id="notif-diagnostic" class="security-note notif-diagnostic"></p>
-                <p id="notif-last-result" class="security-note" role="status" aria-live="polite"></p>
-                <div class="notif-box-actions">
-                  <button id="notif-enable" class="primary-button" type="button">Activer les notifications Windows</button>
-                  <button id="notif-test" class="ghost-button hidden" type="button">Tester une notification Windows</button>
-                  <button id="realtime-retry" class="ghost-button hidden" type="button">Se reconnecter</button>
-                </div>
+              <!-- Conversation : plein écran, collée au clavier (visualViewport, app.js). -->
+              <div id="team-thread" class="chat" role="dialog" aria-labelledby="chat-title" hidden>
+                <header class="chat-head">
+                  <button id="chat-back" class="chat-back" type="button" aria-label="Retour aux messages">
+                    <svg class="icon" aria-hidden="true"><use href="#i-chevron-left" /></svg>
+                  </button>
+                  <div class="chat-who">
+                    <span class="msg-avatar sm" aria-hidden="true">H</span>
+                    <strong id="chat-title">Équipe Haissel</strong>
+                  </div>
+                </header>
+                <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+                <div id="chat-error" class="auth-error hidden" role="alert"></div>
+                <form id="chat-form" class="chat-form" novalidate>
+                  <div class="chat-field">
+                    <label class="visually-hidden" for="chat-input">Ton message</label>
+                    <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" required></textarea>
+                    <button id="chat-send" class="chat-send" type="submit" aria-label="Envoyer" hidden>
+                      <svg class="icon" aria-hidden="true"><use href="#i-arrow-up" /></svg>
+                    </button>
+                  </div>
+                </form>
               </div>
+            </section>
+
+            <!-- Activité (cloche) : fiches, stories, réponses et annonces de l'équipe (app.js). -->
+            <section id="notifications-view" class="view-panel hidden" aria-labelledby="notif-title">
+              <h2 id="notif-title" class="activity-title">Activité</h2>
+              <div id="activity-list" class="activity" aria-live="polite"></div>
             </section>
 
             <section id="publish-view" class="view-panel hidden" aria-labelledby="publish-title">
@@ -730,6 +785,7 @@
                   <div id="publish-preview-card" class="offer-feed"></div>
                 </div>
 
+                <p class="field-hint" data-campaign-only>Ta fiche est visible 24 h. Tu pourras la republier ensuite.</p>
                 <div class="turnstile-slot hidden" data-turnstile-action="publish"></div>
                 <div class="publish-actions">
                   <button class="primary-button" type="submit">
@@ -752,22 +808,31 @@
 
               <div class="profile-hero">
                 <div class="avatar large" id="profile-avatar" aria-hidden="true">H</div>
-                <div class="profile-hero-id">
-                  <p id="profile-username" class="profile-handle">@username</p>
-                  <p id="profile-display-name" class="profile-name">Utilisateur</p>
-                  <p class="profile-since">Membre depuis le <span id="profile-created-at">-</span></p>
-                </div>
+                <!-- Chiffres façon Instagram (remplis par app.js) -->
+                <dl class="profile-stats">
+                  <div data-adult-only><dt>Fiches publiées</dt><dd id="stat-published">0</dd></div>
+                  <div><dt>Sauvegardées</dt><dd id="stat-saved">0</dd></div>
+                </dl>
+              </div>
+              <div class="profile-hero-id">
+                <p id="profile-display-name" class="profile-name">Utilisateur</p>
+                <p id="profile-username" class="profile-handle">@username</p>
+                <p class="profile-since">Membre depuis le <span id="profile-created-at">-</span></p>
+              </div>
+              <div class="profile-buttons">
+                <button class="secondary-button small-button" type="button" data-profile-open="account">Modifier le profil</button>
+                <button class="secondary-button small-button" type="button" data-profile-open="security">Sécurité</button>
+                <button class="secondary-button small-button" type="button" data-profile-open="settings">Réglages</button>
               </div>
 
+              <!-- Deux onglets en icônes : mes fiches (majeurs) et sauvegardées.
+                   « Modifier le profil » et « Sécurité » ouvrent leurs panneaux. -->
               <div class="profile-tabs" role="tablist" aria-label="Rubriques du profil">
                 <button class="profile-tab" type="button" role="tab" id="ptab-offers" aria-controls="ppanel-offers" aria-selected="false" data-profile-tab="offers" data-adult-only>
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-tag" /></svg><span><span id="my-offers-label">Mes offres</span> <span id="my-offers-count"></span></span>
+                  <svg class="icon lg" aria-hidden="true"><use href="#i-grid" /></svg><span class="visually-hidden"><span id="my-offers-label">Mes offres</span> <span id="my-offers-count"></span></span>
                 </button>
                 <button class="profile-tab" type="button" role="tab" id="ptab-saved" aria-controls="ppanel-saved" aria-selected="false" data-profile-tab="saved">
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-bookmark" /></svg><span>Sauvegardées <span id="saved-count"></span></span>
-                </button>
-                <button class="profile-tab" type="button" role="tab" id="ptab-security" aria-controls="ppanel-security" aria-selected="false" data-profile-tab="security">
-                  <svg class="icon sm" aria-hidden="true"><use href="#i-shield" /></svg><span>Sécurité</span>
+                  <svg class="icon lg" aria-hidden="true"><use href="#i-bookmark" /></svg><span class="visually-hidden">Sauvegardées <span id="saved-count"></span></span>
                 </button>
               </div>
 
@@ -780,7 +845,9 @@
                   </button>
                 </div>
                 <div id="my-offers-feedback" class="auth-info hidden" role="status" aria-live="polite"></div>
-                <div id="my-offers" class="my-offers-list" aria-live="polite"></div>
+                <!-- Détail de la fiche touchée dans la grille : statut, Republier, Modifier, Retirer -->
+                <div id="my-offer-detail" class="my-offer-detail" hidden></div>
+                <div id="my-offers" class="offer-grid" aria-live="polite"></div>
               </div>
 
               <!-- Offres sauvegardées -->
@@ -788,30 +855,76 @@
                 <div class="profile-panel-head">
                   <h3>Tes offres sauvegardées</h3>
                 </div>
-                <div id="saved-offers" class="offer-feed" aria-live="polite"></div>
+                <div id="saved-offers" class="offer-grid" aria-live="polite"></div>
                 <button id="profile-saved" class="secondary-button" type="button">
                   <svg class="icon sm" aria-hidden="true"><use href="#i-search" /></svg>Filtrer dans Chercher
                 </button>
               </div>
 
-              <!-- Sécurité : compte, sessions, mot de passe, double authentification, données -->
-              <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-labelledby="ptab-security" hidden>
+              <!-- Modifier le profil : compte, notifications, données personnelles -->
+              <div id="ppanel-account" class="profile-panel profile-grid" role="tabpanel" aria-label="Modifier le profil" hidden>
                 <div class="profile-card-box">
                   <h3 class="card-title">Mon compte</h3>
                   <ul class="profile-list">
                     <li><span>Nom complet</span><strong id="profile-full-name">-</strong></li>
                     <li><span>E-mail</span><strong id="profile-email">-</strong></li>
                   </ul>
-                  <div class="profile-links">
-                    <button class="profile-link" type="button" data-goto="learn">
-                      <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg><span>Apprendre l'affiliation</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
-                    </button>
-                    <button class="profile-link" type="button" data-goto="notifications">
-                      <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg><span>Notifications</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
-                    </button>
-                  </div>
                 </div>
 
+                <div class="profile-card-box security-box">
+                  <h3 class="card-title">Mes données personnelles</h3>
+                  <p class="security-note">Tes droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
+                  <a class="secondary-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
+                  <details class="danger-zone">
+                    <summary>Supprimer mon compte</summary>
+                    <form id="delete-account-form" class="auth-form" novalidate>
+                      <div id="delete-account-error" class="auth-error hidden" role="alert"></div>
+                      <p class="security-note">Cette action est définitive.</p>
+                      <label class="field">
+                        <span>Mot de passe</span>
+                        <input id="delete-account-password" type="password" autocomplete="current-password" maxlength="128" required />
+                      </label>
+                      <label class="field">
+                        <span>Tape SUPPRIMER pour confirmer</span>
+                        <input id="delete-account-confirm" type="text" autocomplete="off" maxlength="20" required />
+                      </label>
+                      <button class="ghost-button danger-button" type="submit">Supprimer définitivement mon compte</button>
+                    </form>
+                  </details>
+                </div>
+              </div>
+
+              <!-- Sécurité : sessions, mot de passe, double authentification -->
+              <!-- Réglages : notifications sur cet appareil (app.js, renderNotifSetting). -->
+              <div id="ppanel-settings" class="profile-panel profile-grid" role="tabpanel" aria-label="Réglages" hidden>
+                <div class="profile-card-box settings-box">
+                  <h3 class="card-title">Réglages</h3>
+                  <div class="setting-row">
+                    <label class="setting-label" for="notif-switch">Notifications sur cet appareil</label>
+                    <input id="notif-switch" class="ios-switch" type="checkbox" role="switch" aria-describedby="notif-help" />
+                  </div>
+                  <p id="notif-help" class="setting-help"></p>
+                  <button id="notif-howto" class="setting-link" type="button" aria-haspopup="dialog" hidden>Comment faire ?</button>
+                </div>
+              </div>
+
+              <!-- Ajouter à l'écran d'accueil (iPhone) : trois étapes. -->
+              <dialog id="howto-sheet" class="sheet" aria-labelledby="howto-title">
+                <div class="sheet-panel">
+                  <div class="sheet-grabber" aria-hidden="true"></div>
+                  <h2 id="howto-title" class="sheet-title">Ajouter HAISSEL à l'écran d'accueil</h2>
+                  <ol class="howto-steps">
+                    <li><span class="howto-num" aria-hidden="true">1</span><span>Touche le bouton <strong>Partager</strong> <svg class="icon sm" aria-hidden="true"><use href="#i-share" /></svg> en bas de Safari.</span></li>
+                    <li><span class="howto-num" aria-hidden="true">2</span><span>Choisis <strong>« Sur l'écran d'accueil »</strong>, puis <strong>Ajouter</strong>.</span></li>
+                    <li><span class="howto-num" aria-hidden="true">3</span><span>Ouvre <strong>HAISSEL</strong> depuis sa nouvelle icône, puis reviens ici activer les notifications.</span></li>
+                  </ol>
+                  <div class="sheet-actions">
+                    <button class="primary-button sheet-apply" type="button" data-close-sheet>J'ai compris</button>
+                  </div>
+                </div>
+              </dialog>
+
+              <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-label="Sécurité" hidden>
                 <div class="profile-card-box security-box">
                   <h3 class="card-title">Sessions</h3>
                   <p class="session-row">
@@ -821,7 +934,7 @@
                   <button id="profile-logout" class="secondary-button" type="button">
                     <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>Se déconnecter
                   </button>
-                  <p class="security-note">Un doute sur un appareil (téléphone perdu, ordinateur partagé) ? Ferme toutes tes sessions d'un coup.</p>
+                  <p class="security-note">Un doute sur un appareil (téléphone perdu, appareil partagé) ? Ferme toutes tes sessions d'un coup.</p>
                   <button id="logout-all-button" class="ghost-button danger-button" type="button">Se déconnecter de tous les appareils</button>
                 </div>
 
@@ -927,27 +1040,6 @@
                   <button id="mfa-enable-start" class="primary-button hidden" type="button">Activer la double authentification</button>
                 </div>
 
-                <div class="profile-card-box security-box">
-                  <h3 class="card-title">Mes données personnelles</h3>
-                  <p class="security-note">Tes droits RGPD : voir la <a href="confidentialite.html" target="_blank">politique de confidentialité</a>.</p>
-                  <a class="secondary-button" href="/api/auth/me/export" download="haissel-mes-donnees.json">Télécharger mes données (JSON)</a>
-                  <details class="danger-zone">
-                    <summary>Supprimer mon compte</summary>
-                    <form id="delete-account-form" class="auth-form" novalidate>
-                      <div id="delete-account-error" class="auth-error hidden" role="alert"></div>
-                      <p class="security-note">Cette action est définitive.</p>
-                      <label class="field">
-                        <span>Mot de passe</span>
-                        <input id="delete-account-password" type="password" autocomplete="current-password" maxlength="128" required />
-                      </label>
-                      <label class="field">
-                        <span>Tape SUPPRIMER pour confirmer</span>
-                        <input id="delete-account-confirm" type="text" autocomplete="off" maxlength="20" required />
-                      </label>
-                      <button class="ghost-button danger-button" type="submit">Supprimer définitivement mon compte</button>
-                    </form>
-                  </details>
-                </div>
               </div>
 
               <div class="charter-card">
@@ -1033,7 +1125,11 @@
     <script src="turnstile.js"></script>
     <script src="notifications.js"></script>
     <script src="mylead-guide.js"></script>
+    <script src="stories.js"></script>
+    <script src="chat-thread.js"></script>
+    <script src="activity.js"></script>
     <script src="app.js"></script>
+    <script src="liquid-glass.js"></script>
     <script src="mobile-splash.js"></script>
   </body>
 </html>

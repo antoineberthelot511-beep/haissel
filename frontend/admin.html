@@ -103,6 +103,7 @@
           <a href="#users" data-section="users">Utilisateurs</a>
           <a href="#notifications" data-section="notifications">Notifications</a>
           <a href="#moderation" data-section="moderation">Offres membres</a>
+          <a href="#inbox" data-section="inbox">Messages</a>
           <a href="#categories" data-section="categories">Catégories</a>
           <a href="#content" data-section="content">Guides et tutoriels</a>
           <a href="#opportunities" data-section="opportunities">Opportunités</a>
@@ -275,6 +276,24 @@
             <button class="btn small ghost" type="button" data-moderation-filter="removed">Retirées</button>
           </div>
           <div id="moderation-list" class="moderation-list" aria-live="polite"></div>
+        </section>
+
+        <!-- MESSAGES : conversations des membres avec l'équipe -->
+        <section id="section-inbox" class="section" aria-labelledby="h-inbox" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Communauté</p>
+              <h1 id="h-inbox">Messages</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="inbox">Actualiser</button>
+          </header>
+          <p class="muted">Une conversation par membre, non lues en premier. Vous répondez au nom de « Équipe Haissel ». Texte brut uniquement ; les conversations sont supprimées 12 mois après le dernier échange.</p>
+          <div class="inbox">
+            <ul id="inbox-list" class="panel inbox-list" aria-label="Conversations"></ul>
+            <div id="inbox-thread" class="panel inbox-thread" aria-live="polite">
+              <p class="empty">Choisissez une conversation.</p>
+            </div>
+          </div>
         </section>
 
         <!-- CATÉGORIES -->

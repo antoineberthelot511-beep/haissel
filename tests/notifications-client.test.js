@@ -42,8 +42,8 @@ function setup({
   permission = 'default', secure = true, supported = true, visible = 'visible', focused = true,
   sessionValid = true, grantOnRequest = false, systemBehavior = 'show', serviceWorker = false,
 } = {}) {
-  const ids = ['notif-stack', 'realtime-status', 'notif-permission-status', 'notif-permission-help',
-    'notif-enable', 'notif-enable-top', 'realtime-retry', 'notif-test', 'notif-last-result', 'notif-diagnostic'];
+  // Seul élément de la page encore utilisé : la pile des messages dans la page.
+  const ids = ['notif-stack'];
   const elements = Object.fromEntries(ids.map((id) => [id, fakeElement()]));
   const sources = [];
   const shown = [];
@@ -119,34 +119,39 @@ function setup({
   vm.runInContext(SOURCE, context);
 
   const onSessionEnded = jest.fn();
+  const onNotification = jest.fn();
   const center = window.createNotificationCenter({
     post: async (url, body) => { posts.push({ url, body }); },
     checkSession: async () => sessionValid,
     onSessionEnded,
+    onNotification,
   });
-  return { center, elements, sources, shown, swShown, registration, posts, Notification, context, onSessionEnded };
+  return { center, elements, sources, shown, swShown, registration, posts, Notification, context, onSessionEnded, onNotification };
 }
 
 const ID = '1b4e28ba-2fa1-4d3b-a3f5-ef19b5a7633b';
 
 describe('consentement aux notifications système', () => {
   test('la permission n’est jamais demandée automatiquement', () => {
-    const { center, Notification, elements } = setup();
+    const { center, Notification } = setup();
     center.start();
     expect(Notification.requestPermission).not.toHaveBeenCalled();
-    expect(elements['notif-permission-status'].textContent).toBe('Non configurées');
+    expect(center.permission()).toBe('default');
   });
 
-  test('demandée uniquement au clic ; un refus est affiché et respecté', async () => {
-    const { center, Notification, elements } = setup();
+  test('demandée uniquement à l’appel (interrupteur) ; un refus est respecté', async () => {
+    const { center, Notification } = setup();
     center.start();
-    await elements['notif-enable'].click();
+    expect(await center.enableSystemNotifications()).toBe('denied');
     expect(Notification.requestPermission).toHaveBeenCalledTimes(1);
-    expect(elements['notif-permission-status'].textContent).toBe('Refusées');
-    expect(elements['notif-permission-help'].textContent).toMatch(/Autoriser/);
-    expect(elements['notif-enable'].disabled).toBe(true);
+    expect(await center.enableSystemNotifications()).toBe('denied');
+    expect(Notification.requestPermission).toHaveBeenCalledTimes(1);
+  });
 
-    await elements['notif-enable'].click();
+  test('accordée au clic : permission « granted »', async () => {
+    const { center, Notification } = setup({ grantOnRequest: true });
+    center.start();
+    expect(await center.enableSystemNotifications()).toBe('granted');
     expect(Notification.requestPermission).toHaveBeenCalledTimes(1);
   });
 
@@ -159,18 +164,12 @@ describe('consentement aux notifications système', () => {
     expect(elements['notif-stack'].children).toHaveLength(1);
   });
 
-  test('origine HTTP non sécurisée : indisponible, aucune demande', async () => {
-    const { center, Notification, elements } = setup({ secure: false });
-    center.start();
-    await elements['notif-enable'].click();
-    expect(Notification.requestPermission).not.toHaveBeenCalled();
-    expect(elements['notif-permission-status'].textContent).toMatch(/HTTPS requis/);
-  });
-
-  test('navigateur sans API Notification', () => {
-    const { center, elements } = setup({ supported: false });
-    center.start();
-    expect(elements['notif-permission-status'].textContent).toBe('Non prises en charge');
+  test('origine HTTP non sécurisée ou API absente : « unsupported », aucune demande', async () => {
+    const insecure = setup({ secure: false });
+    expect(await insecure.center.enableSystemNotifications()).toBe('unsupported');
+    expect(insecure.Notification.requestPermission).not.toHaveBeenCalled();
+    const absent = setup({ supported: false });
+    expect(absent.center.permission()).toBe('unsupported');
   });
 });
 
@@ -211,7 +210,7 @@ describe('réception', () => {
 
 describe('reconnexion', () => {
   test('délai croissant puis arrêt après un nombre limité de tentatives', async () => {
-    const { center, sources, context, elements } = setup();
+    const { center, sources, context } = setup();
     center.start();
     for (let attempt = 0; attempt < 8; attempt += 1) {
       sources.at(-1).onerror();
@@ -221,8 +220,8 @@ describe('reconnexion', () => {
     expect(sources).toHaveLength(9);
     sources.at(-1).onerror();
     expect(context.pending).toHaveLength(0);
-    expect(elements['realtime-status'].textContent).toBe('Hors ligne');
-    expect(elements['realtime-retry'].classList.contains('hidden')).toBe(false);
+    // État de débogage seulement : jamais affiché au membre.
+    expect(center.status()).toMatchObject({ channel: 'Hors ligne', canRetry: true });
 
     center.retryNow();
     expect(sources).toHaveLength(10);
@@ -264,17 +263,7 @@ async function flush(context) {
   await new Promise((resolve) => { setImmediate(resolve); });
 }
 
-describe('notification système Windows', () => {
-  test('clic sur le bouton : permission accordée, bouton de test proposé', async () => {
-    const { center, elements, Notification } = setup({ grantOnRequest: true });
-    center.start();
-    expect(elements['notif-enable'].textContent).toBe('Activer les notifications Windows');
-    await elements['notif-enable'].click();
-    expect(Notification.requestPermission).toHaveBeenCalledTimes(1);
-    expect(elements['notif-permission-status'].textContent).toBe('Autorisées');
-    expect(elements['notif-test'].classList.contains('hidden')).toBe(false);
-  });
-
+describe('notification système', () => {
   test('onglet en arrière-plan : vraie notification système (titre, body en texte), accusé « system »', async () => {
     const env = setup({ permission: 'granted', visible: 'hidden', focused: false });
     env.center.start();
@@ -283,7 +272,9 @@ describe('notification système Windows', () => {
     await flush(env.context);
     expect(env.shown).toEqual([expect.objectContaining({ title: 'Je personnalise', body: message, tag: `haissel-${ID}` })]);
     expect(env.posts).toEqual([{ url: `/api/notifications/${ID}/ack`, body: { mode: 'system' } }]);
-    expect(env.elements['notif-last-result'].textContent).toMatch(/transmise .* confirmé par le navigateur/);
+    expect(env.center.status().lastResult).toMatch(/transmise .* confirmé par le navigateur/);
+    // Activité et pastille de la cloche prévenues.
+    expect(env.onNotification).toHaveBeenCalledTimes(1);
   });
 
   test('fenêtre visible mais sans le focus (autre application au premier plan) : notification système', async () => {
@@ -294,7 +285,7 @@ describe('notification système Windows', () => {
     expect(env.shown).toHaveLength(1);
   });
 
-  test('page active et autorisation accordée : vraie notification Windows, sans encadré en double', async () => {
+  test('page active et autorisation accordée : vraie notification système, sans encadré en double', async () => {
     const env = setup({ permission: 'granted', visible: 'visible', focused: true });
     env.center.start();
     env.sources[0].emit('admin-notification', { id: ID, title: 'T', message: 'M' });
@@ -341,8 +332,8 @@ describe('notification système Windows', () => {
     expect(env.posts).toHaveLength(0);
     // Secours : le message reste lisible dans la page.
     expect(env.elements['notif-stack'].children).toHaveLength(1);
-    expect(env.elements['notif-last-result'].textContent).toMatch(/Échec de la notification Windows/);
-    expect(env.elements['notif-last-result'].classList.contains('notif-error')).toBe(true);
+    expect(env.center.status()).toMatchObject({ lastError: true });
+    expect(env.center.status().lastResult).toMatch(/Échec de la notification système/);
   });
 
   test('le système refuse l’affichage (onerror) : erreur, pas de réussite simulée', async () => {
@@ -351,7 +342,7 @@ describe('notification système Windows', () => {
     env.sources[0].emit('admin-notification', { id: ID, title: 'T', message: 'M' });
     await flush(env.context);
     expect(env.posts).toHaveLength(0);
-    expect(env.elements['notif-last-result'].textContent).toMatch(/refusé/);
+    expect(env.center.status().lastResult).toMatch(/refusé/);
   });
 
   test('HTTP sur le réseau local : aucune tentative, explication HTTPS', async () => {
@@ -360,40 +351,14 @@ describe('notification système Windows', () => {
     env.sources[0].emit('admin-notification', { id: ID, title: 'T', message: 'M' });
     await flush(env.context);
     expect(env.shown).toHaveLength(0);
-    expect(env.elements['notif-last-result'].textContent).toMatch(/non sécurisée/);
+    expect(env.center.status().lastResult).toMatch(/non sécurisée/);
     expect(env.elements['notif-stack'].children).toHaveLength(1);
   });
 
-  test('bouton de test : vraie notification système, jamais un encadré de la page', async () => {
-    const env = setup({ permission: 'granted' });
-    env.center.start();
-    await env.elements['notif-test'].click();
-    expect(env.shown).toEqual([expect.objectContaining({
-      title: 'HAISSEL — Test de notification', body: 'Les notifications système fonctionnent correctement.',
-    })]);
-    expect(env.elements['notif-stack'].children).toHaveLength(0);
-    expect(env.elements['notif-last-result'].textContent).toMatch(/transmis la notification à Windows/);
-  });
-
-  test('bouton de test sans autorisation : aucune notification, erreur claire', async () => {
-    const env = setup({ permission: 'denied' });
-    env.center.start();
-    await env.elements['notif-test'].click();
-    expect(env.shown).toHaveLength(0);
-    expect(env.elements['notif-last-result'].textContent).toMatch(/Test impossible/);
-  });
-
-  test('bouton de test : échec de création signalé, pas de réussite simulée', async () => {
-    const env = setup({ permission: 'granted', systemBehavior: 'throw' });
-    env.center.start();
-    await env.elements['notif-test'].click();
-    expect(env.elements['notif-last-result'].textContent).toMatch(/échec, aucune notification n’a été créée/);
-    expect(env.elements['notif-last-result'].classList.contains('notif-error')).toBe(true);
-  });
-
-  test('diagnostic : contexte sécurisé réel du navigateur affiché', () => {
+  test('aucun texte technique écrit dans la page', () => {
     const env = setup({ permission: 'granted', secure: false });
     env.center.start();
-    expect(env.elements['notif-diagnostic'].textContent).toMatch(/contexte sécurisé pour le navigateur : non/);
+    expect(Object.keys(env.elements)).toEqual(['notif-stack']);
+    expect(SOURCE).not.toMatch(/Windows|ordinateur|getElementById\('(realtime|notif-(?!stack))/);
   });
 });

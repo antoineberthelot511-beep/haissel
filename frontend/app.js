@@ -197,6 +197,7 @@ function updateUserSummary() {
   ui.sidebarAvatar.textContent = initials;
   ui.profileAvatar.textContent = initials;
   ui.topbarAvatar.textContent = initials;
+  ui.navAvatar.textContent = initials;
 
   ui.homeName.textContent = ui.welcomeName.textContent;
   ui.homeUsername.textContent = state.user ? `@${state.user.username}` : '—';
@@ -221,9 +222,15 @@ function setActiveView(viewName) {
   document.querySelectorAll('.view-panel').forEach((panel) => {
     panel.classList.toggle('hidden', panel.id !== `${viewName}-view`);
   });
+  // Découvrir : barre du bas en version sombre (liquid-glass.css).
+  document.body.dataset.view = viewName;
+  // Quitter Messages arrête l'interrogation de la conversation.
+  if (viewName !== 'messages') closeChat();
+  refreshUnread();
+  if (viewName === 'notifications' && state.user) showActivity();
   if (viewName === 'home' && state.user) renderHomeLearnCard();
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
-  if ((viewName === 'links' || viewName === 'home') && state.user && !state.community.loaded) loadCommunity();
+  if ((viewName === 'links' || viewName === 'home' || viewName === 'discover') && state.user && !state.community.loaded) loadCommunity();
   if (viewName === 'publish' && state.user) loadMyOffers();
   if (viewName === 'profile' && state.user) {
     if (isAdultMember()) loadMyOffers();
@@ -234,6 +241,8 @@ function setActiveView(viewName) {
 
 function showLoggedOut() {
   if (notificationCenter) notificationCenter.stop();
+  clearInterval(chat.unreadTimer);
+  closeChat();
   state.user = null;
   state.links = [];
   state.learn = { loaded: false, opportunities: [] };
@@ -345,7 +354,7 @@ function setProfileTab(name) {
     tab.setAttribute('aria-selected', String(active));
     tab.tabIndex = active ? 0 : -1;
   });
-  for (const key of ['offers', 'saved', 'security']) {
+  for (const key of ['offers', 'saved', 'account', 'security', 'settings']) {
     document.getElementById(`ppanel-${key}`).hidden = key !== name;
   }
 }
@@ -358,7 +367,7 @@ function setProfileTab(name) {
  * Apprendre reste accessible depuis le profil.
  */
 function renderHomeLearnCard() {
-  if (!ui.homeLearnCard) return;
+  if (!ui.homeLearnCard || !ui.homeLearnStep) return;
   const guide = window.HaisselMyLeadGuide;
   ui.homeLearnCard.hidden = Boolean(guide?.bannerHidden?.());
   const progress = isAdultMember() && guide?.progress ? guide.progress() : null;
@@ -375,18 +384,15 @@ function renderHomeLearnCard() {
   }
 }
 
-/** Puces de catégories de l'accueil : raccourcis vers « Chercher ». */
-function renderHomeChips() {
-  if (!ui.homeChips) return;
-  ui.homeChips.replaceChildren(...Object.entries(state.community.categories).map(([value, label]) => h('button', {
-    className: 'chip', type: 'button',
-    onclick: () => {
-      ui.communityCategory.value = value;
-      syncFiltersToUrl();
-      setActiveView('links');
-      loadCommunity();
-    },
-  }, categoryIcon(value, 'icon sm'), label)));
+/* Vignette carrée de la grille « Recherche » : toucher ouvre le détail. */
+function gridTile(offer) {
+  return h('button', {
+    className: `grid-cell${offer.expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`,
+    onclick: () => openOffer(offer),
+  }, categoryVisual(offer.category, 'grid-tile',
+    h('span', { className: 'grid-tile-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('span', { className: 'grid-tile-title' }, offer.title),
+    offer.kind === 'affiliate' ? h('span', { className: 'grid-tile-tag', title: 'Lien affilié' }, icon('i-link', 'icon sm')) : null));
 }
 
 function showLoggedIn(user) {
@@ -401,6 +407,7 @@ function showLoggedIn(user) {
   setActiveView('home');
   loadLinks();
   if (notificationCenter) notificationCenter.start();
+  startUnreadPolling();
 }
 
 // ---------------------------------------------------------------------------
@@ -497,13 +504,6 @@ function renderHomeLearn(items) {
   widgetItems(ui.homeLearn, items.slice(0, 5).map((item) => h('li', null,
     h('button', { className: 'widget-link', type: 'button', onclick: () => { setActiveView('learn'); setLearnTab(item.kind === 'guide' ? 'guides' : 'tutorials'); } }, item.title),
     h('small', null, item.kind === 'guide' ? 'Guide' : 'Tutoriel'))), 'Les guides arrivent bientôt.');
-}
-
-/** Recopie dans l'accueil l'état affiché par le centre de notifications. */
-function mirrorText(source, target) {
-  const copy = () => { target.textContent = source.textContent; };
-  copy();
-  new MutationObserver(copy).observe(source, { childList: true, characterData: true, subtree: true });
 }
 
 function renderLinks() {
@@ -792,6 +792,115 @@ function saveButtonFor(offer, { variant = 'icon', disabled = false } = {}) {
  * vague. Lien affilié = publié par un ADMIN ; fiche campagne = membre, avec un
  * lien vers la page officielle.
  */
+/*
+ * Temps de visibilité restant d'une fiche campagne (format « story ») :
+ * « encore 5 h », arrondi à l'heure, puis « moins d'1 h ». null pour une
+ * offre sans limite (ADMIN) ou une fiche déjà expirée.
+ */
+function storyTimeLeft(offer) {
+  if (offer.kind !== 'campaign' || !offer.expires_at || offer.expired) return null;
+  const left = new Date(offer.expires_at).getTime() - Date.now();
+  if (left <= 0) return null;
+  const hours = left / 3600000;
+  return hours < 1 ? 'moins d’1 h' : `encore ${Math.round(hours)} h`;
+}
+
+/*
+ * Couleurs des catégories (grande zone visuelle des publications, vignettes).
+ * Catégorie inconnue (créée depuis la console) : couleur neutre.
+ */
+const CATEGORY_COLORS = {
+  applications: ['#2563eb', '#60a5fa'],
+  jeux: ['#7c3aed', '#c084fc'],
+  shopping: ['#db2777', '#f9a8d4'],
+  services: ['#0d9488', '#5eead4'],
+  education: ['#ea580c', '#fdba74'],
+  sondages: ['#ca8a04', '#fde047'],
+};
+
+function categoryVisual(category, className, ...children) {
+  const [from, to] = CATEGORY_COLORS[category] || ['#475569', '#94a3b8'];
+  const element = h('div', { className }, ...children);
+  element.style.setProperty('--cat-from', from);
+  element.style.setProperty('--cat-to', to);
+  return element;
+}
+
+/*
+ * Publication du fil d'Accueil, façon Instagram : en-tête, grande zone
+ * carrée, actions, texte. Toucher la zone ouvre le détail habituel (règles
+ * d'âge et confirmation de sortie inchangées).
+ */
+function postCard(offer) {
+  const left = storyTimeLeft(offer);
+  const visual = categoryVisual(offer.category, 'post-visual',
+    h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('h3', { className: 'post-visual-title' }, offer.title),
+    offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
+  return h('article', { className: 'post-card' },
+    h('header', { className: 'post-head' },
+      storyAvatar(offer.author.username, 'story-avatar sm'),
+      h('div', { className: 'post-who' },
+        h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
+        h('span', null, [offer.category_label, formatAgo(offer.shown_at || offer.published_at)].filter(Boolean).join(' · '))),
+      kindBadge(offer)),
+    h('button', { className: 'post-open', type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`, onclick: () => openOffer(offer) }, visual),
+    h('div', { className: 'post-actions' },
+      offer.is_mine ? null : saveButtonFor(offer),
+      offer.is_mine ? null : h('button', {
+        className: 'post-action', type: 'button', 'aria-label': `Signaler « ${offer.title} »`, onclick: () => openReport(offer),
+      }, icon('i-flag', 'icon lg')),
+      h('span', { className: 'post-spacer' }),
+      offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
+    h('p', { className: 'post-todo' }, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+    h('p', { className: 'post-meta' },
+      offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
+      left ? h('span', null, icon('i-clock', 'icon sm'), left) : null));
+}
+
+/*
+ * Découvrir (façon Reels) : une offre par écran, défilement vertical aimanté
+ * (scroll-snap). Rien n'est lu automatiquement ; « Voir » passe par la
+ * confirmation de sortie habituelle et n'apparaît que si le serveur permet
+ * d'ouvrir le lien (mineurs, âge minimum : règles inchangées).
+ */
+function discoverSlide(offer) {
+  const left = storyTimeLeft(offer);
+  const sideButton = (label, iconName, onclick) => h('button', { className: 'discover-action', type: 'button', onclick },
+    icon(iconName, 'icon lg'), h('span', null, label));
+  const save = offer.is_mine ? null : saveButtonFor(offer);
+  return h('section', { className: 'discover-slide', 'aria-label': offer.title },
+    categoryVisual(offer.category, 'discover-card',
+      h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+      h('h2', { className: 'discover-title' }, offer.title),
+      offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null),
+    h('div', { className: 'discover-text' },
+      h('p', { className: 'discover-who' },
+        storyAvatar(offer.author.username, 'story-avatar sm'),
+        h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
+        kindBadge(offer)),
+      h('p', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+      h('p', { className: 'discover-meta' },
+        [offer.countries, offer.min_age ? `${offer.min_age} ans et +` : null, left].filter(Boolean).join(' · '))),
+    h('div', { className: 'discover-side' },
+      save,
+      offer.is_mine ? null : sideButton('Signaler', 'i-flag', () => openReport(offer)),
+      offer.can_open ? sideButton('Voir', 'i-external', () => confirmLeave(offer)) : null));
+}
+
+function renderDiscover(items) {
+  if (!ui.discoverFeed) return;
+  const list = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
+  ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide)
+    : [h('section', { className: 'discover-slide is-empty' }, h('p', null, 'Rien à découvrir pour le moment.'))]));
+}
+
+function storyBadge(offer) {
+  if (offer.expired) return h('span', { className: 'pill expired' }, 'Expirée');
+  const left = storyTimeLeft(offer);
+  return left ? h('span', { className: 'pill story', title: 'Une fiche campagne reste visible 24 h.' }, icon('i-clock', 'icon sm'), left) : null;
+}
+
 function kindBadge(offer) {
   if (offer.kind === 'campaign') {
     return h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
@@ -808,20 +917,21 @@ function kindBadge(offer) {
  */
 function communityCard(offer, { preview = false } = {}) {
   const author = `@${offer.author.username}`;
-  return h('article', { className: 'offer-card community-card' },
+  return h('article', { className: `offer-card community-card${offer.expired ? ' is-expired' : ''}` },
     h('div', { className: 'fc-head' },
       h('span', { className: 'fc-avatar', 'aria-hidden': 'true' }, categoryIcon(offer.category)),
       h('div', { className: 'fc-who' },
         preview
           ? h('strong', { className: 'fc-author' }, author)
           : h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(offer.author.username) }, author),
-        h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.published_at || offer.created_at))),
+        h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.shown_at || offer.published_at || offer.created_at))),
       kindBadge(offer)),
     h('div', { className: 'fc-body' },
       h('p', { className: 'fc-meta' },
         offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
         h('span', null, offer.category_label),
-        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
+        offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null,
+        preview ? null : storyBadge(offer)),
       h('h3', { className: 'fc-title' }, offer.title),
       offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'fc-campaign' }, `Campagne : ${offer.campaign_name}`) : null,
       offer.domain ? h('p', { className: 'fc-domain' }, offer.domain) : null,
@@ -960,10 +1070,10 @@ function offerDetail(offer) {
 function communityQuery() {
   const params = new URLSearchParams();
   const q = ui.communityQ.value.trim();
-  const country = ui.communityCountry.value.trim();
   if (q) params.set('q', q);
   if (ui.communityCategory.value) params.set('category', ui.communityCategory.value);
-  if (/^[A-Za-z]{2}$/.test(country)) params.set('country', country);
+  if (ui.communityKind.value) params.set('kind', ui.communityKind.value);
+  if (ui.communitySort.value) params.set('sort', ui.communitySort.value);
   if (ui.communitySaved.checked) params.set('saved', '1');
   return params.toString();
 }
@@ -992,10 +1102,12 @@ function readFiltersFromUrl() {
   }
   const q = params.get('q');
   const category = params.get('category');
-  const country = params.get('country');
   if (q) ui.communityQ.value = q.slice(0, 80);
-  if (country && /^[A-Za-z]{2}$/.test(country)) ui.communityCountry.value = country.toUpperCase();
+  const kind = params.get('kind');
+  if (kind === 'campaign' || kind === 'affiliate') ui.communityKind.value = kind;
+  if (params.get('sort') === 'popular') ui.communitySort.value = 'popular';
   ui.communitySaved.checked = params.get('saved') === '1';
+  paintSearchControls();
   // La catégorie est appliquée après le remplissage de la liste déroulante.
   state.community.pendingCategory = category || '';
 }
@@ -1011,7 +1123,6 @@ async function loadCommunity() {
     fillCategorySelect(ui.communityCategory, state.community.categories, 'Toutes');
     fillCategorySelect(ui.pubCategory, state.community.categories, 'Choisir…');
     renderCategoryTiles();
-    renderHomeChips();
 
     /*
      * La catégorie venant de l'adresse ne peut être appliquée qu'ici : la liste
@@ -1022,15 +1133,18 @@ async function loadCommunity() {
         ui.communityCategory.value = state.community.pendingCategory;
       }
       state.community.pendingCategory = '';
+      paintSearchControls();
     }
 
     const items = data.items || [];
     ui.communityList.setAttribute('aria-busy', 'false');
     ui.communityList.replaceChildren(...(items.length
-      ? items.map((offer) => communityCard(offer))
-      : [h('div', { className: 'panel-card' }, query
-        ? 'Aucune offre ne correspond à ta recherche.'
-        : 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
+      ? items.map((offer) => gridTile(offer))
+      : [query
+        ? h('div', { className: 'search-empty' },
+          h('p', null, 'Aucun résultat'),
+          h('button', { className: 'secondary-button', type: 'button', onclick: clearSearch }, 'Effacer les filtres'))
+        : h('div', { className: 'panel-card' }, 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
 
     /*
      * Accueil : le fil complet, sans filtre. On ne le met à jour que lorsque
@@ -1038,8 +1152,12 @@ async function loadCommunity() {
      * la page d'accueil.
      */
     if (!query && ui.homeOffers) {
-      ui.homeOffers.replaceChildren(...(items.length
-        ? items.map((offer) => communityCard(offer))
+      renderStories(items);
+      renderDiscover(items);
+      // Fil de l'accueil : les offres ADMIN d'abord, puis les fiches.
+      const feed = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
+      ui.homeOffers.replaceChildren(...(feed.length
+        ? feed.map((offer) => postCard(offer))
         : [h('div', { className: 'panel-card' },
           'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
     }
@@ -1056,10 +1174,995 @@ async function loadCommunity() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Recherche : barre, bouton « Filtres » et feuille du bas
+// ---------------------------------------------------------------------------
+
+const filterFields = () => ({
+  category: ui.communityCategory.value, kind: ui.communityKind.value,
+  sort: ui.communitySort.value, saved: ui.communitySaved.checked,
+});
+
+function setFilterFields({ category = '', kind = '', sort = '', saved = false }) {
+  ui.communityCategory.value = category;
+  ui.communityKind.value = kind;
+  ui.communitySort.value = sort;
+  ui.communitySaved.checked = saved;
+}
+
+/** Bouton ✕ du champ et pastille du nombre de filtres actifs. */
+function paintSearchControls() {
+  ui.communityQClear.hidden = !ui.communityQ.value;
+  const count = window.HaisselChat.countActiveFilters(filterFields());
+  ui.filtersCount.hidden = !count;
+  ui.filtersCount.textContent = count ? String(count) : '';
+  ui.filtersOpen.setAttribute('aria-label', count ? `Filtres (${count} actif${count > 1 ? 's' : ''})` : 'Filtres');
+}
+
+function runSearch() {
+  paintSearchControls();
+  syncFiltersToUrl();
+  loadCommunity();
+}
+
+/** État vide : on efface le texte ET les filtres. */
+function clearSearch() {
+  ui.communityQ.value = '';
+  setFilterFields({});
+  runSearch();
+}
+
+/*
+ * Feuilles du bas (<dialog class="sheet">) : même entrée et même geste de
+ * fermeture que le lecteur de stories (glisser vers le bas au-delà de 25 %
+ * de la hauteur, ou vite). Échap et le fond assombri ferment aussi.
+ * onClose(dialog, { apply }) est appelé une fois la feuille fermée.
+ */
+const sheets = new WeakMap();
+
+function openSheet(dialog) {
+  if (dialog.open) return;
+  const panel = dialog.querySelector('.sheet-panel');
+  sheets.get(dialog).closing = false;
+  dialog.showModal();
+  panel.style.transform = '';
+  if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+  else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+}
+
+function closeSheet(dialog, { apply = false } = {}) {
+  const entry = sheets.get(dialog);
+  if (!dialog.open || entry.closing) return;
+  entry.closing = true;
+  if (entry.beforeClose) entry.beforeClose({ apply });
+  const panel = dialog.querySelector('.sheet-panel');
+  const done = () => {
+    dialog.close();
+    panel.style.transform = '';
+    entry.closing = false;
+    if (entry.onClose) entry.onClose({ apply });
+  };
+  const animation = reducedMotion()
+    ? panel.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
+    : panel.animate([{ transform: panel.style.transform || 'none' }, { transform: 'translateY(100%)' }],
+      { duration: 250, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+  animation.finished.then(() => { done(); animation.cancel(); }, done);
+}
+
+function bindSheet(dialog, { beforeClose = null, onClose = null } = {}) {
+  const entry = { closing: false, drag: null, beforeClose, onClose };
+  sheets.set(dialog, entry);
+  const panel = dialog.querySelector('.sheet-panel');
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeSheet(dialog); });
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) closeSheet(dialog); });
+  dialog.querySelectorAll('[data-close-sheet]').forEach((button) => button.addEventListener('click', () => closeSheet(dialog)));
+  panel.addEventListener('pointerdown', (event) => {
+    // Les contrôles natifs gardent leur comportement (roue iOS, menu Android).
+    if (event.target.closest('select, input, button, label, a') || event.button > 0) return;
+    entry.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
+    panel.setPointerCapture(event.pointerId);
+  });
+  panel.addEventListener('pointermove', (event) => {
+    const drag = entry.drag;
+    if (!drag || drag.id !== event.pointerId) return;
+    const dy = Math.max(0, event.clientY - drag.y);
+    const dt = Math.max(1, event.timeStamp - drag.t);
+    drag.vy = (dy - drag.dy) / dt;
+    drag.dy = dy;
+    drag.t = event.timeStamp;
+    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+  });
+  const release = (event) => {
+    const drag = entry.drag;
+    if (!drag || drag.id !== event.pointerId) return;
+    entry.drag = null;
+    const decision = event.type === 'pointercancel' ? 'restore'
+      : window.HaisselStories.decideRelease('dismiss', { dy: drag.dy, vy: drag.vy, height: panel.offsetHeight });
+    if (decision === 'close') { closeSheet(dialog); return; }
+    if (!drag.dy) return;
+    const from = panel.style.transform;
+    panel.style.transform = '';
+    if (!reducedMotion()) panel.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+  };
+  panel.addEventListener('pointerup', release);
+  panel.addEventListener('pointercancel', release);
+}
+
+/*
+ * Filtres : les valeurs ne s'appliquent qu'avec « Afficher les résultats » ;
+ * fermer autrement rétablit les filtres d'avant.
+ */
+let filtersBefore = null;
+
+function openFilters() {
+  filtersBefore = filterFields();
+  openSheet(ui.filtersSheet);
+}
+
+function bindFiltersSheet() {
+  bindSheet(ui.filtersSheet, {
+    beforeClose: ({ apply }) => { if (!apply && filtersBefore) setFilterFields(filtersBefore); },
+    onClose: ({ apply }) => {
+      if (apply) runSearch();
+      ui.filtersOpen.focus({ preventScroll: true });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Activité (cloche) et réglage des notifications
+// ---------------------------------------------------------------------------
+
+/*
+ * Liste lue sur /api/messages/activity (lecture seule). « Non lu » = plus
+ * récent que la dernière ouverture d'Activité sur cet appareil (stockage
+ * local, par compte) : aucune donnée de plus côté serveur. Mise à jour avec
+ * l'interrogation existante des messages (60 s) et à chaque annonce reçue.
+ */
+const activity = { items: [], loaded: false, loading: null };
+
+const readActivitySeen = () => window.HaisselActivity.readSeen(state.user?.id || 'anon');
+
+function markActivitySeen() {
+  window.HaisselActivity.markSeen(state.user?.id || 'anon', activity.items[0]?.at);
+  paintBell();
+}
+
+function paintBell() {
+  const count = window.HaisselActivity.unreadCount(activity.items, readActivitySeen());
+  ui.bellBadge.hidden = !count;
+  ui.bellBadge.textContent = count > 9 ? '9+' : String(count);
+  ui.bellButton.setAttribute('aria-label', count ? `Activité (${count} nouveauté${count > 1 ? 's' : ''})` : 'Activité');
+}
+
+async function loadActivity() {
+  if (!state.user) return;
+  if (activity.loading) return activity.loading;
+  activity.loading = (async () => {
+    try {
+      const data = await api('/api/messages/activity');
+      activity.items = (data.items || []).filter((item) => window.HaisselActivity.describe(item));
+      activity.loaded = true;
+      paintBell();
+      if (document.body.dataset.view === 'notifications') renderActivity();
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) return;
+      if (!activity.loaded && document.body.dataset.view === 'notifications') {
+        ui.activityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+          h('p', null, 'Impossible d’afficher ton activité pour le moment.'),
+          h('button', { className: 'secondary-button', type: 'button', onclick: loadActivity }, 'Réessayer')));
+      }
+    } finally {
+      activity.loading = null;
+    }
+  })();
+  return activity.loading;
+}
+
+/** Un appui ouvre l'élément concerné. */
+function openActivityItem(item) {
+  if (item.type === 'team_message') {
+    setActiveView('messages');
+    openChat();
+    return;
+  }
+  if (item.type === 'announcement') {
+    if (item.url) window.location.assign(item.url);
+    return;
+  }
+  setActiveView('profile');
+  setProfileTab(isAdultMember() ? 'offers' : 'account');
+  window.setTimeout(() => {
+    const tile = item.offer_id ? document.querySelector(`[data-offer-id="${CSS.escape(String(item.offer_id))}"]`) : null;
+    if (tile) tile.click();
+  }, 400);
+}
+
+function activityRow(item, seenAt) {
+  const info = window.HaisselActivity.describe(item);
+  const unread = window.HaisselActivity.isUnread(item, seenAt);
+  const opens = item.type !== 'announcement' || item.url;
+  return h('li', null, h(opens ? 'button' : 'div', {
+    className: `activity-row${unread ? ' is-unread' : ''}`, ...(opens ? { type: 'button', onclick: () => openActivityItem(item) } : {}),
+  },
+  h('span', { className: `activity-icon tone-${info.tone}`, 'aria-hidden': 'true' }, icon(info.icon)),
+  h('span', { className: 'activity-text' },
+    h('span', { className: 'activity-phrase' }, info.text),
+    h('time', { className: 'activity-time', datetime: item.at }, window.HaisselActivity.relativeTime(item.at))),
+  unread ? h('span', { className: 'activity-dot' }, h('span', { className: 'visually-hidden' }, 'Nouveau')) : null));
+}
+
+function renderActivity() {
+  if (!activity.loaded) {
+    ui.activityList.replaceChildren(h('p', { className: 'activity-empty' }, 'Chargement…'));
+    return;
+  }
+  if (!activity.items.length) {
+    ui.activityList.replaceChildren(h('div', { className: 'activity-empty' },
+      h('span', { className: 'activity-empty-icon', 'aria-hidden': 'true' }, icon('i-bell', 'icon lg')),
+      h('p', null, 'Rien de nouveau pour l’instant.')));
+    return;
+  }
+  const seenAt = readActivitySeen();
+  ui.activityList.replaceChildren(...window.HaisselActivity.groupBySection(activity.items).map((section) => h('section', {
+    className: 'activity-section', 'aria-label': section.label,
+  }, h('h3', { className: 'activity-section-title' }, section.label),
+  h('ul', { className: 'activity-items' }, ...section.items.map((item) => activityRow(item, seenAt))))));
+}
+
+/** Page Activité ouverte : on affiche (points bleus de la visite), puis on marque « vu ». */
+async function showActivity() {
+  renderActivity();
+  await loadActivity();
+  renderActivity();
+  markActivitySeen();
+}
+
+function deviceEnv() {
+  let displayModeStandalone = false;
+  try { displayModeStandalone = window.matchMedia('(display-mode: standalone)').matches; } catch (error) { /* ancien navigateur */ }
+  return {
+    hasNotification: 'Notification' in window,
+    isSecureContext: window.isSecureContext,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+    standalone: navigator.standalone === true,
+    displayModeStandalone,
+  };
+}
+
+/* Profil › Réglages : une ligne, un interrupteur, un texte d'aide selon l'appareil. */
+function renderNotifSetting() {
+  const support = window.HaisselActivity.deviceSupport(deviceEnv());
+  const permission = notificationCenter ? notificationCenter.permission() : 'unsupported';
+  ui.notifHowto.hidden = support !== 'ios-install';
+  if (support === 'available' && permission !== 'unsupported') {
+    ui.notifSwitch.disabled = permission === 'denied';
+    ui.notifSwitch.checked = permission === 'granted';
+    ui.notifHelp.textContent = {
+      granted: 'Activées : HAISSEL te prévient des nouveautés, même en arrière-plan.',
+      denied: 'Refusées dans les réglages du téléphone ou du navigateur. Autorise HAISSEL là-bas pour les réactiver.',
+      default: 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.',
+    }[permission];
+    return;
+  }
+  ui.notifSwitch.disabled = true;
+  ui.notifSwitch.checked = false;
+  ui.notifHelp.textContent = support === 'ios-install'
+    ? 'Sur iPhone, ajoute HAISSEL à ton écran d’accueil pour recevoir les notifications.'
+    : 'Ton navigateur ne permet pas les notifications. Les nouveautés restent visibles dans Activité.';
+}
+
+async function handleNotifSwitch() {
+  // La permission n'est demandée qu'ici, au toucher de l'interrupteur.
+  if (ui.notifSwitch.checked && notificationCenter) {
+    ui.notifSwitch.disabled = true;
+    await notificationCenter.enableSystemNotifications();
+  } else if (!ui.notifSwitch.checked && notificationCenter?.permission() === 'granted') {
+    // Une page web ne peut pas retirer une autorisation : on l'explique.
+    ui.notifHelp.textContent = 'Pour les couper, va dans les réglages du téléphone ou du navigateur (Notifications › HAISSEL).';
+    ui.notifSwitch.checked = true;
+    return;
+  }
+  renderNotifSetting();
+}
+
+// ---------------------------------------------------------------------------
+// Stories : barre de l'accueil et lecteur plein écran
+// ---------------------------------------------------------------------------
+
+/*
+ * Les fiches campagne des membres s'affichent comme des stories : un rond par
+ * auteur, un lecteur plein écran. Les offres ADMIN n'en sont jamais : elles
+ * restent dans le fil, sous la barre.
+ *
+ * Rien n'est chargé de l'extérieur (ni image ni script) et aucune vue n'est
+ * envoyée au serveur : « vu » reste dans ce navigateur (voir stories.js).
+ */
+const Stories = window.HaisselStories;
+const STORY_DURATION = 7000;
+
+function safeStorage() {
+  try { return window.localStorage; } catch (error) { return null; }
+}
+
+function storiesSeen() {
+  const storage = safeStorage();
+  return storage ? Stories.readSeen(storage) : new Set();
+}
+
+function storyAvatar(username, className = 'story-avatar') {
+  return h('span', { className, 'aria-hidden': 'true' }, initialsFromName(username));
+}
+
+function storyRing({ username, label, unseen, onclick, extra = null, ariaLabel }) {
+  return h('li', { className: 'story-item' },
+    h('button', {
+      className: `story-ring${unseen ? ' is-unseen' : ' is-seen'}`, type: 'button', 'aria-label': ariaLabel, onclick,
+      // Le lecteur s'ouvre depuis ce rond et s'y referme (openStoryViewer).
+      'data-author': username,
+    }, storyAvatar(username), extra),
+    h('span', { className: 'story-name', 'aria-hidden': 'true' }, label));
+}
+
+function renderStories(items) {
+  if (!ui.homeStories) return;
+  const seen = storiesSeen();
+  const groups = Stories.groupStories(items, seen);
+  state.stories = { groups, items };
+  const rings = [];
+
+  // « Toi » : réservé aux majeurs, qui seuls peuvent publier.
+  if (isAdultMember()) {
+    const mine = Stories.ownStories(items);
+    const me = state.user?.display_name || state.user?.username || 'toi';
+    rings.push(mine.length
+      ? storyRing({
+        username: me, label: 'Toi', unseen: false, ariaLabel: `Voir tes fiches en cours (${mine.length})`,
+        onclick: (event) => openStoryViewer([{ username: me, offers: mine }], 0, 0, event.currentTarget),
+      })
+      : storyRing({
+        username: me, label: 'Toi', unseen: false, ariaLabel: 'Partager une fiche campagne',
+        extra: h('span', { className: 'story-add', 'aria-hidden': 'true' }, '+'),
+        onclick: () => setActiveView('publish'),
+      }));
+  }
+  groups.forEach((group, index) => {
+    const count = group.offers.length;
+    rings.push(storyRing({
+      username: group.username, label: group.username, unseen: group.unseen,
+      ariaLabel: `Fiches de @${group.username} : ${count} fiche${count > 1 ? 's' : ''}${group.unseen ? ', non vues' : ', déjà vues'}`,
+      onclick: (event) => openStoryViewer(groups, index, Stories.startIndex(group.offers, seen), event.currentTarget),
+    }));
+  });
+  ui.homeStories.replaceChildren(...rings);
+  ui.homeStories.closest('.stories-bar')?.classList.toggle('hidden', rings.length === 0);
+}
+
+function refreshStoryRings() {
+  if (state.stories) renderStories(state.stories.items);
+}
+
+/* Lecteur ------------------------------------------------------------------ */
+
+/*
+ * Gestes et animations façon Instagram. Seuls transform et opacity sont
+ * animés (plus les coins arrondis à l'ouverture et à la fermeture) ; le doigt
+ * est suivi dans requestAnimationFrame. La décision des gestes est dans
+ * stories.js (fonctions pures, testées).
+ */
+const viewer = {
+  root: null, backdrop: null, cube: null, face: null, neighbor: null, neighborDir: 0,
+  groups: [], g: 0, i: 0, elapsed: 0, last: 0, frame: 0, anim: 0, render: 0,
+  paused: false, holding: false, closing: false, gesture: null, holdTimer: 0,
+  returnFocus: null, scrollY: 0,
+};
+
+function reducedMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (error) { return false; }
+}
+
+function currentStory() {
+  return viewer.groups[viewer.g]?.offers[viewer.i] || null;
+}
+
+function storyCard(offer) {
+  const fact = (label, value) => (value ? h('div', { className: 'sv-fact' }, h('dt', null, label), h('dd', null, value)) : null);
+  return h('article', { className: 'sv-card' },
+    h('span', { className: 'sv-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon lg')),
+    h('p', { className: 'sv-category' }, offer.category_label),
+    h('h2', { className: 'sv-title', id: 'story-title' }, offer.title),
+    offer.campaign_name ? h('p', { className: 'sv-campaign' }, `Campagne : ${offer.campaign_name}`) : null,
+    h('dl', { className: 'sv-facts' },
+      fact('Ce qu’il faut faire', offer.expected_action),
+      fact('Pays', offer.countries),
+      fact('Âge', offer.min_age ? `${offer.min_age} ans et +` : 'Pas d’âge minimum indiqué')),
+    offer.tips ? h('section', { className: 'sv-tips' },
+      h('h3', null, `Les conseils de @${offer.author.username}`),
+      h('p', null, offer.tips)) : null);
+}
+
+function storyMenu(offer) {
+  const menu = h('div', { className: 'sv-menu hidden', role: 'menu' },
+    h('button', {
+      type: 'button', role: 'menuitem',
+      // Le lecteur reste en pause tant qu'une fenêtre est ouverte (voir tickStory).
+      onclick: () => { menu.classList.add('hidden'); pauseStory(false); openReport(offer); },
+    }, icon('i-flag', 'icon sm'), 'Signaler'));
+  const toggle = h('button', {
+    className: 'sv-round', type: 'button', 'aria-label': 'Plus d’actions', 'aria-haspopup': 'menu',
+    onclick: () => {
+      const open = menu.classList.toggle('hidden') === false;
+      toggle.setAttribute('aria-expanded', String(open));
+      pauseStory(open);
+    },
+  }, '…');
+  return [toggle, menu];
+}
+
+/* Un écran du lecteur : la fiche i de l'auteur g. */
+function storyFace(g, i) {
+  const group = viewer.groups[g];
+  const offer = group.offers[i];
+  const bars = group.offers.map((_, index) => {
+    const fill = h('span', { className: 'sv-bar-fill' });
+    fill.style.transform = `scaleX(${index < i ? 1 : 0})`;
+    return h('span', { className: 'sv-bar' }, fill);
+  });
+  const [menuButton, menu] = storyMenu(offer);
+  return h('div', { className: 'sv-face' },
+    h('div', { className: 'sv-bars', 'aria-hidden': 'true' }, bars),
+    h('header', { className: 'sv-head' },
+      storyAvatar(offer.author.username, 'story-avatar sm'),
+      h('div', { className: 'sv-who' },
+        h('strong', null, `@${offer.author.username}`),
+        h('span', null, formatAgo(offer.shown_at || offer.published_at))),
+      kindBadge(offer),
+      h('button', { className: 'sv-round', type: 'button', 'aria-label': 'Fermer', onclick: () => closeStoryViewer() }, icon('i-close'))),
+    h('p', { className: 'visually-hidden', 'aria-live': 'polite' },
+      `Fiche ${i + 1} sur ${group.offers.length} de @${group.username}`),
+    h('div', { className: 'sv-stage' },
+      // Boutons pour le clavier et les lecteurs d'écran ; au doigt, la zone
+      // entière réagit (voir onStoryPointerUp).
+      h('button', { className: 'sv-nav prev', type: 'button', onclick: () => stepStory(-1) }, h('span', { className: 'visually-hidden' }, 'Précédente')),
+      storyCard(offer),
+      h('button', { className: 'sv-nav next', type: 'button', onclick: () => stepStory(1) }, h('span', { className: 'visually-hidden' }, 'Suivante'))),
+    h('footer', { className: 'sv-foot' },
+      h('button', {
+        className: 'primary-button sv-open', type: 'button', disabled: !offer.can_open,
+        onclick: () => confirmLeave(offer),
+      }, 'Voir la page officielle', icon('i-arrow-right')),
+      offer.is_mine ? null : saveButtonFor(offer),
+      offer.is_mine ? null : menuButton,
+      offer.is_mine ? null : menu));
+}
+
+function paintStory() {
+  const offer = currentStory();
+  if (!offer) { closeStoryViewer(); return; }
+  const face = storyFace(viewer.g, viewer.i);
+  if (viewer.face) viewer.face.replaceWith(face);
+  else viewer.cube.append(face);
+  viewer.face = face;
+  viewer.fill = face.querySelectorAll('.sv-bar-fill')[viewer.i];
+  viewer.elapsed = 0;
+  if (reducedMotion()) viewer.fill.style.transform = 'scaleX(1)';
+  const storage = safeStorage();
+  if (storage) Stories.markSeen(storage, offer);
+}
+
+function tickStory(now) {
+  viewer.frame = window.requestAnimationFrame(tickStory);
+  const stopped = viewer.paused || viewer.holding || viewer.closing || viewer.anim
+    || (viewer.gesture && viewer.gesture.kind && viewer.gesture.kind !== 'ignore');
+  if (stopped || reducedMotion() || document.querySelector('dialog[open]')) { viewer.last = now; return; }
+  viewer.elapsed += now - (viewer.last || now);
+  viewer.last = now;
+  if (viewer.fill) viewer.fill.style.transform = `scaleX(${Math.min(1, viewer.elapsed / STORY_DURATION)})`;
+  if (viewer.elapsed >= STORY_DURATION) stepStory(1);
+}
+
+/* Changement instantané (toucher, flèches, boutons). */
+function stepStory(delta) {
+  const group = viewer.groups[viewer.g];
+  let { g, i } = viewer;
+  i += delta;
+  if (i >= group.offers.length) { g += 1; i = 0; }
+  if (i < 0) {
+    if (g === 0) { i = 0; } else { g -= 1; i = viewer.groups[g].offers.length - 1; }
+  }
+  if (g >= viewer.groups.length) { closeStoryViewer(); return; }
+  viewer.g = g; viewer.i = i;
+  pauseStory(false);
+  paintStory();
+}
+
+function pauseStory(paused) {
+  viewer.paused = paused;
+  viewer.root?.classList.toggle('is-paused', paused);
+}
+
+function onStoryKey(event) {
+  if (!viewer.root || document.querySelector('dialog[open]')) return;
+  if (event.key === 'Escape') { event.preventDefault(); closeStoryViewer(); }
+  else if (event.key === 'ArrowRight') { event.preventDefault(); stepStory(1); }
+  else if (event.key === 'ArrowLeft') { event.preventDefault(); stepStory(-1); }
+}
+
+/* Transformations ----------------------------------------------------------- */
+
+/* Transformation qui ramène l'écran entier sur le rond (ouverture, fermeture). */
+function ringTransform(rect) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const tx = rect.left + rect.width / 2 - vw / 2;
+  const ty = rect.top + rect.height / 2 - vh / 2;
+  return `translate(${tx}px, ${ty}px) scale(${rect.width / vw}, ${rect.height / vh})`;
+}
+
+function ringRectFor(username) {
+  const ring = ui.homeStories?.querySelector(`.story-ring[data-author="${CSS.escape(username)}"]`);
+  if (!ring) return null;
+  const rect = ring.getBoundingClientRect();
+  const visible = rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
+  return visible ? rect : null;
+}
+
+/* Fermeture en cours de geste : la story suit le doigt et rétrécit. */
+function applyDismiss(dx, dy) {
+  const down = Math.max(0, dy);
+  const k = Math.min(1, down / (window.innerHeight * 0.5));
+  if (reducedMotion()) {
+    viewer.face.style.opacity = String(1 - k * 0.6);
+  } else {
+    viewer.face.style.transform = `translate(${dx * 0.4}px, ${down}px) scale(${1 - 0.15 * k})`;
+    viewer.face.style.borderRadius = `${Math.min(24, down / 6)}px`;
+  }
+  viewer.backdrop.style.opacity = String(1 - k);
+}
+
+function setFace(face, tx, deg, origin) {
+  face.style.transformOrigin = origin;
+  face.style.transform = `translateX(${tx}px) rotateY(${deg}deg)`;
+}
+
+/*
+ * Cube : p = déplacement / largeur (-1 = auteur suivant arrivé, +1 = auteur
+ * précédent arrivé). Chaque face tourne autour de l'arête commune.
+ */
+function applyCube(p) {
+  const w = window.innerWidth;
+  if (!viewer.neighbor) {
+    // Premier ou dernier auteur : résistance élastique.
+    viewer.face.style.transform = `translateX(${p * w * 0.25}px)`;
+    return;
+  }
+  if (p < 0) {
+    setFace(viewer.face, p * w, p * 90, '100% 50%');
+    setFace(viewer.neighbor, w + p * w, 90 * (1 + p), '0% 50%');
+  } else {
+    setFace(viewer.face, p * w, p * 90, '0% 50%');
+    setFace(viewer.neighbor, -w + p * w, -90 * (1 - p), '100% 50%');
+  }
+}
+
+function prepareNeighbor(dir) {
+  if (viewer.neighborDir === dir) return;
+  viewer.neighbor?.remove();
+  viewer.neighbor = null;
+  viewer.neighborDir = dir;
+  const g = viewer.g + dir;
+  if (reducedMotion() || g < 0 || g >= viewer.groups.length) return;
+  viewer.neighbor = storyFace(g, Stories.startIndex(viewer.groups[g].offers, storiesSeen()));
+  viewer.neighbor.setAttribute('aria-hidden', 'true');
+  viewer.cube.append(viewer.neighbor);
+}
+
+function resetFaceStyles(face) {
+  face.style.transform = '';
+  face.style.transformOrigin = '';
+  face.style.borderRadius = '';
+  face.style.opacity = '';
+}
+
+/* Interpolation dans requestAnimationFrame (cube qui se termine ou revient). */
+function tween(from, to, ms, onFrame, done) {
+  const start = performance.now();
+  const ease = (t) => 1 - (1 - t) ** 3;
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / ms);
+    onFrame(from + (to - from) * ease(t));
+    if (t < 1) viewer.anim = window.requestAnimationFrame(step);
+    else { viewer.anim = 0; done(); }
+  };
+  viewer.anim = window.requestAnimationFrame(step);
+}
+
+function finishCube(decision, dx) {
+  const w = window.innerWidth;
+  const p0 = Math.max(-1, Math.min(1, dx / w));
+  const target = decision === 'next-author' ? -1 : decision === 'prev-author' ? 1 : 0;
+  const done = () => {
+    viewer.neighbor?.remove();
+    viewer.neighbor = null;
+    viewer.neighborDir = 0;
+    if (target !== 0) {
+      viewer.g -= target;
+      viewer.i = Stories.startIndex(viewer.groups[viewer.g].offers, storiesSeen());
+      paintStory();
+      if (reducedMotion()) viewer.face.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+    } else {
+      resetFaceStyles(viewer.face);
+    }
+  };
+  if (reducedMotion()) { done(); return; }
+  tween(p0, target, target === 0 ? 300 : 260, applyCube, done);
+}
+
+function restoreDismiss() {
+  const { face, backdrop } = viewer;
+  const from = { transform: face.style.transform || 'none', borderRadius: face.style.borderRadius || '0px', opacity: face.style.opacity || '1' };
+  const fromBackdrop = backdrop.style.opacity || '1';
+  resetFaceStyles(face);
+  backdrop.style.opacity = '';
+  if (reducedMotion()) return;
+  face.animate([from, { transform: 'none', borderRadius: '0px', opacity: '1' }],
+    { duration: 320, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+  backdrop.animate([{ opacity: fromBackdrop }, { opacity: 1 }], { duration: 200 });
+}
+
+/* Gestes ------------------------------------------------------------------- */
+
+function velocity(samples) {
+  const last = samples[samples.length - 1];
+  const first = samples.find((s) => last.t - s.t <= 100) || samples[0];
+  const dt = Math.max(1, last.t - first.t);
+  return { vx: (last.x - first.x) / dt, vy: (last.y - first.y) / dt };
+}
+
+function onStoryPointerDown(event) {
+  if (viewer.closing || viewer.anim || viewer.gesture) return;
+  if (event.target.closest('button, a, [role="menu"]')) return;
+  viewer.gesture = {
+    id: event.pointerId, x0: event.clientX, y0: event.clientY, dx: 0, dy: 0, kind: null,
+    samples: [{ t: event.timeStamp, x: event.clientX, y: event.clientY }],
+  };
+  try { viewer.root.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
+  clearTimeout(viewer.holdTimer);
+  viewer.holdTimer = setTimeout(() => {
+    if (!viewer.gesture || viewer.gesture.kind) return;
+    viewer.holding = true;
+    viewer.root.classList.add('is-holding');
+  }, Stories.GESTURE.holdMs);
+}
+
+function renderGesture() {
+  viewer.render = 0;
+  const gesture = viewer.gesture;
+  if (!gesture || !viewer.face) return;
+  if (gesture.kind === 'dismiss') applyDismiss(gesture.dx, gesture.dy);
+  else if (gesture.kind === 'author' && !reducedMotion()) {
+    prepareNeighbor(gesture.dx < 0 ? 1 : -1);
+    applyCube(Math.max(-1, Math.min(1, gesture.dx / window.innerWidth)));
+  }
+}
+
+function onStoryPointerMove(event) {
+  const gesture = viewer.gesture;
+  if (!gesture || event.pointerId !== gesture.id) return;
+  gesture.dx = event.clientX - gesture.x0;
+  gesture.dy = event.clientY - gesture.y0;
+  gesture.samples.push({ t: event.timeStamp, x: event.clientX, y: event.clientY });
+  if (gesture.samples.length > 12) gesture.samples.shift();
+  // Appui long en cours : les mouvements ne lancent plus de geste.
+  if (viewer.holding) return;
+  if (!gesture.kind) {
+    gesture.kind = Stories.classifyGesture(gesture.dx, gesture.dy);
+    if (!gesture.kind) return;
+    clearTimeout(viewer.holdTimer);
+  }
+  if (gesture.kind === 'ignore') return;
+  if (!viewer.render) viewer.render = window.requestAnimationFrame(renderGesture);
+}
+
+function onStoryPointerUp(event, cancelled = false) {
+  const gesture = viewer.gesture;
+  if (!gesture || event.pointerId !== gesture.id) return;
+  viewer.gesture = null;
+  clearTimeout(viewer.holdTimer);
+  if (viewer.render) { window.cancelAnimationFrame(viewer.render); viewer.render = 0; }
+  if (viewer.holding) {
+    viewer.holding = false;
+    viewer.root.classList.remove('is-holding');
+    return;
+  }
+  if (!gesture.kind) {
+    if (!cancelled) stepStory(Stories.tapZone(event.clientX, window.innerWidth) === 'prev' ? -1 : 1);
+    return;
+  }
+  if (gesture.kind === 'ignore') return;
+  const { vx, vy } = velocity(gesture.samples);
+  const decision = cancelled ? 'restore' : Stories.decideRelease(gesture.kind, {
+    dx: gesture.dx, dy: gesture.dy, vx, vy, width: window.innerWidth, height: window.innerHeight,
+    hasPrev: viewer.g > 0, hasNext: viewer.g < viewer.groups.length - 1,
+  });
+  if (gesture.kind === 'dismiss') {
+    if (decision === 'close') closeStoryViewer();
+    else restoreDismiss();
+  } else {
+    finishCube(decision, gesture.dx);
+  }
+}
+
+/* Ouverture et fermeture ---------------------------------------------------- */
+
+function openStoryViewer(groups, g, i, fromElement = null) {
+  if (viewer.root) teardownStoryViewer();
+  Object.assign(viewer, { groups, g, i, face: null, neighbor: null, neighborDir: 0, closing: false, holding: false, gesture: null });
+  viewer.returnFocus = document.activeElement;
+
+  // Page derrière figée sans saut : position fixe décalée du défilement.
+  viewer.scrollY = window.scrollY;
+  document.body.style.top = `-${viewer.scrollY}px`;
+  document.body.classList.add('story-open');
+
+  viewer.backdrop = h('div', { className: 'sv-backdrop' });
+  viewer.cube = h('div', { className: 'sv-cube' });
+  viewer.root = h('div', {
+    className: 'story-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'story-title',
+    onpointerdown: onStoryPointerDown, onpointermove: onStoryPointerMove,
+    onpointerup: (event) => onStoryPointerUp(event),
+    onpointercancel: (event) => onStoryPointerUp(event, true),
+    oncontextmenu: (event) => event.preventDefault(),
+  }, viewer.backdrop, viewer.cube);
+  document.body.append(viewer.root);
+  document.addEventListener('keydown', onStoryKey);
+  pauseStory(false);
+  paintStory();
+
+  const rect = fromElement?.getBoundingClientRect();
+  if (rect && rect.width && !reducedMotion()) {
+    viewer.face.animate([
+      { transform: ringTransform(rect), borderRadius: '50%' },
+      { transform: 'none', borderRadius: '0px' },
+    ], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+    viewer.backdrop.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280 });
+  } else {
+    viewer.root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+  }
+  viewer.last = 0;
+  viewer.frame = window.requestAnimationFrame(tickStory);
+  viewer.root.querySelector('.sv-nav.next')?.focus({ preventScroll: true });
+}
+
+function teardownStoryViewer() {
+  window.cancelAnimationFrame(viewer.frame);
+  window.cancelAnimationFrame(viewer.anim);
+  window.cancelAnimationFrame(viewer.render);
+  viewer.anim = 0;
+  viewer.render = 0;
+  clearTimeout(viewer.holdTimer);
+  document.removeEventListener('keydown', onStoryKey);
+  viewer.root?.remove();
+  viewer.root = null;
+  viewer.face = null;
+  viewer.neighbor = null;
+  viewer.closing = false;
+  document.body.classList.remove('story-open');
+  document.body.style.top = '';
+  window.scrollTo(0, viewer.scrollY);
+  refreshStoryRings();
+  viewer.returnFocus?.focus?.({ preventScroll: true });
+}
+
+/* Se referme en se réduisant vers le rond de l'auteur (sinon fondu). */
+function closeStoryViewer() {
+  if (!viewer.root || viewer.closing) return;
+  viewer.closing = true;
+  const { face, backdrop } = viewer;
+  const rect = !reducedMotion() && ringRectFor(viewer.groups[viewer.g].username);
+  let animation;
+  if (rect && face) {
+    animation = face.animate([
+      { transform: face.style.transform || 'none', borderRadius: face.style.borderRadius || '0px', opacity: 1 },
+      { transform: ringTransform(rect), borderRadius: '50%', opacity: 0.4 },
+    ], { duration: 250, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+    backdrop.animate([{ opacity: backdrop.style.opacity || 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' });
+  } else {
+    animation = viewer.root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' });
+  }
+  animation.finished.then(teardownStoryViewer, teardownStoryViewer);
+}
+
+// ---------------------------------------------------------------------------
+// Messages : conversation avec l'équipe
+// ---------------------------------------------------------------------------
+
+/*
+ * Une seule conversation, avec l'équipe. Texte brut affiché par textContent
+ * (h() crée des nœuds texte) : rien n'est interprété, aucun lien cliquable.
+ * Pas de flux temps réel sur Vercel : interrogation toutes les 15 s tant
+ * que la conversation est ouverte ; pastille vérifiée à chaque changement de
+ * vue et toutes les 60 s quand la page est visible.
+ */
+const CHAT_POLL_MS = 15000;
+const UNREAD_POLL_MS = 60000;
+// Champ de saisie : 5 lignes au plus, puis il défile.
+const CHAT_MAX_LINES = 5;
+const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null };
+
+function paintUnread(count) {
+  ui.navMessagesBadge.hidden = !count;
+  ui.teamThreadDot.hidden = !count;
+  ui.teamThreadOpen.classList.toggle('is-unread', Boolean(count));
+  ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
+}
+
+/** Ligne de la liste : aperçu du dernier message (textContent) et heure. */
+function paintThreadPreview(last) {
+  if (!last) return;
+  ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content}`;
+  ui.teamThreadTime.textContent = window.HaisselChat.listTimeLabel(last.created_at);
+  ui.teamThreadTime.setAttribute('datetime', last.created_at);
+}
+
+async function refreshUnread() {
+  if (!state.user) return;
+  try {
+    const data = await api('/api/messages/unread');
+    paintUnread(data.unread);
+    paintThreadPreview(data.last);
+  } catch (error) { /* pastille seulement : on réessaiera */ }
+  // Même rythme pour la cloche (Activité).
+  loadActivity();
+}
+
+function startUnreadPolling() {
+  clearInterval(chat.unreadTimer);
+  refreshUnread();
+  chat.unreadTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshUnread(); }, UNREAD_POLL_MS);
+}
+
+/* Lignes de la conversation (chat-thread.js) : texte toujours via h(), donc textContent. */
+function chatRow(row) {
+  if (row.type === 'stamp') {
+    return h('p', { className: 'chat-stamp' }, h('time', { datetime: row.at }, window.HaisselChat.stampLabel(row.at)));
+  }
+  const classes = ['bubble', row.mine ? 'from-me' : 'from-team'];
+  if (row.groupStart) classes.push('group-start');
+  if (row.tail) classes.push('tail');
+  const bubble = h('div', { className: classes.join(' '), title: new Date(row.message.created_at).toLocaleString('fr-FR') },
+    h('span', { className: 'visually-hidden' }, row.mine ? 'Toi : ' : 'Équipe Haissel : '),
+    h('p', null, row.message.content));
+  if (!row.sent) return bubble;
+  return h('div', { className: 'bubble-wrap from-me' }, bubble, h('span', { className: 'chat-receipt' }, 'Envoyé'));
+}
+
+function scrollChatToEnd() {
+  ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+}
+
+function renderChat(messages) {
+  if (!messages.length) {
+    chat.signature = '';
+    ui.chatMessages.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
+    return;
+  }
+  // Rien de neuf : on ne touche pas au DOM (pas de saut de défilement).
+  const last = messages[messages.length - 1];
+  const signature = `${messages.length}:${last.id}`;
+  if (signature === chat.signature) return;
+  const atBottom = ui.chatMessages.scrollHeight - ui.chatMessages.scrollTop - ui.chatMessages.clientHeight < 60;
+  const grew = chat.signature !== '';
+  chat.signature = signature;
+  ui.chatMessages.replaceChildren(...window.HaisselChat.layoutThread(messages).map(chatRow));
+  if (atBottom || !grew || !last.from_team) scrollChatToEnd();
+  paintThreadPreview(last);
+}
+
+async function loadChat() {
+  try {
+    const data = await api('/api/messages/team');
+    renderChat(data.messages || []);
+    paintUnread(0);
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    ui.chatError.textContent = error.message;
+    ui.chatError.classList.remove('hidden');
+  }
+}
+
+/*
+ * Clavier iOS : la page ne rétrécit pas, seul visualViewport change. La
+ * conversation (position fixe) suit donc la zone visible : la barre de
+ * saisie reste collée au-dessus du clavier et le dernier message visible.
+ */
+function fitChatToViewport() {
+  const vv = window.visualViewport;
+  if (!vv || ui.teamThread.hidden) return;
+  ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop}px`);
+  ui.teamThread.style.setProperty('--chat-height', `${vv.height}px`);
+  // Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
+  ui.teamThread.classList.toggle('keyboard-open', window.innerHeight - vv.height > 120);
+  scrollChatToEnd();
+}
+
+function watchViewport(on) {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  if (on && !chat.viewport) {
+    chat.viewport = () => window.requestAnimationFrame(fitChatToViewport);
+    vv.addEventListener('resize', chat.viewport);
+    vv.addEventListener('scroll', chat.viewport);
+    fitChatToViewport();
+  } else if (!on && chat.viewport) {
+    vv.removeEventListener('resize', chat.viewport);
+    vv.removeEventListener('scroll', chat.viewport);
+    chat.viewport = null;
+  }
+}
+
+/** Hauteur du champ : suit le texte jusqu'à 5 lignes ; bouton d'envoi seulement s'il y a du texte. */
+function fitChatInput() {
+  const input = ui.chatInput;
+  const style = window.getComputedStyle(input);
+  const line = parseFloat(style.lineHeight) || 20;
+  const extra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  input.style.height = '';
+  input.style.height = `${Math.min(input.scrollHeight + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth), line * CHAT_MAX_LINES + extra)}px`;
+  ui.chatSend.hidden = !input.value.trim();
+}
+
+function openChat() {
+  ui.messagesInbox.hidden = true;
+  ui.teamThread.hidden = false;
+  document.body.classList.add('chat-open');
+  ui.chatError.classList.add('hidden');
+  chat.signature = '';
+  fitChatInput();
+  watchViewport(true);
+  loadChat();
+  clearInterval(chat.timer);
+  chat.timer = setInterval(loadChat, CHAT_POLL_MS);
+  ui.chatInput.focus({ preventScroll: true });
+}
+
+function closeChat() {
+  clearInterval(chat.timer);
+  chat.timer = 0;
+  if (!ui.teamThread) return;
+  watchViewport(false);
+  ui.teamThread.hidden = true;
+  ui.messagesInbox.hidden = false;
+  document.body.classList.remove('chat-open');
+}
+
+async function handleChatSubmit(event) {
+  event.preventDefault();
+  const content = ui.chatInput.value.trim();
+  if (!content) return;
+  ui.chatError.classList.add('hidden');
+  setBusy(ui.chatForm, true);
+  try {
+    await api('/api/messages/team', { method: 'POST', body: { content } });
+    ui.chatInput.value = '';
+    fitChatInput();
+    await loadChat();
+    scrollChatToEnd();
+  } catch (error) {
+    ui.chatError.textContent = error.message;
+    ui.chatError.classList.remove('hidden');
+  } finally {
+    setBusy(ui.chatForm, false);
+    ui.chatInput.focus({ preventScroll: true });
+  }
+}
+
 let communityTimer;
 function scheduleCommunityLoad() {
   clearTimeout(communityTimer);
-  communityTimer = setTimeout(() => { syncFiltersToUrl(); loadCommunity(); }, 300);
+  communityTimer = setTimeout(() => { syncFiltersToUrl(); loadCommunity(); }, 250);
 }
 
 async function toggleSave(offer, button) {
@@ -1489,7 +2592,22 @@ async function removeMyOffer(offer) {
   }
 }
 
-const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected: 'i-alert' };
+const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected: 'i-alert', expired: 'i-clock' };
+
+/*
+ * Republier une fiche pour 24 h. Aucune condition liée aux fiches des autres
+ * membres : le serveur ne vérifie que l'auteur et le délai de 20 h.
+ */
+async function renewMyOffer(offer) {
+  try {
+    const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}/renew`, { method: 'POST' });
+    myOffersFeedback('info', data.message);
+    loadMyOffers();
+    state.community.loaded = false;
+  } catch (error) {
+    myOffersFeedback('error', error.message);
+  }
+}
 
 /*
  * Une offre de l'auteur : statut, et message de l'équipe quand il existe
@@ -1497,9 +2615,11 @@ const STATUS_ICONS = { pending: 'i-clock', published: 'i-check-circle', rejected
  * serveur n'en fournit pas.
  */
 function myOfferCard(offer) {
-  const [label, kind] = OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending'];
+  const expired = offer.status === 'published' && offer.expired;
+  const [label, kind] = expired ? ['Expirée', 'expired'] : (OFFER_STATUS_LABELS[offer.status] || [offer.status, 'pending']);
+  const left = offer.status === 'published' ? storyTimeLeft(offer) : null;
   const sent = offer.status === 'published' && offer.published_at
-    ? `Publiée ${formatAgo(offer.published_at)}`
+    ? [`Publiée ${formatAgo(offer.shown_at || offer.published_at)}`, left].filter(Boolean).join(' · ')
     : `Envoyée ${formatAgo(offer.created_at)}`;
   let note = null;
   if (offer.moderation_note) {
@@ -1508,6 +2628,8 @@ function myOfferCard(offer) {
       h('p', null, offer.moderation_note));
   } else if (kind === 'pending') {
     note = h('p', { className: 'mo-note' }, icon('i-clock', 'icon sm'), 'L’équipe relit ton offre avant publication.');
+  } else if (expired) {
+    note = h('p', { className: 'mo-note' }, icon('i-clock', 'icon sm'), 'Ta fiche n’est plus visible dans le fil. Tu peux la republier pour 24 h, sans nouvelle vérification.');
   }
   return h('article', { className: 'my-offer-card my-offer' },
     h('div', { className: 'mo-head' },
@@ -1518,10 +2640,35 @@ function myOfferCard(offer) {
       h('span', { className: `status-tag ${kind}` }, icon(STATUS_ICONS[kind] || 'i-clock', 'icon sm'), label)),
     note,
     h('div', { className: 'mo-actions' },
+      expired ? h('button', { className: 'primary-button small-button', type: 'button', onclick: () => renewMyOffer(offer) }, icon('i-send', 'icon sm'), 'Republier pour 24 h') : null,
       h('button', { className: 'secondary-button small-button', type: 'button', onclick: () => startOfferEdit(offer) }, icon('i-edit', 'icon sm'), 'Modifier'),
       h('button', {
         className: 'round-button mo-remove', type: 'button', 'aria-label': `Retirer « ${offer.title} »`, onclick: () => removeMyOffer(offer),
       }, icon('i-trash'))));
+}
+
+/*
+ * Vignette d'une de mes fiches (grille du profil), avec son statut en
+ * pastille. Toucher affiche au-dessus de la grille la carte complète :
+ * message de l'équipe, Republier, Modifier, Retirer.
+ */
+function myOfferTile(offer) {
+  const expired = offer.status === 'published' && offer.expired;
+  const [label] = expired ? ['Expirée'] : (OFFER_STATUS_LABELS[offer.status] || [offer.status]);
+  return h('button', {
+    className: `grid-cell${expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `${offer.title} : ${label}. Gérer cette fiche`,
+    'data-offer-id': String(offer.id),
+    onclick: () => {
+      ui.myOfferDetail.replaceChildren(
+        h('button', { className: 'text-button my-offer-detail-close', type: 'button', onclick: () => { ui.myOfferDetail.hidden = true; } }, icon('i-close', 'icon sm'), 'Fermer'),
+        myOfferCard(offer));
+      ui.myOfferDetail.hidden = false;
+      ui.myOfferDetail.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    },
+  }, categoryVisual(offer.category, 'grid-tile',
+    h('span', { className: 'grid-tile-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('span', { className: 'grid-tile-title' }, offer.title),
+    h('span', { className: `grid-badge status-${expired ? 'expired' : offer.status}` }, label)));
 }
 
 /** Offres sauvegardées (profil). */
@@ -1532,9 +2679,10 @@ async function loadSavedOffers() {
     const data = await api('/api/community/offers?saved=1');
     const items = data.items || [];
     ui.savedCount.textContent = `(${items.length})`;
+    ui.statSaved.textContent = String(items.length);
     ui.savedOffers.setAttribute('aria-busy', 'false');
     ui.savedOffers.replaceChildren(...(items.length
-      ? items.map((offer) => communityCard(offer))
+      ? items.map((offer) => gridTile(offer))
       : [h('div', { className: 'panel-card' }, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.')]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -1552,7 +2700,9 @@ async function loadMyOffers() {
     renderCategoryTiles();
     ui.myOffers.setAttribute('aria-busy', 'false');
     ui.myOffersCount.textContent = `(${data.items.length})`;
-    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferCard)
+    ui.statPublished.textContent = String(data.items.filter((offer) => offer.status === 'published' && !offer.expired).length);
+    ui.myOfferDetail.hidden = true;
+    ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferTile)
       : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.')]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -2168,7 +3318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebarName: 'sidebar-name', sidebarEmail: 'sidebar-email', sidebarAvatar: 'sidebar-avatar',
     welcomeName: 'welcome-name', profileDisplayName: 'profile-display-name', profileUsername: 'profile-username',
     profileEmail: 'profile-email', profileFullName: 'profile-full-name', profileCreatedAt: 'profile-created-at',
-    profileAvatar: 'profile-avatar', linksList: 'links-list', refreshLinks: 'refresh-links',
+    profileAvatar: 'profile-avatar', linksList: 'links-list',
     profileLogout: 'profile-logout', forgotLink: 'forgot-link', forgotEmail: 'forgot-email',
     resetPassword: 'reset-password', resetConfirmPassword: 'reset-confirm-password',
     mfaCode: 'mfa-code', mfaRecovery: 'mfa-recovery', mfaRecoveryField: 'mfa-recovery-field',
@@ -2178,11 +3328,12 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', homeChips: 'home-chips', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
-    communityCountry: 'community-country', communitySaved: 'community-saved', communityFilters: 'community-filters',
+    communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
+    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -2199,7 +3350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pubConditionsGroup: 'pub-conditions-group', pubRights: 'pub-rights', pubCancelEdit: 'pub-cancel-edit',
     myOffers: 'my-offers', myleadGuide: 'mylead-guide',
     pubCategoryTiles: 'pub-category-tiles', pubTitleCount: 'pub-title-count',
-    myOffersFeedback: 'my-offers-feedback', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
+    myOffersFeedback: 'my-offers-feedback', myOfferDetail: 'my-offer-detail', statPublished: 'stat-published', statSaved: 'stat-saved', myOffersCount: 'my-offers-count', savedOffers: 'saved-offers', savedCount: 'saved-count',
     passwordFeedback: 'password-feedback', passwordError: 'password-error', logoutAllButton: 'logout-all-button',
   };
   for (const [key, id] of Object.entries(ids)) ui[key] = document.getElementById(id);
@@ -2223,6 +3374,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     // Session révoquée / expirée : retour à l'écran de connexion.
+    // Annonce de l'équipe reçue : Activité et pastille à jour.
+    onNotification: () => { loadActivity(); },
     onSessionEnded: () => {
       if (!state.user) return;
       state.csrf = '';
@@ -2259,37 +3412,53 @@ document.addEventListener('DOMContentLoaded', () => {
   wireMfa();
   document.getElementById('age-gate-yes').addEventListener('click', () => answerAgeGate(true));
   document.getElementById('age-gate-no').addEventListener('click', () => answerAgeGate(false));
-  ui.refreshLinks.addEventListener('click', loadLinks);
-  mirrorText(document.getElementById('realtime-status'), document.getElementById('home-realtime'));
-  mirrorText(document.getElementById('notif-permission-status'), document.getElementById('home-notif-permission'));
   document.querySelectorAll('[data-goto]').forEach((button) => {
     button.addEventListener('click', () => setActiveView(button.dataset.goto));
   });
   document.querySelectorAll('.learn-tab').forEach((tab) => {
     tab.addEventListener('click', () => setLearnTab(tab.dataset.learnTab));
   });
-  ui.homeLearnGo.addEventListener('click', () => {
-    setActiveView('learn');
-    setLearnTab(ui.homeLearnGo.dataset.tab || 'guides');
-  });
-  document.getElementById('home-learn-close').addEventListener('click', () => {
-    window.HaisselMyLeadGuide?.hideBanner?.();
-    ui.homeLearnCard.hidden = true;
-  });
+  // Bandeau « Apprendre » retiré de l'accueil pour l'instant (renderHomeLearnCard ne fait rien sans lui).
   ui.oppAge.addEventListener('input', renderOpportunities);
   ui.oppCountry.addEventListener('input', renderOpportunities);
 
   // Offres de la communauté
   // Filtres : on recharge ET on reporte l'état dans l'adresse de la page.
-  const reloadCommunity = () => { syncFiltersToUrl(); loadCommunity(); };
-  ui.communityFilters.addEventListener('submit', (event) => { event.preventDefault(); reloadCommunity(); });
-  ui.communityQ.addEventListener('input', scheduleCommunityLoad);
-  ui.communityCountry.addEventListener('input', scheduleCommunityLoad);
-  ui.communityCategory.addEventListener('change', reloadCommunity);
-  ui.communitySaved.addEventListener('change', reloadCommunity);
+  ui.communityFilters.addEventListener('submit', (event) => {
+    event.preventDefault();
+    clearTimeout(communityTimer);
+    ui.communityQ.blur();
+    runSearch();
+  });
+  // Recherche pendant la frappe (250 ms après la dernière touche).
+  ui.communityQ.addEventListener('input', () => { paintSearchControls(); scheduleCommunityLoad(); });
+  ui.communityQClear.addEventListener('click', () => {
+    ui.communityQ.value = '';
+    clearTimeout(communityTimer);
+    runSearch();
+    ui.communityQ.focus({ preventScroll: true });
+  });
+  ui.filtersOpen.addEventListener('click', openFilters);
+  document.getElementById('filters-apply').addEventListener('click', () => closeSheet(ui.filtersSheet, { apply: true }));
+  document.getElementById('filters-reset').addEventListener('click', () => setFilterFields({}));
+  bindFiltersSheet();
+  // Réglages : notifications sur cet appareil.
+  bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
+  ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
+  ui.notifSwitch.addEventListener('change', handleNotifSwitch);
+  // Retour sur l'application (réglages du téléphone modifiés entre-temps).
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.user) renderNotifSetting(); });
   // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
   readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
+  // Messages
+  document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
+  document.getElementById('chat-back').addEventListener('click', closeChat);
+  ui.chatForm.addEventListener('submit', handleChatSubmit);
+  ui.chatInput.addEventListener('input', fitChatInput);
+  ui.chatInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ui.chatForm.requestSubmit(); }
+  });
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });
@@ -2300,12 +3469,20 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.profile-tab').forEach((tab) => {
     tab.addEventListener('click', () => setProfileTab(tab.dataset.profileTab));
   });
+  document.querySelectorAll('[data-profile-open]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.dataset.profileOpen === 'settings') renderNotifSetting();
+      setProfileTab(button.dataset.profileOpen);
+      document.getElementById(`ppanel-${button.dataset.profileOpen}`).scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  });
   document.getElementById('publish-my-offers').addEventListener('click', () => {
     setActiveView('profile');
     setProfileTab('offers');
   });
   document.getElementById('profile-saved').addEventListener('click', () => {
     ui.communitySaved.checked = true;
+    paintSearchControls();
     state.community.loaded = false;
     setActiveView('links');
   });
