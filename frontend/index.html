@@ -2,10 +2,17 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
     <meta name="theme-color" content="#2563eb" />
+    <!-- Ajout à l'écran d'accueil (Android : manifeste ; iPhone : balises Apple). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="HAISSEL" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="stylesheet" href="app-v2.css" />
     <link rel="stylesheet" href="liquid-glass.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
@@ -41,6 +48,7 @@
       <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></symbol>
       <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
       <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6" /></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5H6v9.5h12v-9.5h-2.5" /></symbol>
       <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.5 19.5h4l10-10-4-4-10 10zM13 7l4 4" /></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5" /></symbol>
       <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></symbol>
@@ -133,14 +141,14 @@
 
           <div class="topbar-actions">
             <span id="status-badge" class="status-pill offline">Connexion</span>
-            <button id="notif-enable-top" class="ghost-button on-brand hidden" type="button">Activer les notifications Windows</button>
             <button id="logout-button" class="ghost-button on-brand hidden" type="button">
               <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>
               Déconnexion
             </button>
             <!-- Raccourcis de l'en-tête (espace membre) -->
-            <button class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Notifications">
+            <button id="bell-button" class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Activité">
               <svg class="icon lg" aria-hidden="true"><use href="#i-bell" /></svg>
+              <span id="bell-badge" class="bell-badge" aria-hidden="true" hidden></span>
             </button>
             <button class="topbar-avatar member-only" type="button" data-view="profile" aria-label="Mon profil">
               <span id="topbar-avatar" class="avatar" aria-hidden="true">H</span>
@@ -397,17 +405,6 @@
                   <ul id="home-learn" class="widget-list" aria-live="polite"><li class="widget-empty">Chargement…</li></ul>
                   <button class="widget-more" type="button" data-goto="learn">Ouvrir la formation</button>
                 </article>
-                <article class="widget" aria-labelledby="w-notif-title">
-                  <header class="widget-head">
-                    <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg>
-                    <h3 id="w-notif-title">Notifications</h3>
-                  </header>
-                  <ul class="widget-list">
-                    <li><span>Canal temps réel</span><strong id="home-realtime">Hors ligne</strong></li>
-                    <li><span>Notifications Windows</span><strong id="home-notif-permission">Non configuré</strong></li>
-                  </ul>
-                  <button class="widget-more" type="button" data-goto="notifications">Réglages des notifications</button>
-                </article>
               </div>
               <section class="account-band" aria-labelledby="w-account-title" hidden>
                 <div class="account-band-id">
@@ -653,30 +650,10 @@
               </div>
             </section>
 
+            <!-- Activité (cloche) : fiches, stories, réponses et annonces de l'équipe (app.js). -->
             <section id="notifications-view" class="view-panel hidden" aria-labelledby="notif-title">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Messages de l'équipe</p>
-                  <h2 id="notif-title" class="section-title">Notifications</h2>
-                </div>
-              </div>
-
-              <div class="profile-card-box notif-box">
-                <h3 class="card-title">Réception des messages</h3>
-                <p class="security-note">Les messages de l'administration s'affichent dans cette page tant qu'elle est ouverte. Tu peux aussi recevoir des notifications système de ton ordinateur.</p>
-                <ul class="profile-list">
-                  <li><span>Canal temps réel</span><strong id="realtime-status">Hors ligne</strong></li>
-                  <li><span>Notifications Windows</span><strong id="notif-permission-status">Non configuré</strong></li>
-                </ul>
-                <p id="notif-permission-help" class="security-note"></p>
-                <p id="notif-diagnostic" class="security-note notif-diagnostic"></p>
-                <p id="notif-last-result" class="security-note" role="status" aria-live="polite"></p>
-                <div class="notif-box-actions">
-                  <button id="notif-enable" class="primary-button" type="button">Activer les notifications Windows</button>
-                  <button id="notif-test" class="ghost-button hidden" type="button">Tester une notification Windows</button>
-                  <button id="realtime-retry" class="ghost-button hidden" type="button">Se reconnecter</button>
-                </div>
-              </div>
+              <h2 id="notif-title" class="activity-title">Activité</h2>
+              <div id="activity-list" class="activity" aria-live="polite"></div>
             </section>
 
             <section id="publish-view" class="view-panel hidden" aria-labelledby="publish-title">
@@ -845,6 +822,7 @@
               <div class="profile-buttons">
                 <button class="secondary-button small-button" type="button" data-profile-open="account">Modifier le profil</button>
                 <button class="secondary-button small-button" type="button" data-profile-open="security">Sécurité</button>
+                <button class="secondary-button small-button" type="button" data-profile-open="settings">Réglages</button>
               </div>
 
               <!-- Deux onglets en icônes : mes fiches (majeurs) et sauvegardées.
@@ -891,11 +869,6 @@
                     <li><span>Nom complet</span><strong id="profile-full-name">-</strong></li>
                     <li><span>E-mail</span><strong id="profile-email">-</strong></li>
                   </ul>
-                  <div class="profile-links">
-                    <button class="profile-link" type="button" data-goto="notifications">
-                      <svg class="icon" aria-hidden="true"><use href="#i-bell" /></svg><span>Notifications</span><svg class="icon sm" aria-hidden="true"><use href="#i-chevron-right" /></svg>
-                    </button>
-                  </div>
                 </div>
 
                 <div class="profile-card-box security-box">
@@ -922,6 +895,35 @@
               </div>
 
               <!-- Sécurité : sessions, mot de passe, double authentification -->
+              <!-- Réglages : notifications sur cet appareil (app.js, renderNotifSetting). -->
+              <div id="ppanel-settings" class="profile-panel profile-grid" role="tabpanel" aria-label="Réglages" hidden>
+                <div class="profile-card-box settings-box">
+                  <h3 class="card-title">Réglages</h3>
+                  <div class="setting-row">
+                    <label class="setting-label" for="notif-switch">Notifications sur cet appareil</label>
+                    <input id="notif-switch" class="ios-switch" type="checkbox" role="switch" aria-describedby="notif-help" />
+                  </div>
+                  <p id="notif-help" class="setting-help"></p>
+                  <button id="notif-howto" class="setting-link" type="button" aria-haspopup="dialog" hidden>Comment faire ?</button>
+                </div>
+              </div>
+
+              <!-- Ajouter à l'écran d'accueil (iPhone) : trois étapes. -->
+              <dialog id="howto-sheet" class="sheet" aria-labelledby="howto-title">
+                <div class="sheet-panel">
+                  <div class="sheet-grabber" aria-hidden="true"></div>
+                  <h2 id="howto-title" class="sheet-title">Ajouter HAISSEL à l'écran d'accueil</h2>
+                  <ol class="howto-steps">
+                    <li><span class="howto-num" aria-hidden="true">1</span><span>Touche le bouton <strong>Partager</strong> <svg class="icon sm" aria-hidden="true"><use href="#i-share" /></svg> en bas de Safari.</span></li>
+                    <li><span class="howto-num" aria-hidden="true">2</span><span>Choisis <strong>« Sur l'écran d'accueil »</strong>, puis <strong>Ajouter</strong>.</span></li>
+                    <li><span class="howto-num" aria-hidden="true">3</span><span>Ouvre <strong>HAISSEL</strong> depuis sa nouvelle icône, puis reviens ici activer les notifications.</span></li>
+                  </ol>
+                  <div class="sheet-actions">
+                    <button class="primary-button sheet-apply" type="button" data-close-sheet>J'ai compris</button>
+                  </div>
+                </div>
+              </dialog>
+
               <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-label="Sécurité" hidden>
                 <div class="profile-card-box security-box">
                   <h3 class="card-title">Sessions</h3>
@@ -932,7 +934,7 @@
                   <button id="profile-logout" class="secondary-button" type="button">
                     <svg class="icon" aria-hidden="true"><use href="#i-logout" /></svg>Se déconnecter
                   </button>
-                  <p class="security-note">Un doute sur un appareil (téléphone perdu, ordinateur partagé) ? Ferme toutes tes sessions d'un coup.</p>
+                  <p class="security-note">Un doute sur un appareil (téléphone perdu, appareil partagé) ? Ferme toutes tes sessions d'un coup.</p>
                   <button id="logout-all-button" class="ghost-button danger-button" type="button">Se déconnecter de tous les appareils</button>
                 </div>
 
@@ -1125,6 +1127,7 @@
     <script src="mylead-guide.js"></script>
     <script src="stories.js"></script>
     <script src="chat-thread.js"></script>
+    <script src="activity.js"></script>
     <script src="app.js"></script>
     <script src="liquid-glass.js"></script>
     <script src="mobile-splash.js"></script>

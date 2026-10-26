@@ -227,6 +227,7 @@ function setActiveView(viewName) {
   // Quitter Messages arrête l'interrogation de la conversation.
   if (viewName !== 'messages') closeChat();
   refreshUnread();
+  if (viewName === 'notifications' && state.user) showActivity();
   if (viewName === 'home' && state.user) renderHomeLearnCard();
   if ((viewName === 'learn' || viewName === 'home') && state.user && !state.learn.loaded) loadLearn();
   if ((viewName === 'links' || viewName === 'home' || viewName === 'discover') && state.user && !state.community.loaded) loadCommunity();
@@ -353,7 +354,7 @@ function setProfileTab(name) {
     tab.setAttribute('aria-selected', String(active));
     tab.tabIndex = active ? 0 : -1;
   });
-  for (const key of ['offers', 'saved', 'account', 'security']) {
+  for (const key of ['offers', 'saved', 'account', 'security', 'settings']) {
     document.getElementById(`ppanel-${key}`).hidden = key !== name;
   }
 }
@@ -503,13 +504,6 @@ function renderHomeLearn(items) {
   widgetItems(ui.homeLearn, items.slice(0, 5).map((item) => h('li', null,
     h('button', { className: 'widget-link', type: 'button', onclick: () => { setActiveView('learn'); setLearnTab(item.kind === 'guide' ? 'guides' : 'tutorials'); } }, item.title),
     h('small', null, item.kind === 'guide' ? 'Guide' : 'Tutoriel'))), 'Les guides arrivent bientôt.');
-}
-
-/** Recopie dans l'accueil l'état affiché par le centre de notifications. */
-function mirrorText(source, target) {
-  const copy = () => { target.textContent = source.textContent; };
-  copy();
-  new MutationObserver(copy).observe(source, { childList: true, characterData: true, subtree: true });
 }
 
 function renderLinks() {
@@ -1219,35 +1213,34 @@ function clearSearch() {
 }
 
 /*
- * Feuille du bas : même entrée et même geste de fermeture que le lecteur de
- * stories (glisser vers le bas au-delà de 25 % de la hauteur, ou vite).
- * Les valeurs ne s'appliquent qu'avec « Afficher les résultats » ; fermer
- * autrement rétablit les filtres d'avant.
+ * Feuilles du bas (<dialog class="sheet">) : même entrée et même geste de
+ * fermeture que le lecteur de stories (glisser vers le bas au-delà de 25 %
+ * de la hauteur, ou vite). Échap et le fond assombri ferment aussi.
+ * onClose(dialog, { apply }) est appelé une fois la feuille fermée.
  */
-const sheet = { saved: null, closing: false, drag: null };
+const sheets = new WeakMap();
 
-function openFilters() {
-  if (ui.filtersSheet.open) return;
-  sheet.saved = filterFields();
-  sheet.closing = false;
-  ui.filtersSheet.showModal();
-  const panel = ui.filtersSheet.querySelector('.sheet-panel');
+function openSheet(dialog) {
+  if (dialog.open) return;
+  const panel = dialog.querySelector('.sheet-panel');
+  sheets.get(dialog).closing = false;
+  dialog.showModal();
   panel.style.transform = '';
   if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
   else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
 }
 
-function closeFilters({ apply = false } = {}) {
-  if (!ui.filtersSheet.open || sheet.closing) return;
-  sheet.closing = true;
-  if (!apply && sheet.saved) setFilterFields(sheet.saved);
-  const panel = ui.filtersSheet.querySelector('.sheet-panel');
+function closeSheet(dialog, { apply = false } = {}) {
+  const entry = sheets.get(dialog);
+  if (!dialog.open || entry.closing) return;
+  entry.closing = true;
+  if (entry.beforeClose) entry.beforeClose({ apply });
+  const panel = dialog.querySelector('.sheet-panel');
   const done = () => {
-    ui.filtersSheet.close();
+    dialog.close();
     panel.style.transform = '';
-    sheet.closing = false;
-    if (apply) runSearch();
-    ui.filtersOpen.focus({ preventScroll: true });
+    entry.closing = false;
+    if (entry.onClose) entry.onClose({ apply });
   };
   const animation = reducedMotion()
     ? panel.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
@@ -1256,20 +1249,21 @@ function closeFilters({ apply = false } = {}) {
   animation.finished.then(() => { done(); animation.cancel(); }, done);
 }
 
-function bindFiltersSheet() {
-  const panel = ui.filtersSheet.querySelector('.sheet-panel');
-  // Échap : fermeture animée, filtres d'avant rétablis.
-  ui.filtersSheet.addEventListener('cancel', (event) => { event.preventDefault(); closeFilters(); });
-  // Toucher le fond assombri ferme la feuille.
-  ui.filtersSheet.addEventListener('click', (event) => { if (event.target === ui.filtersSheet) closeFilters(); });
+function bindSheet(dialog, { beforeClose = null, onClose = null } = {}) {
+  const entry = { closing: false, drag: null, beforeClose, onClose };
+  sheets.set(dialog, entry);
+  const panel = dialog.querySelector('.sheet-panel');
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeSheet(dialog); });
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) closeSheet(dialog); });
+  dialog.querySelectorAll('[data-close-sheet]').forEach((button) => button.addEventListener('click', () => closeSheet(dialog)));
   panel.addEventListener('pointerdown', (event) => {
     // Les contrôles natifs gardent leur comportement (roue iOS, menu Android).
     if (event.target.closest('select, input, button, label, a') || event.button > 0) return;
-    sheet.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
+    entry.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
     panel.setPointerCapture(event.pointerId);
   });
   panel.addEventListener('pointermove', (event) => {
-    const drag = sheet.drag;
+    const drag = entry.drag;
     if (!drag || drag.id !== event.pointerId) return;
     const dy = Math.max(0, event.clientY - drag.y);
     const dt = Math.max(1, event.timeStamp - drag.t);
@@ -1279,12 +1273,12 @@ function bindFiltersSheet() {
     panel.style.transform = dy ? `translateY(${dy}px)` : '';
   });
   const release = (event) => {
-    const drag = sheet.drag;
+    const drag = entry.drag;
     if (!drag || drag.id !== event.pointerId) return;
-    sheet.drag = null;
+    entry.drag = null;
     const decision = event.type === 'pointercancel' ? 'restore'
       : window.HaisselStories.decideRelease('dismiss', { dy: drag.dy, vy: drag.vy, height: panel.offsetHeight });
-    if (decision === 'close') { closeFilters(); return; }
+    if (decision === 'close') { closeSheet(dialog); return; }
     if (!drag.dy) return;
     const from = panel.style.transform;
     panel.style.transform = '';
@@ -1292,6 +1286,186 @@ function bindFiltersSheet() {
   };
   panel.addEventListener('pointerup', release);
   panel.addEventListener('pointercancel', release);
+}
+
+/*
+ * Filtres : les valeurs ne s'appliquent qu'avec « Afficher les résultats » ;
+ * fermer autrement rétablit les filtres d'avant.
+ */
+let filtersBefore = null;
+
+function openFilters() {
+  filtersBefore = filterFields();
+  openSheet(ui.filtersSheet);
+}
+
+function bindFiltersSheet() {
+  bindSheet(ui.filtersSheet, {
+    beforeClose: ({ apply }) => { if (!apply && filtersBefore) setFilterFields(filtersBefore); },
+    onClose: ({ apply }) => {
+      if (apply) runSearch();
+      ui.filtersOpen.focus({ preventScroll: true });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Activité (cloche) et réglage des notifications
+// ---------------------------------------------------------------------------
+
+/*
+ * Liste lue sur /api/messages/activity (lecture seule). « Non lu » = plus
+ * récent que la dernière ouverture d'Activité sur cet appareil (stockage
+ * local, par compte) : aucune donnée de plus côté serveur. Mise à jour avec
+ * l'interrogation existante des messages (60 s) et à chaque annonce reçue.
+ */
+const activity = { items: [], loaded: false, loading: null };
+
+const readActivitySeen = () => window.HaisselActivity.readSeen(state.user?.id || 'anon');
+
+function markActivitySeen() {
+  window.HaisselActivity.markSeen(state.user?.id || 'anon', activity.items[0]?.at);
+  paintBell();
+}
+
+function paintBell() {
+  const count = window.HaisselActivity.unreadCount(activity.items, readActivitySeen());
+  ui.bellBadge.hidden = !count;
+  ui.bellBadge.textContent = count > 9 ? '9+' : String(count);
+  ui.bellButton.setAttribute('aria-label', count ? `Activité (${count} nouveauté${count > 1 ? 's' : ''})` : 'Activité');
+}
+
+async function loadActivity() {
+  if (!state.user) return;
+  if (activity.loading) return activity.loading;
+  activity.loading = (async () => {
+    try {
+      const data = await api('/api/messages/activity');
+      activity.items = (data.items || []).filter((item) => window.HaisselActivity.describe(item));
+      activity.loaded = true;
+      paintBell();
+      if (document.body.dataset.view === 'notifications') renderActivity();
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) return;
+      if (!activity.loaded && document.body.dataset.view === 'notifications') {
+        ui.activityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+          h('p', null, 'Impossible d’afficher ton activité pour le moment.'),
+          h('button', { className: 'secondary-button', type: 'button', onclick: loadActivity }, 'Réessayer')));
+      }
+    } finally {
+      activity.loading = null;
+    }
+  })();
+  return activity.loading;
+}
+
+/** Un appui ouvre l'élément concerné. */
+function openActivityItem(item) {
+  if (item.type === 'team_message') {
+    setActiveView('messages');
+    openChat();
+    return;
+  }
+  if (item.type === 'announcement') {
+    if (item.url) window.location.assign(item.url);
+    return;
+  }
+  setActiveView('profile');
+  setProfileTab(isAdultMember() ? 'offers' : 'account');
+  window.setTimeout(() => {
+    const tile = item.offer_id ? document.querySelector(`[data-offer-id="${CSS.escape(String(item.offer_id))}"]`) : null;
+    if (tile) tile.click();
+  }, 400);
+}
+
+function activityRow(item, seenAt) {
+  const info = window.HaisselActivity.describe(item);
+  const unread = window.HaisselActivity.isUnread(item, seenAt);
+  const opens = item.type !== 'announcement' || item.url;
+  return h('li', null, h(opens ? 'button' : 'div', {
+    className: `activity-row${unread ? ' is-unread' : ''}`, ...(opens ? { type: 'button', onclick: () => openActivityItem(item) } : {}),
+  },
+  h('span', { className: `activity-icon tone-${info.tone}`, 'aria-hidden': 'true' }, icon(info.icon)),
+  h('span', { className: 'activity-text' },
+    h('span', { className: 'activity-phrase' }, info.text),
+    h('time', { className: 'activity-time', datetime: item.at }, window.HaisselActivity.relativeTime(item.at))),
+  unread ? h('span', { className: 'activity-dot' }, h('span', { className: 'visually-hidden' }, 'Nouveau')) : null));
+}
+
+function renderActivity() {
+  if (!activity.loaded) {
+    ui.activityList.replaceChildren(h('p', { className: 'activity-empty' }, 'Chargement…'));
+    return;
+  }
+  if (!activity.items.length) {
+    ui.activityList.replaceChildren(h('div', { className: 'activity-empty' },
+      h('span', { className: 'activity-empty-icon', 'aria-hidden': 'true' }, icon('i-bell', 'icon lg')),
+      h('p', null, 'Rien de nouveau pour l’instant.')));
+    return;
+  }
+  const seenAt = readActivitySeen();
+  ui.activityList.replaceChildren(...window.HaisselActivity.groupBySection(activity.items).map((section) => h('section', {
+    className: 'activity-section', 'aria-label': section.label,
+  }, h('h3', { className: 'activity-section-title' }, section.label),
+  h('ul', { className: 'activity-items' }, ...section.items.map((item) => activityRow(item, seenAt))))));
+}
+
+/** Page Activité ouverte : on affiche (points bleus de la visite), puis on marque « vu ». */
+async function showActivity() {
+  renderActivity();
+  await loadActivity();
+  renderActivity();
+  markActivitySeen();
+}
+
+function deviceEnv() {
+  let displayModeStandalone = false;
+  try { displayModeStandalone = window.matchMedia('(display-mode: standalone)').matches; } catch (error) { /* ancien navigateur */ }
+  return {
+    hasNotification: 'Notification' in window,
+    isSecureContext: window.isSecureContext,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints || 0,
+    standalone: navigator.standalone === true,
+    displayModeStandalone,
+  };
+}
+
+/* Profil › Réglages : une ligne, un interrupteur, un texte d'aide selon l'appareil. */
+function renderNotifSetting() {
+  const support = window.HaisselActivity.deviceSupport(deviceEnv());
+  const permission = notificationCenter ? notificationCenter.permission() : 'unsupported';
+  ui.notifHowto.hidden = support !== 'ios-install';
+  if (support === 'available' && permission !== 'unsupported') {
+    ui.notifSwitch.disabled = permission === 'denied';
+    ui.notifSwitch.checked = permission === 'granted';
+    ui.notifHelp.textContent = {
+      granted: 'Activées : HAISSEL te prévient des nouveautés, même en arrière-plan.',
+      denied: 'Refusées dans les réglages du téléphone ou du navigateur. Autorise HAISSEL là-bas pour les réactiver.',
+      default: 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.',
+    }[permission];
+    return;
+  }
+  ui.notifSwitch.disabled = true;
+  ui.notifSwitch.checked = false;
+  ui.notifHelp.textContent = support === 'ios-install'
+    ? 'Sur iPhone, ajoute HAISSEL à ton écran d’accueil pour recevoir les notifications.'
+    : 'Ton navigateur ne permet pas les notifications. Les nouveautés restent visibles dans Activité.';
+}
+
+async function handleNotifSwitch() {
+  // La permission n'est demandée qu'ici, au toucher de l'interrupteur.
+  if (ui.notifSwitch.checked && notificationCenter) {
+    ui.notifSwitch.disabled = true;
+    await notificationCenter.enableSystemNotifications();
+  } else if (!ui.notifSwitch.checked && notificationCenter?.permission() === 'granted') {
+    // Une page web ne peut pas retirer une autorisation : on l'explique.
+    ui.notifHelp.textContent = 'Pour les couper, va dans les réglages du téléphone ou du navigateur (Notifications › HAISSEL).';
+    ui.notifSwitch.checked = true;
+    return;
+  }
+  renderNotifSetting();
 }
 
 // ---------------------------------------------------------------------------
@@ -1840,6 +2014,8 @@ async function refreshUnread() {
     paintUnread(data.unread);
     paintThreadPreview(data.last);
   } catch (error) { /* pastille seulement : on réessaiera */ }
+  // Même rythme pour la cloche (Activité).
+  loadActivity();
 }
 
 function startUnreadPolling() {
@@ -2481,6 +2657,7 @@ function myOfferTile(offer) {
   const [label] = expired ? ['Expirée'] : (OFFER_STATUS_LABELS[offer.status] || [offer.status]);
   return h('button', {
     className: `grid-cell${expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `${offer.title} : ${label}. Gérer cette fiche`,
+    'data-offer-id': String(offer.id),
     onclick: () => {
       ui.myOfferDetail.replaceChildren(
         h('button', { className: 'text-button my-offer-detail-close', type: 'button', onclick: () => { ui.myOfferDetail.hidden = true; } }, icon('i-close', 'icon sm'), 'Fermer'),
@@ -3156,7 +3333,7 @@ document.addEventListener('DOMContentLoaded', () => {
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
-    communityQClear: 'community-q-clear', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
+    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -3197,6 +3374,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     // Session révoquée / expirée : retour à l'écran de connexion.
+    // Annonce de l'équipe reçue : Activité et pastille à jour.
+    onNotification: () => { loadActivity(); },
     onSessionEnded: () => {
       if (!state.user) return;
       state.csrf = '';
@@ -3233,8 +3412,6 @@ document.addEventListener('DOMContentLoaded', () => {
   wireMfa();
   document.getElementById('age-gate-yes').addEventListener('click', () => answerAgeGate(true));
   document.getElementById('age-gate-no').addEventListener('click', () => answerAgeGate(false));
-  mirrorText(document.getElementById('realtime-status'), document.getElementById('home-realtime'));
-  mirrorText(document.getElementById('notif-permission-status'), document.getElementById('home-notif-permission'));
   document.querySelectorAll('[data-goto]').forEach((button) => {
     button.addEventListener('click', () => setActiveView(button.dataset.goto));
   });
@@ -3262,9 +3439,15 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.communityQ.focus({ preventScroll: true });
   });
   ui.filtersOpen.addEventListener('click', openFilters);
-  document.getElementById('filters-apply').addEventListener('click', () => closeFilters({ apply: true }));
+  document.getElementById('filters-apply').addEventListener('click', () => closeSheet(ui.filtersSheet, { apply: true }));
   document.getElementById('filters-reset').addEventListener('click', () => setFilterFields({}));
   bindFiltersSheet();
+  // Réglages : notifications sur cet appareil.
+  bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
+  ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
+  ui.notifSwitch.addEventListener('change', handleNotifSwitch);
+  // Retour sur l'application (réglages du téléphone modifiés entre-temps).
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.user) renderNotifSetting(); });
   // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
   readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
@@ -3288,6 +3471,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelectorAll('[data-profile-open]').forEach((button) => {
     button.addEventListener('click', () => {
+      if (button.dataset.profileOpen === 'settings') renderNotifSetting();
       setProfileTab(button.dataset.profileOpen);
       document.getElementById(`ppanel-${button.dataset.profileOpen}`).scrollIntoView({ block: 'start', behavior: 'smooth' });
     });

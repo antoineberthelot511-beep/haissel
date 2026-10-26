@@ -1,0 +1,17 @@
+{
+  "name": "HAISSEL",
+  "short_name": "HAISSEL",
+  "description": "Les bons plans partagés par la communauté HAISSEL.",
+  "lang": "fr",
+  "id": "/app",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fc",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
