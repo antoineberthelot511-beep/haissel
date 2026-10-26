@@ -137,7 +137,17 @@ const streamRateLimiter = limiter({
   message: 'Trop de reconnexions. Réessayez dans une minute.',
 });
 
+// Abonnement / désabonnement Web Push et notification de test : par compte.
+const pushRateLimiter = limiter({
+  name: 'push',
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  byUser: true,
+  message: 'Trop de demandes de notifications. Réessaie dans quelques minutes.',
+});
+
 module.exports = {
+  pushRateLimiter,
   broadcastBurstLimiter,
   broadcastHourlyLimiter,
   streamRateLimiter,

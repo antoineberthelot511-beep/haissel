@@ -1,6 +1,7 @@
 const { pool, withTransaction } = require('../config/database');
 const { sendError, parseId, parsePagination } = require('../utils/http');
 const { logger } = require('../utils/logger');
+const push = require('../services/push.service');
 const { refusalForAffiliateLink, meetsMinAge, isAdult } = require('../services/adult.service');
 const { FORBIDDEN_CLAIMS } = require('./learn.controller');
 const { isAffiliateTrackingUrl, AFFILIATE_LINK_MESSAGE } = require('../utils/affiliate-tracking');
@@ -947,7 +948,7 @@ async function adminModerateOffer(req, res, next) {
              expires_at = CASE WHEN $2::text = 'published' AND kind = 'campaign'
                                THEN NOW() + make_interval(hours => ${STORY_HOURS}) ELSE NULL END,
              renewed_at = NULL
-         WHERE id = $1 RETURNING id, title`,
+         WHERE id = $1 RETURNING id, title, user_id`,
         [id, status, note, req.user.id]
       );
       if (!result.rows[0]) return null;
@@ -962,6 +963,16 @@ async function adminModerateOffer(req, res, next) {
     });
     if (!offer) return sendError(res, 404, 'NOT_FOUND', 'Offre introuvable.');
     logger.info('Admin action', { adminId: req.user.id, action: `member_offer.${req.body.decision}`, targetId: id });
+    // Web Push, attendu (3 s max) : seulement validation et refus.
+    if (status === 'published' || status === 'rejected') {
+      const title = String(offer.title || '').length > 40 ? `${String(offer.title).slice(0, 39)}…` : String(offer.title || '');
+      await push.sendToUser(offer.user_id, {
+        title: 'HAISSEL',
+        body: status === 'published' ? `Ta fiche a été validée : ${title}` : `Ta fiche n’a pas été validée : ${title}`,
+        url: '/app#profile',
+        tag: `offer-${offer.id}`,
+      });
+    }
     return res.status(200).json({ success: true, data: { id: offer.id, status } });
   } catch (error) {
     return next(error);

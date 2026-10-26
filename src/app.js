@@ -21,6 +21,7 @@ const adminRouter = require('./routes/admin.routes');
 const learnRouter = require('./routes/learn.routes');
 const communityRouter = require('./routes/community.routes');
 const messagesRouter = require('./routes/messages.routes');
+const pushRouter = require('./routes/push.routes');
 const webhookRouter = require('./routes/webhook.routes');
 const realtimeRouter = require('./routes/realtime.routes');
 const internalRouter = require('./routes/internal.routes');
@@ -92,6 +93,9 @@ app.use(helmet({
       fontSrc: ["'self'", 'data:'],
       imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],
+      // Service worker des notifications Web Push (/sw.js, même origine).
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
       baseUri: ["'none'"],
@@ -201,6 +205,17 @@ for (const [name, pkg] of Object.entries(FONT_PACKAGES)) {
   app.use(`/vendor/fonts/${name}`, express.static(path.dirname(require.resolve(`${pkg}/package.json`)), { index: false, maxAge: '30d' }));
 }
 
+/*
+ * Service worker des notifications Web Push : servi à la racine pour couvrir
+ * le scope « / », jamais mis en cache (chaque déploiement visible aussitôt).
+ */
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.type('application/javascript');
+  res.sendFile(path.join(frontendPath, 'sw.js'));
+});
+
 app.use(express.static(frontendPath, {
   index: false,
   etag: false,
@@ -269,6 +284,7 @@ app.use('/api/affiliate', affiliateRouter);
 app.use('/api/learn', learnRouter);
 app.use('/api/community', communityRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/push', pushRouter);
 app.use('/api/admin', adminRouter);
 // Flux temps réel (SSE) et accusés d'affichage des notifications admin.
 app.use('/api/notifications', realtimeRouter);

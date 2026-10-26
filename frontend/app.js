@@ -405,9 +405,11 @@ function showLoggedIn(user) {
   // Comptes anterieurs a la declaration : la question passe avant tout.
   if (needsAgeAnswer()) openAgeGate();
   setActiveView('home');
+  openViewFromHash();
   loadLinks();
   if (notificationCenter) notificationCenter.start();
   startUnreadPolling();
+  syncPush();
 }
 
 // ---------------------------------------------------------------------------
@@ -1432,40 +1434,81 @@ function deviceEnv() {
   };
 }
 
-/* Profil › Réglages : une ligne, un interrupteur, un texte d'aide selon l'appareil. */
-function renderNotifSetting() {
-  const support = window.HaisselActivity.deviceSupport(deviceEnv());
-  const permission = notificationCenter ? notificationCenter.permission() : 'unsupported';
-  ui.notifHowto.hidden = support !== 'ios-install';
-  if (support === 'available' && permission !== 'unsupported') {
-    ui.notifSwitch.disabled = permission === 'denied';
-    ui.notifSwitch.checked = permission === 'granted';
-    ui.notifHelp.textContent = {
-      granted: 'Activées : HAISSEL te prévient des nouveautés, même en arrière-plan.',
-      denied: 'Refusées dans les réglages du téléphone ou du navigateur. Autorise HAISSEL là-bas pour les réactiver.',
-      default: 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.',
-    }[permission];
-    return;
+/*
+ * Profil › Réglages : une ligne, un interrupteur, un texte d'aide selon
+ * l'appareil. Web Push (push-client.js) : notifications même app fermée.
+ */
+const pushState = { config: null, subscribed: false };
+
+async function loadPushConfig() {
+  if (pushState.config) return pushState.config;
+  try {
+    pushState.config = await api('/api/push/config');
+  } catch (error) {
+    return { enabled: false };
   }
+  return pushState.config;
+}
+
+function pushDeps() {
+  return { nav: navigator, Notif: 'Notification' in window ? window.Notification : null, api, publicKey: pushState.config?.public_key };
+}
+
+async function renderNotifSetting() {
+  const support = window.HaisselActivity.deviceSupport(deviceEnv());
+  const config = await loadPushConfig();
+  ui.notifHowto.hidden = support !== 'ios-install';
+  ui.notifSwitch.hidden = !config.enabled;
   ui.notifSwitch.disabled = true;
   ui.notifSwitch.checked = false;
-  ui.notifHelp.textContent = support === 'ios-install'
-    ? 'Sur iPhone, ajoute HAISSEL à ton écran d’accueil pour recevoir les notifications.'
-    : 'Ton navigateur ne permet pas les notifications. Les nouveautés restent visibles dans Activité.';
+  if (!config.enabled) {
+    ui.notifHelp.textContent = 'Les nouveautés s’affichent dans Activité (la cloche).';
+    return;
+  }
+  if (support === 'ios-install') {
+    ui.notifHelp.textContent = 'Sur iPhone, ajoute HAISSEL à ton écran d’accueil pour recevoir les notifications.';
+    return;
+  }
+  if (support !== 'available' || !window.HaisselPush.canPush(navigator)) {
+    ui.notifHelp.textContent = 'Ton navigateur ne permet pas les notifications. Les nouveautés restent visibles dans Activité.';
+    return;
+  }
+  const permission = window.Notification.permission;
+  if (permission === 'denied') {
+    ui.notifHelp.textContent = 'Autorise HAISSEL dans Réglages > Notifications de ton téléphone.';
+    return;
+  }
+  pushState.subscribed = permission === 'granted' && Boolean(await window.HaisselPush.current(navigator));
+  ui.notifSwitch.disabled = false;
+  ui.notifSwitch.checked = pushState.subscribed;
+  ui.notifHelp.textContent = pushState.subscribed
+    ? 'Activées : HAISSEL te prévient, même application fermée.'
+    : 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.';
 }
 
 async function handleNotifSwitch() {
   // La permission n'est demandée qu'ici, au toucher de l'interrupteur.
-  if (ui.notifSwitch.checked && notificationCenter) {
-    ui.notifSwitch.disabled = true;
-    await notificationCenter.enableSystemNotifications();
-  } else if (!ui.notifSwitch.checked && notificationCenter?.permission() === 'granted') {
-    // Une page web ne peut pas retirer une autorisation : on l'explique.
-    ui.notifHelp.textContent = 'Pour les couper, va dans les réglages du téléphone ou du navigateur (Notifications › HAISSEL).';
-    ui.notifSwitch.checked = true;
-    return;
-  }
-  renderNotifSetting();
+  const wanted = ui.notifSwitch.checked;
+  ui.notifSwitch.disabled = true;
+  const result = wanted
+    ? await window.HaisselPush.enable(pushDeps())
+    : await window.HaisselPush.disable(pushDeps());
+  await renderNotifSetting();
+  if (result === 'error') ui.notifHelp.textContent = 'Activation impossible pour le moment. Réessaie dans un instant.';
+}
+
+/* Au chargement : l'abonnement déjà présent sur l'appareil est renvoyé au serveur (sans rien demander). */
+async function syncPush() {
+  const config = await loadPushConfig();
+  if (config.enabled) window.HaisselPush.sync(pushDeps());
+}
+
+/* Lien d'une notification (« /app#messages ») : ouvre la bonne vue, puis retire le fragment. */
+function openViewFromHash() {
+  const view = window.HaisselPush.viewFromHash(window.location.hash);
+  if (!view || !state.user) return;
+  history.replaceState(null, '', window.location.pathname);
+  setActiveView(view);
 }
 
 // ---------------------------------------------------------------------------
@@ -3446,6 +3489,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
   ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
   ui.notifSwitch.addEventListener('change', handleNotifSwitch);
+  window.addEventListener('hashchange', openViewFromHash);
   // Retour sur l'application (réglages du téléphone modifiés entre-temps).
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.user) renderNotifSetting(); });
   // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
