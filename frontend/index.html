@@ -129,10 +129,12 @@
     <div class="app-shell">
       <!-- ====================== EN-TÊTE ====================== -->
       <header class="topbar">
+        <!-- Verre de l'en-tête : allumé dès 8 px de défilement (liquid-glass.js). -->
+        <div class="topbar-glass lg-glass lg-bar is-flat" aria-hidden="true"></div>
         <div class="topbar-inner">
           <!-- En-tête façon Instagram : + (Publier, majeurs) | HAISSEL | cloche -->
           <div class="topbar-left">
-            <button class="topbar-icon topbar-publish member-only" type="button" data-view="publish" data-publish-only aria-label="Publier une fiche">
+            <button class="topbar-icon topbar-publish member-only lg-glass lg-pill lg-press" type="button" data-view="publish" data-publish-only aria-label="Publier une fiche">
               <svg class="icon lg" aria-hidden="true"><use href="#i-add" /></svg>
             </button>
           </div>
@@ -149,7 +151,7 @@
               Déconnexion
             </button>
             <!-- Raccourcis de l'en-tête (espace membre) -->
-            <button id="bell-button" class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Activité">
+            <button id="bell-button" class="topbar-icon member-only lg-glass lg-pill lg-press" type="button" data-view="notifications" aria-label="Activité">
               <svg class="icon lg" aria-hidden="true"><use href="#i-bell" /></svg>
               <span id="bell-badge" class="bell-badge" aria-hidden="true" hidden></span>
             </button>
@@ -162,7 +164,7 @@
         <!-- Navigation principale : barre flottante en bas d'écran, icônes
              seules (façon Instagram). Publier : le + de l'en-tête d'Accueil. -->
         <nav class="topbar-nav" aria-label="Navigation principale">
-          <div class="topbar-nav-inner">
+          <div class="topbar-nav-inner lg-glass lg-pill">
             <button class="nav-button active" type="button" data-view="home" aria-current="page" aria-label="Accueil">
               <svg class="icon lg" aria-hidden="true"><use href="#i-home" /></svg>
             </button>
@@ -425,7 +427,7 @@
               <h2 id="links-title" class="visually-hidden">Chercher une offre <span id="welcome-name" hidden>utilisateur</span></h2>
 
               <!-- Une barre de recherche + « Filtres » ; les filtres vivent dans la feuille #filters-sheet. -->
-              <form id="community-filters" class="search-bar" role="search" aria-label="Chercher une offre">
+              <form id="community-filters" class="search-bar lg-glass lg-bar is-flat" role="search" aria-label="Chercher une offre">
                 <label class="search-pill">
                   <span class="visually-hidden">Rechercher</span>
                   <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
@@ -434,7 +436,7 @@
                     <svg class="icon sm" aria-hidden="true"><use href="#i-close" /></svg>
                   </button>
                 </label>
-                <button id="filters-open" class="filters-button" type="button" aria-haspopup="dialog" aria-controls="filters-sheet">
+                <button id="filters-open" class="filters-button lg-glass lg-pill lg-press" type="button" aria-haspopup="dialog" aria-controls="filters-sheet">
                   <svg class="icon" aria-hidden="true"><use href="#i-sliders" /></svg>
                   <span>Filtres</span>
                   <span id="filters-count" class="filters-count" hidden></span>
@@ -443,7 +445,7 @@
 
               <!-- Feuille « Filtres » : <select> natifs (roue sur iPhone, menu système sur Android). -->
               <dialog id="filters-sheet" class="sheet" aria-labelledby="filters-title">
-                <div class="sheet-panel">
+                <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>
                   <h2 id="filters-title" class="sheet-title">Filtres</h2>
                   <label class="sheet-field" for="community-category">Catégorie</label>
@@ -630,7 +632,7 @@
 
               <!-- Conversation : plein écran, collée au clavier (visualViewport, app.js). -->
               <div id="team-thread" class="chat" role="dialog" aria-labelledby="chat-title" hidden>
-                <header class="chat-head">
+                <header class="chat-head lg-glass lg-bar">
                   <button id="chat-back" class="chat-back" type="button" aria-label="Retour aux messages">
                     <svg class="icon" aria-hidden="true"><use href="#i-chevron-left" /></svg>
                   </button>
@@ -642,7 +644,7 @@
                 <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
                 <div id="chat-error" class="auth-error hidden" role="alert"></div>
                 <!-- Pas de formulaire : iOS n'y propose pas sa barre clé / carte / position au-dessus du clavier. -->
-                <div id="chat-form" class="chat-form">
+                <div id="chat-form" class="chat-form lg-glass lg-bar">
                   <div class="chat-field">
                     <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" aria-label="Message"
                       autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
@@ -925,7 +927,7 @@
 
               <!-- Ajouter à l'écran d'accueil (iPhone) : trois étapes. -->
               <dialog id="howto-sheet" class="sheet" aria-labelledby="howto-title">
-                <div class="sheet-panel">
+                <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>
                   <h2 id="howto-title" class="sheet-title">Ajouter HAISSEL à l'écran d'accueil</h2>
                   <ol class="howto-steps">

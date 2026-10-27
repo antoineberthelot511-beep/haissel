@@ -1,13 +1,22 @@
 /*
- * Barre de navigation du bas façon « Liquid Glass » (iOS 26).
+ * « Liquid Glass » (iOS 26) : composant réutilisable pour les éléments
+ * FLOTTANTS de l'app, et barre de navigation du bas.
  *
  * Trois couches, de la plus simple à la plus avancée :
- *   1. verre dépoli pour tous les navigateurs (backdrop-filter) ;
+ *   1. verre dépoli pour tous les navigateurs (.lg-glass, backdrop-filter) ;
  *   2. matériau natif d'Apple quand il existe (@supports plus bas) ;
  *   3. réfraction SVG pour Chromium seulement (classe .lg-refract posée par
- *      liquid-glass.js, après détection du moteur).
- * La « goutte » (.lg-drop) suit l'onglet actif ; elle est créée et déplacée
- * par liquid-glass.js. Aucune ressource externe.
+ *      liquid-glass.js), RÉSERVÉE à la barre du bas : trop coûteuse pour être
+ *      multipliée.
+ *
+ * Formes : .lg-pill (rond ou pilule), .lg-bar (barre pleine largeur),
+ * .lg-sheet (feuille du bas). .lg-press : enfoncement au toucher.
+ * .is-flat : verre éteint (en-tête tout en haut, barre de recherche non
+ * collée), basculé par liquid-glass.js.
+ *
+ * Le verre n'est PAS utilisé sur le contenu (cartes, grilles, bulles, listes,
+ * formulaires) : fond plein, lisible. Au plus 4 surfaces en verre visibles.
+ * Aucune ressource externe.
  */
 
 :root {
@@ -20,6 +29,8 @@
   --lg-shadow: 0 10px 30px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);
   --lg-spring: cubic-bezier(.34, 1.45, .55, 1);
   --lg-duration: 350ms;
+  /* Fond plein de repli (transparence réduite, pas de backdrop-filter). */
+  --lg-solid: #fff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +42,7 @@
     --lg-drop: rgba(255, 255, 255, .16);
     --lg-drop-edge: rgba(255, 255, 255, .4);
     --lg-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+    --lg-solid: #161822;
   }
   .topbar-nav .nav-button { color: rgba(235, 238, 248, .78); }
   .topbar-nav .nav-button:hover { color: #fff; }
@@ -39,25 +51,49 @@
 
 /* --- Couche 1 : verre pour tous ------------------------------------------ */
 
-.topbar-nav .topbar-nav-inner {
-  position: relative; isolation: isolate;
+.lg-glass {
+  isolation: isolate;
   background: var(--lg-tint);
   -webkit-backdrop-filter: blur(18px) saturate(180%);
   backdrop-filter: blur(18px) saturate(180%);
   border: 1px solid var(--lg-line);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), var(--lg-shadow);
-  touch-action: pan-y;
+  transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease;
 }
 
 /* Reflet du bord : dégradé plus clair en haut, découpé en anneau par le mask. */
-.topbar-nav .topbar-nav-inner::before,
+.lg-glass::before,
 .lg-drop::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
   background: linear-gradient(180deg, var(--lg-edge), var(--lg-edge-low) 55%, rgba(255, 255, 255, .18));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  transition: opacity .25s ease;
 }
+
+/* Formes */
+.lg-pill { border-radius: 9999px; }
+.lg-bar { border-radius: 0; border-width: 0 0 1px; }
+.lg-sheet { border-radius: 22px 22px 0 0; border-width: 1px 0 0; }
+
+/* Verre éteint : même forme, sans fond ni flou. */
+.lg-glass.is-flat {
+  background: transparent; border-color: transparent; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.lg-glass.is-flat::before { opacity: 0; }
+
+/* Au toucher : léger enfoncement et reflet plus vif, même ressort. */
+.lg-press {
+  transition: transform var(--lg-duration) var(--lg-spring),
+    background-color .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.lg-press:active { transform: scale(.96); --lg-edge: rgba(255, 255, 255, .95); --lg-edge-low: rgba(255, 255, 255, .3); }
+
+/* --- Barre de navigation du bas ------------------------------------------ */
+
+.topbar-nav .topbar-nav-inner { position: relative; touch-action: pan-y; }
 
 .topbar-nav .nav-button { position: relative; z-index: 1; }
 .topbar-nav .nav-button .icon { transition: transform var(--lg-duration) var(--lg-spring); }
@@ -87,47 +123,119 @@
   100% { transform: scale(1, 1); }
 }
 
+/* --- Éléments flottants : teintes adaptées pour la lisibilité (≥ 4,5:1) ---
+ * Le reste de l'interface n'a pas de thème sombre : en-tête, recherche et
+ * toasts gardent un verre clair et dense en mode sombre, sous leur texte foncé.
+ */
+.topbar-glass, .topbar .topbar-icon.lg-glass, #community-filters.lg-glass, .filters-button.lg-glass, .notif-card.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .88); --lg-native-tint: rgba(255, 255, 255, .6);
+  --lg-line: rgba(15, 23, 42, .1); --lg-edge: rgba(255, 255, 255, .6); --lg-edge-low: rgba(255, 255, 255, .08);
+  --lg-shadow: 0 10px 30px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);
+  --lg-solid: #fff;
+}
+
+/* En-tête : couche de verre derrière le contenu. Pas de backdrop-filter sur
+   .topbar lui-même : il deviendrait le repère de la barre du bas (fixed). */
+.topbar { background: transparent; border-bottom: 0; box-shadow: none; transition: background-color .25s ease; }
+.topbar-glass { position: absolute; inset: 0; z-index: -1; pointer-events: none; transition: opacity .25s ease, background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
+.topbar-glass.is-flat { opacity: 0; }
+.topbar .topbar-inner { position: relative; }
+.topbar .topbar-icon.lg-glass { position: relative; }
+.topbar .topbar-icon.lg-glass:hover { background: var(--lg-tint); }
+.topbar .topbar-icon.lg-glass.is-flat:hover { background: var(--v2-surface-low); }
+/* La pastille de non-lus reste pleine, au-dessus du reflet. */
+.topbar .bell-badge { z-index: 1; }
+/* Sans JavaScript, l'en-tête garde un fond plein. */
+html:not(.lg-ready) .topbar { background: var(--v2-bg); }
+
+/* Recherche : barre collée sous l'en-tête au défilement. */
+#community-filters.lg-glass {
+  position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 30;
+  margin: 4px calc(-1 * var(--v2-margin)) 12px; padding: 8px var(--v2-margin);
+}
+.filters-button.lg-glass { position: relative; color: var(--v2-primary); }
+.filters-button .filters-count { z-index: 1; }
+
+/* Toasts : verre clair, coins arrondis (plusieurs lignes). */
+.notif-card.lg-glass { border-radius: 22px; }
+
+/* Feuilles du bas : verre dense, texte secondaire foncé pour le contraste. */
+.sheet-panel.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .9); --lg-native-tint: rgba(255, 255, 255, .7); --lg-solid: var(--ios-sheet);
+  --ios-secondary: #6c6c70;
+  position: relative; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 -8px 30px rgba(0, 0, 0, .18);
+}
+.sheet::backdrop {
+  background: rgba(0, 0, 0, .32);
+  -webkit-backdrop-filter: blur(6px) saturate(140%); backdrop-filter: blur(6px) saturate(140%);
+}
+
+/* Messagerie : en-tête et barre de saisie en verre, les messages défilent dessous. */
+.chat-head.lg-glass, .chat-form.lg-glass {
+  --lg-tint: var(--ios-bar); --lg-native-tint: var(--ios-bar); --lg-line: var(--ios-separator); --lg-solid: var(--ios-bg);
+  box-shadow: none;
+}
+.chat-form.lg-glass { border-width: 1px 0 0; }
+
+/* Lecteur de stories : verre clair sur fond sombre, en haut. */
+.story-viewer .lg-glass {
+  --lg-tint: rgba(255, 255, 255, .14); --lg-native-tint: rgba(255, 255, 255, .14); --lg-solid: #2a2d3a;
+  --lg-line: rgba(255, 255, 255, .14); --lg-edge: rgba(255, 255, 255, .35); --lg-edge-low: rgba(255, 255, 255, .04);
+  --lg-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), var(--lg-shadow);
+}
+.story-viewer .sv-round.lg-glass { position: relative; }
+.story-viewer .sv-bars.lg-glass { position: relative; padding: 6px 8px; }
+/* Menu d'actions de la story : verre dense, texte rouge lisible. */
+.story-viewer .sv-menu.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .9); --lg-native-tint: rgba(255, 255, 255, .7); --lg-solid: #fff;
+  --lg-line: rgba(15, 23, 42, .1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sheet-panel.lg-glass { --lg-tint: rgba(28, 28, 30, .86); --lg-native-tint: rgba(28, 28, 30, .6); --ios-secondary: #a1a1a8; }
+}
+:root[data-theme="dark"] .sheet-panel.lg-glass { --lg-tint: rgba(28, 28, 30, .86); --lg-native-tint: rgba(28, 28, 30, .6); --ios-secondary: #a1a1a8; }
+
 @media (prefers-reduced-motion: reduce) {
   .lg-drop { transition: transform .2s ease, width .2s ease, opacity .2s ease; }
   .lg-drop.is-moving::after, .lg-drop.is-dragging::after { animation: none; transform: none; }
   .topbar-nav .nav-button .icon { transition: none; }
+  /* Pas d'enfoncement : seul le reflet change. */
+  .lg-press { transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
+  .lg-press:active { transform: none; }
 }
 
+/* --- Repli : fond plein opaque, même forme et même ombre ------------------ */
 @media (prefers-reduced-transparency: reduce) {
-  .topbar-nav .topbar-nav-inner {
-    background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none;
-  }
+  .lg-glass:not(.is-flat) { background: var(--lg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .sheet::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .lg-drop::after { background: var(--v2-primary-soft, #eff4ff); }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
-  .topbar-nav .topbar-nav-inner { background: #161822; }
   .lg-drop::after { background: #2a2e3d; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lg-glass:not(.is-flat) { background: var(--lg-solid); }
+  .sheet::backdrop { background: rgba(0, 0, 0, .45); }
 }
 
 /* --- Couche 2 : matériau natif d'Apple ------------------------------------
  * ATTENTION : -apple-visual-effect n'est pas documentée par Apple. Elle peut
  * changer ou disparaître sans préavis ; la couche 1 prend alors le relais.
+ * --lg-native-tint garde une teinte sous le texte là où la lisibilité l'exige.
  */
 @supports (-apple-visual-effect: -apple-system-glass-material) {
-  .topbar-nav .topbar-nav-inner {
+  .lg-glass:not(.is-flat) {
     -apple-visual-effect: -apple-system-glass-material;
-    background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none;
+    background: var(--lg-native-tint, transparent); -webkit-backdrop-filter: none; backdrop-filter: none;
   }
   .lg-drop::after { -apple-visual-effect: -apple-system-glass-material; }
 }
 
-/* --- Couche 3 : réfraction (Chromium, classe posée par liquid-glass.js) --- */
+/* --- Couche 3 : réfraction (Chromium, barre du bas uniquement) ------------ */
 .lg-refract .topbar-nav .topbar-nav-inner {
   backdrop-filter: url(#lg-refract) blur(14px) saturate(180%);
-}
-
-/* --- Lecteur de stories : même verre sur les boutons du bas --------------- */
-.story-viewer .sv-round, .story-viewer .sv-foot .save-button {
-  position: relative;
-  background: rgba(255, 255, 255, .14);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  backdrop-filter: blur(18px) saturate(180%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 4px 14px rgba(0, 0, 0, .3);
 }
 
 /* --- Barre à icônes seules (5 onglets) ------------------------------------ */

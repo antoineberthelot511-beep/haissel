@@ -149,7 +149,7 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     while (el.stack.children.length >= MAX_IN_APP) el.stack.firstElementChild.remove();
 
     const card = document.createElement('article');
-    card.className = 'notif-card';
+    card.className = 'notif-card lg-glass lg-pill';
     const title = document.createElement('strong');
     title.className = 'notif-card-title';
     title.textContent = notification.title;

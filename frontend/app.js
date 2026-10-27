@@ -1674,7 +1674,7 @@ function storyCard(offer) {
 }
 
 function storyMenu(offer) {
-  const menu = h('div', { className: 'sv-menu hidden', role: 'menu' },
+  const menu = h('div', { className: 'sv-menu lg-glass hidden', role: 'menu' },
     h('button', {
       type: 'button', role: 'menuitem',
       // Le lecteur reste en pause tant qu'une fenêtre est ouverte (voir tickStory).
@@ -1702,14 +1702,14 @@ function storyFace(g, i) {
   });
   const [menuButton, menu] = storyMenu(offer);
   return h('div', { className: 'sv-face' },
-    h('div', { className: 'sv-bars', 'aria-hidden': 'true' }, bars),
+    h('div', { className: 'sv-bars lg-glass lg-pill', 'aria-hidden': 'true' }, bars),
     h('header', { className: 'sv-head' },
       storyAvatar(offer.author.username, 'story-avatar sm'),
       h('div', { className: 'sv-who' },
         h('strong', null, `@${offer.author.username}`),
         h('span', null, formatAgo(offer.shown_at || offer.published_at))),
       kindBadge(offer),
-      h('button', { className: 'sv-round', type: 'button', 'aria-label': 'Fermer', onclick: () => closeStoryViewer() }, icon('i-close'))),
+      h('button', { className: 'sv-round lg-glass lg-pill lg-press', type: 'button', 'aria-label': 'Fermer', onclick: () => closeStoryViewer() }, icon('i-close'))),
     h('p', { className: 'visually-hidden', 'aria-live': 'polite' },
       `Fiche ${i + 1} sur ${group.offers.length} de @${group.username}`),
     h('div', { className: 'sv-stage' },
@@ -2187,6 +2187,15 @@ function fitChatToViewport() {
   if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < 80) scrollChatToEnd();
 }
 
+/* Hauteur de la barre de saisie (superposée) : marge du bas de la liste. */
+function watchChatForm() {
+  if (chat.formObserver || !('ResizeObserver' in window)) return;
+  chat.formObserver = new ResizeObserver(() => {
+    ui.teamThread.style.setProperty('--chat-form-h', `${ui.chatForm.offsetHeight}px`);
+  });
+  chat.formObserver.observe(ui.chatForm);
+}
+
 function watchViewport(on) {
   const vv = window.visualViewport;
   if (!vv) return;
@@ -2220,6 +2229,7 @@ function openChat() {
   ui.chatError.classList.add('hidden');
   chat.signature = '';
   fitChatInput();
+  watchChatForm();
   watchViewport(true);
   loadChat();
   clearInterval(chat.timer);
@@ -3438,7 +3448,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
