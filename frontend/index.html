@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
-    <meta name="theme-color" content="#f7f8fc" />
+    <meta name="theme-color" content="#0B57FF" />
     <!-- Ajout à l'écran d'accueil (Android : manifeste ; iPhone : balises Apple). -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -13,6 +13,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="HAISSEL" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="stylesheet" href="app-v2.css" />
     <link rel="stylesheet" href="liquid-glass.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
@@ -88,7 +91,7 @@
     <div id="mobile-splash" class="mobile-splash" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="splash-title">
       <div class="splash-card">
         <p class="splash-brand">
-          <span class="splash-logo" aria-hidden="true">H</span>
+          <img class="splash-logo" src="/logo.svg" alt="" width="36" height="36" />
           <span class="splash-name">HAISSEL</span>
         </p>
 
@@ -112,7 +115,7 @@
     <div id="age-gate" class="age-gate" hidden role="dialog" aria-modal="true" aria-labelledby="age-gate-title" tabindex="-1">
       <div class="age-gate-card">
         <p class="age-gate-brand">
-          <span class="splash-logo" aria-hidden="true">H</span>
+          <img class="splash-logo" src="/logo.svg" alt="" width="36" height="36" />
           <span class="splash-name">HAISSEL</span>
         </p>
         <h1 id="age-gate-title">As-tu 18 ans ou plus ?</h1>
@@ -139,7 +142,7 @@
             </button>
           </div>
           <a class="wordmark" href="/" aria-label="HAISSEL — accueil">
-            <span class="wordmark-logo" aria-hidden="true">H</span>
+            <img class="wordmark-logo" src="/logo.svg" alt="" width="34" height="34" />
             <span class="wordmark-text">HAISSEL</span>
             <span class="wordmark-tag">Espace membre</span>
           </a>
@@ -212,7 +215,7 @@
           <div id="auth-screen" class="auth-layout">
             <div class="auth-card">
               <div class="auth-card-head">
-                <span class="wordmark-logo auth-logo" aria-hidden="true">H</span>
+                <img class="wordmark-logo auth-logo" src="/logo.svg" alt="" width="64" height="64" />
                 <h2 id="auth-title">HAISSEL</h2>
                 <p class="auth-tagline">Rejoins les bons plans de la communauté et découvre l'affiliation, en toute transparence.</p>
               </div>
@@ -608,7 +611,7 @@
                 <!-- Conversation épinglée : grand avatar rond, nom dessous. -->
                 <div class="msg-pinned">
                   <button class="msg-pin" type="button" data-open-thread aria-label="Équipe Haissel, conversation épinglée">
-                    <span class="msg-pin-avatar" aria-hidden="true">H</span>
+                    <img class="msg-pin-avatar" src="/logo.svg" alt="" width="80" height="80" />
                     <span class="msg-pin-name" aria-hidden="true">Équipe Haissel</span>
                   </button>
                 </div>
@@ -616,7 +619,7 @@
                   <li>
                     <button id="team-thread-open" class="msg-row" type="button" data-open-thread>
                       <span id="team-thread-dot" class="msg-unread" hidden><span class="visually-hidden">Non lu</span></span>
-                      <span class="msg-avatar" aria-hidden="true">H</span>
+                      <img class="msg-avatar" src="/logo.svg" alt="" width="44" height="44" />
                       <span class="msg-row-body">
                         <span class="msg-row-top">
                           <strong>Équipe Haissel</strong>
@@ -637,7 +640,7 @@
                     <svg class="icon" aria-hidden="true"><use href="#i-chevron-left" /></svg>
                   </button>
                   <div class="chat-who">
-                    <span class="msg-avatar sm" aria-hidden="true">H</span>
+                    <img class="msg-avatar sm" src="/logo.svg" alt="" width="32" height="32" />
                     <strong id="chat-title">Équipe Haissel</strong>
                   </div>
                 </header>

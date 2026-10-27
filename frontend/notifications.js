@@ -197,6 +197,8 @@ window.createNotificationCenter = function createNotificationCenter(options) {
       body: notification.message,
       // Même tag dans tous les onglets : le système n'affiche qu'une fois.
       tag: `haissel-${notification.id}`,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: notification.url },
     };
 

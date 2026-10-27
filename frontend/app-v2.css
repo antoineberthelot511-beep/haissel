@@ -1603,3 +1603,8 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .about-row:hover, .about-row:active { background: var(--v2-surface-low); }
 .about-row .icon { width: 18px; height: 18px; color: var(--ios-secondary); flex: none; }
 .about-meta { margin: 12px 0 0; text-align: center; font-size: 12px; color: var(--ios-secondary); }
+
+/* Logo HAISSEL (logo.svg) à la place du carré « H » : mêmes tailles. */
+img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
+  display: block; flex: none; object-fit: contain; background: none; box-shadow: none; border-radius: 0;
+}

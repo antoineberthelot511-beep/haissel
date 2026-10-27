@@ -26,7 +26,7 @@ self.addEventListener('push', (event) => {
     body: typeof data.body === 'string' ? data.body.slice(0, 120) : '',
     tag: typeof data.tag === 'string' ? data.tag.slice(0, 40) : 'haissel',
     icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    badge: '/icons/badge-96.png',
     data: { url: internalUrl(data.url) },
   }));
 });
