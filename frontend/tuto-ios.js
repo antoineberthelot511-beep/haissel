@@ -1,6 +1,7 @@
 /*
  * Feuille « Comment faire ? » (installer HAISSEL sur iPhone) : carrousel de
- * 4 étapes au plus, une image et une légende par étape.
+ * 5 étapes au plus, une image et une légende par étape. Les images gardent
+ * leur taille réelle (jamais agrandies : pas de flou).
  *
  * Légendes : à modifier ici seulement (aussi lues par scripts/tuto-build.js
  * pour les images provisoires). Images : npm run tuto:build, qui écrit
@@ -9,19 +10,29 @@
  */
 (function attach(root) {
   const CAPTIONS = [
-    'Touche le bouton Partager',
+    'Touche le bouton ≡ à gauche de l’adresse',
+    'Choisis « Partager »',
+    'Touche « En voir plus »',
     'Choisis « Sur l’écran d’accueil »',
-    'Touche « Ajouter »',
-    'Ouvre HAISSEL depuis l’icône',
+    'Active « Ouvrir comme app web », puis touche « Ajouter »',
   ];
-  const MAX_STEPS = 4;
+  const MAX_STEPS = 5;
   const IMAGE_DIR = '/images/tuto-ios/';
 
-  /** Étapes affichables : celles dont l'image existe, dans l'ordre, 4 au plus. */
+  const size = (value, fallback) => (Number.isInteger(value) && value > 0 && value <= 2000 ? value : fallback);
+
+  /**
+   * Étapes affichables : celles dont l'image existe, dans l'ordre, 5 au plus.
+   * files : { 1: { file, width, height } } (steps.js, généré avec les tailles réelles).
+   */
   function availableSteps(files = {}, captions = CAPTIONS) {
     return captions.slice(0, MAX_STEPS)
-      .map((caption, index) => ({ number: index + 1, caption, file: files[index + 1] }))
-      .filter((step) => typeof step.file === 'string' && /^etape-[1-4]\.(webp|svg)$/.test(step.file))
+      .map((caption, index) => {
+        const entry = files[index + 1];
+        const file = typeof entry === 'string' ? entry : entry && entry.file;
+        return { number: index + 1, caption, file, width: size(entry && entry.width, 600), height: size(entry && entry.height, 1300) };
+      })
+      .filter((step) => typeof step.file === 'string' && /^etape-[1-5]\.(webp|svg)$/.test(step.file))
       .map((step) => ({ ...step, src: IMAGE_DIR + step.file, alt: `Étape ${step.number} : ${step.caption}` }));
   }
 
@@ -45,8 +56,9 @@
       img.alt = step.alt;
       img.loading = 'lazy';
       img.decoding = 'async';
-      img.width = 600;
-      img.height = 1300;
+      // Taille réelle : réserve la place (pas de saut) et sert de limite d'affichage.
+      img.width = step.width;
+      img.height = step.height;
       const caption = doc.createElement('figcaption');
       caption.className = 'tuto-caption';
       caption.textContent = step.caption;

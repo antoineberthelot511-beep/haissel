@@ -1,2 +1,2 @@
 /* Généré par npm run tuto:build : étapes du tuto iPhone dont l'image existe. Ne pas modifier à la main. */
-window.HaisselTutoFiles = {"1":"etape-1.svg","2":"etape-2.svg","3":"etape-3.svg","4":"etape-4.svg"};
+window.HaisselTutoFiles = {"1":{"file":"etape-1.webp","width":207,"height":433},"2":{"file":"etape-2.webp","width":216,"height":451},"3":{"file":"etape-3.webp","width":208,"height":427},"4":{"file":"etape-4.webp","width":208,"height":430},"5":{"file":"etape-5.webp","width":205,"height":429}};

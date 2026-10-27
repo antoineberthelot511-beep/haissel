@@ -1543,10 +1543,13 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .tuto-track::-webkit-scrollbar { display: none; }
 .tuto-track:focus-visible { outline: 3px solid var(--v2-focus); outline-offset: -3px; }
 .tuto-slide { flex: 0 0 100%; margin: 0; padding: 0 16px; scroll-snap-align: center; scroll-snap-stop: always; display: grid; justify-items: center; gap: 10px; }
-/* Hauteur réservée (aspect-ratio) : pas de saut quand l'image arrive. */
+/*
+ * Taille réelle, jamais agrandie (pas de flou), centrée. Place réservée par
+ * les attributs width et height (rapport de l'image) : pas de saut.
+ */
 .tuto-image {
-  display: block; height: min(52dvh, 520px); width: auto; max-width: 100%; aspect-ratio: 600 / 1300; object-fit: cover;
-  border-radius: 22px; background: var(--ios-group); box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+  display: block; width: auto; height: auto; max-width: 100%; max-height: 56dvh; margin: 0 auto;
+  border-radius: 18px; background: var(--ios-group); box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
 }
 .tuto-caption { margin: 0; font-size: 17px; font-weight: 600; text-align: center; color: var(--ios-label); }
 .tuto-dots { display: flex; justify-content: center; gap: 2px; margin-top: 4px; }

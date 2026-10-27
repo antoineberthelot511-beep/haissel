@@ -1,12 +1,13 @@
 /*
  * npm run tuto:build : images du tuto d'installation iPhone.
  *
- * - design/tuto-ios/etape-N.png (captures d'iPhone en portrait, N = 1 à 4)
- *   → frontend/images/tuto-ios/etape-N.webp (largeur 600 px, qualité 80) ;
+ * - design/tuto-ios/etape-N.png (captures d'iPhone en portrait, N = 1 à 5)
+ *   → frontend/images/tuto-ios/etape-N.webp (600 px de large au plus, jamais
+ *   agrandies, qualité 80) ;
  * - aucune capture encore : images provisoires neutres (SVG, numéro et
  *   légende de l'étape), pour que la feuille fonctionne dès maintenant ;
  * - écrit frontend/images/tuto-ios/steps.js : la liste des étapes
- *   disponibles, la seule que le carrousel affiche.
+ *   disponibles avec leur taille réelle, la seule que le carrousel affiche.
  * Les légendes viennent de frontend/tuto-ios.js (une seule source).
  */
 const fs = require('fs');
@@ -54,18 +55,22 @@ async function build() {
     for (let i = 0; i < list.length; i += 1) {
       const png = path.join(SOURCE_DIR, `etape-${i + 1}.png`);
       const svg = path.join(OUT_DIR, `etape-${i + 1}.svg`);
+      const webp = path.join(OUT_DIR, `etape-${i + 1}.webp`);
       if (fs.existsSync(svg)) fs.unlinkSync(svg);
-      if (!fs.existsSync(png)) continue;
+      if (!fs.existsSync(png)) {
+        if (fs.existsSync(webp)) fs.unlinkSync(webp);
+        continue;
+      }
       const out = `etape-${i + 1}.webp`;
-      await sharp(png).resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: QUALITY }).toFile(path.join(OUT_DIR, out));
-      files[i + 1] = out;
-      console.log(`✓ ${out}`);
+      const info = await sharp(png).resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: QUALITY }).toFile(webp);
+      files[i + 1] = { file: out, width: info.width, height: info.height };
+      console.log(`✓ ${out} (${info.width}x${info.height})`);
     }
   } else {
     list.forEach((caption, i) => {
       const out = `etape-${i + 1}.svg`;
       fs.writeFileSync(path.join(OUT_DIR, out), placeholderSvg(i + 1, caption));
-      files[i + 1] = out;
+      files[i + 1] = { file: out, width: WIDTH, height: HEIGHT };
       console.log(`○ ${out} (provisoire : ajoute design/tuto-ios/etape-${i + 1}.png)`);
     });
   }
