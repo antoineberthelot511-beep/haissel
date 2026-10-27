@@ -836,7 +836,7 @@ function storyTimeLeft(offer) {
  * Catégorie inconnue (créée depuis la console) : couleur neutre.
  */
 const CATEGORY_COLORS = {
-  applications: ['#2563eb', '#60a5fa'],
+  applications: ['var(--brand)', 'var(--brand-light)'],
   jeux: ['#7c3aed', '#c084fc'],
   shopping: ['#db2777', '#f9a8d4'],
   services: ['#0d9488', '#5eead4'],
@@ -1303,7 +1303,8 @@ function bindSheet(dialog, { beforeClose = null, onClose = null } = {}) {
   dialog.querySelectorAll('[data-close-sheet]').forEach((button) => button.addEventListener('click', () => closeSheet(dialog)));
   panel.addEventListener('pointerdown', (event) => {
     // Les contrôles natifs gardent leur comportement (roue iOS, menu Android).
-    if (event.target.closest('select, input, button, label, a') || event.button > 0) return;
+    // Carrousel du tuto : le balayage horizontal lui appartient.
+    if (event.target.closest('select, input, button, label, a, .tuto-track') || event.button > 0) return;
     entry.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
     panel.setPointerCapture(event.pointerId);
   });
@@ -1540,6 +1541,13 @@ async function handleNotifSwitch() {
   if (result === 'error') ui.notifHelp.textContent = 'Activation impossible pour le moment. Réessaie dans un instant.';
 }
 
+/* Feuille « Comment faire ? » : le carrousel repart de la première étape. */
+let tuto = null;
+function openHowto() {
+  openSheet(ui.howtoSheet);
+  if (tuto) tuto.reset();
+}
+
 // ---------------------------------------------------------------------------
 // Installer l'application (install.js) : ligne de Réglages et bannière de l'Accueil
 // ---------------------------------------------------------------------------
@@ -1605,7 +1613,7 @@ async function renderInstallUi() {
 async function runInstall() {
   const current = installState();
   if (current === 'ios-safari') {
-    openSheet(ui.howtoSheet);
+    openHowto();
     return;
   }
   const event = window.HaisselInstall.deferred;
@@ -3672,7 +3680,13 @@ document.addEventListener('DOMContentLoaded', () => {
   bindFiltersSheet();
   // Réglages : notifications sur cet appareil.
   bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
-  ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
+  ui.notifHowto.addEventListener('click', openHowto);
+  tuto = window.HaisselTuto.mount({
+    track: document.getElementById('tuto-track'),
+    dots: document.getElementById('tuto-dots'),
+    next: document.getElementById('tuto-next'),
+    onDone: () => closeSheet(ui.howtoSheet),
+  });
   ui.installRow.addEventListener('click', runInstall);
   ui.installBannerAction.addEventListener('click', handleInstallBannerAction);
   ui.installBannerClose.addEventListener('click', closeInstallBanner);

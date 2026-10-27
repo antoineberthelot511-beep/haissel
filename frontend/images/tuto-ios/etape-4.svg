@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 1300" width="600" height="1300" role="img" aria-label="Étape 4 : Ouvre HAISSEL depuis l’icône">
+  <rect width="600" height="1300" rx="56" fill="#F1F3F8"/>
+  <rect x="24" y="24" width="552" height="1252" rx="40" fill="#FFFFFF" stroke="#D5DAE5" stroke-width="4"/>
+  <rect x="230" y="52" width="140" height="28" rx="14" fill="#E4E8F0"/>
+  <circle cx="300" cy="520" r="96" fill="#EEF3FF"/>
+  <text x="300" y="560" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="112" font-weight="800" fill="#0B57FF">4</text>
+  <text x="300" y="740" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="38" font-weight="700" fill="#1A1B22">Ouvre HAISSEL depuis l’icône</text>
+  <text x="300" y="800" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" fill="#565E74">Capture à venir</text>
+</svg>

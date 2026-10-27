@@ -16,6 +16,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="app-v2.css" />
     <link rel="stylesheet" href="liquid-glass.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
@@ -935,18 +936,15 @@
                 </section>
               </div>
 
-              <!-- Ajouter à l'écran d'accueil (iPhone) : trois étapes. -->
+              <!-- Ajouter à l'écran d'accueil (iPhone) : carrousel de 4 étapes au plus (tuto-ios.js). -->
               <dialog id="howto-sheet" class="sheet" aria-labelledby="howto-title">
                 <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>
                   <h2 id="howto-title" class="sheet-title">Ajouter HAISSEL à l'écran d'accueil</h2>
-                  <ol class="howto-steps">
-                    <li><span class="howto-num" aria-hidden="true">1</span><span>Touche le bouton <strong>Partager</strong> <svg class="icon sm" aria-hidden="true"><use href="#i-share" /></svg> en bas de Safari.</span></li>
-                    <li><span class="howto-num" aria-hidden="true">2</span><span>Choisis <strong>« Sur l'écran d'accueil »</strong>, puis <strong>Ajouter</strong>.</span></li>
-                    <li><span class="howto-num" aria-hidden="true">3</span><span>Ouvre <strong>HAISSEL</strong> depuis sa nouvelle icône, puis reviens ici activer les notifications.</span></li>
-                  </ol>
+                  <div id="tuto-track" class="tuto-track" role="group" aria-roledescription="carrousel" aria-label="Étapes de l'installation" tabindex="0"></div>
+                  <div id="tuto-dots" class="tuto-dots"></div>
                   <div class="sheet-actions">
-                    <button class="primary-button sheet-apply" type="button" data-close-sheet>J'ai compris</button>
+                    <button id="tuto-next" class="primary-button sheet-apply" type="button">Suivant</button>
                   </div>
                 </div>
               </dialog>
@@ -1163,6 +1161,8 @@
     <script src="chat-thread.js"></script>
     <script src="activity.js"></script>
     <script src="install.js"></script>
+    <script src="images/tuto-ios/steps.js"></script>
+    <script src="tuto-ios.js"></script>
     <script src="push-client.js"></script>
     <script src="app.js"></script>
     <script src="liquid-glass.js"></script>

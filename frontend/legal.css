@@ -16,4 +16,4 @@
 .legal-page .todo { background: var(--sun); padding: 0 4px; font-weight: 700; }
 .legal-page .updated { font-family: var(--f-mono); color: var(--muted-on-paper); }
 .legal-page nav a { margin-right: 16px; }
-.legal-page a { color: var(--sky-deep); }
+.legal-page a { color: var(--brand); }

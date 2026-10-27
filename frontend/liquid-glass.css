@@ -24,7 +24,7 @@
   --lg-edge: rgba(255, 255, 255, .6);
   --lg-edge-low: rgba(255, 255, 255, .08);
   --lg-line: rgba(15, 23, 42, .1);
-  --lg-drop: rgba(37, 99, 235, .12);
+  --lg-drop: rgba(var(--brand-rgb), .12);
   --lg-drop-edge: rgba(255, 255, 255, .95);
   --lg-shadow: 0 10px 30px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);
   --lg-spring: cubic-bezier(.34, 1.45, .55, 1);
@@ -46,7 +46,7 @@
   }
   .topbar-nav .nav-button { color: rgba(235, 238, 248, .78); }
   .topbar-nav .nav-button:hover { color: #fff; }
-  .topbar-nav .nav-button.active { color: #9ec1ff; }
+  .topbar-nav .nav-button.active { color: var(--brand-on-dark); }
 }
 
 /* --- Couche 1 : verre pour tous ------------------------------------------ */
@@ -210,7 +210,7 @@ html:not(.lg-ready) .topbar { background: var(--v2-bg); }
 @media (prefers-reduced-transparency: reduce) {
   .lg-glass:not(.is-flat) { background: var(--lg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .sheet::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .lg-drop::after { background: var(--v2-primary-soft, #eff4ff); }
+  .lg-drop::after { background: var(--brand-soft); }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
   .lg-drop::after { background: #2a2e3d; }
