@@ -281,3 +281,91 @@ describe('service worker', () => {
     expect(res.headers['content-security-policy']).toMatch(/worker-src 'self'/);
   });
 });
+
+describe('message d’un membre → notification à l’équipe', () => {
+  const memberSays = async (identity, content) => request(app).post('/api/messages/team').set(auth(identity)).send({ content });
+  const forAdmin = (endpoint) => sent.filter((item) => item.sub.endpoint === endpoint);
+
+  test('tous les ADMIN actifs, urgence haute, sans le texte du message ; 5 min entre deux envois', async () => {
+    const adminSub = subscription();
+    await push.saveSubscription(adminUser.id, adminSub, 'test');
+    const memberUser = await createUser({ prefix: 'pushmembre' });
+    const member = await login(app, memberUser);
+    sent = [];
+
+    expect((await memberSays(member, 'Mon code secret 9876')).status).toBe(201);
+    const conversation = (await pool.query('SELECT id FROM conversations WHERE member_id = $1', [memberUser.id])).rows[0].id;
+    const first = forAdmin(adminSub.endpoint);
+    expect(first).toHaveLength(1);
+    expect(first[0].options.urgency).toBe('high');
+    expect(first[0].payload).not.toContain('9876');
+    expect(JSON.parse(first[0].payload)).toEqual({
+      title: 'HAISSEL Admin', body: `Nouveau message de @${memberUser.username}`, url: '/admin#messages', tag: `member-message-${conversation}`,
+    });
+
+    // Message suivant dans les 5 min : pas de nouvel envoi.
+    expect((await memberSays(member, 'Encore moi')).status).toBe(201);
+    expect(forAdmin(adminSub.endpoint)).toHaveLength(1);
+
+    // Dernier message du membre il y a plus de 5 min : nouvel envoi.
+    await pool.query("UPDATE messages SET created_at = NOW() - INTERVAL '6 minutes' WHERE conversation_id = $1", [conversation]);
+    expect((await memberSays(member, 'Toujours là ?')).status).toBe(201);
+    expect(forAdmin(adminSub.endpoint)).toHaveLength(2);
+  });
+
+  test('un ADMIN qui écrit depuis l’espace membre n’est pas notifié lui-même', async () => {
+    const otherAdminUser = await createUser({ admin: true, prefix: 'pushadmin2' });
+    const ownSub = subscription();
+    const otherSub = subscription();
+    await push.saveSubscription(adminUser.id, ownSub, 'test');
+    await push.saveSubscription(otherAdminUser.id, otherSub, 'test');
+    sent = [];
+    expect((await memberSays(admin, 'Test depuis l’espace membre')).status).toBe(201);
+    expect(forAdmin(ownSub.endpoint)).toHaveLength(0);
+    expect(forAdmin(otherSub.endpoint)).toHaveLength(1);
+  });
+
+  test('le message est enregistré même si le push échoue ou ne répond pas', async () => {
+    await push.saveSubscription(adminUser.id, subscription(), 'test');
+    const memberUser = await createUser({ prefix: 'pushpanne' });
+    const member = await login(app, memberUser);
+    push.setSender(async () => { throw new Error('service en panne'); });
+    expect((await memberSays(member, 'Bonjour')).status).toBe(201);
+
+    const other = await login(app, await createUser({ prefix: 'pushlent2' }));
+    push.setSender(() => new Promise(() => {}));
+    const started = Date.now();
+    expect((await memberSays(other, 'Bonjour')).status).toBe(201);
+    expect(Date.now() - started).toBeLessThan(4500);
+  });
+
+  test('« /admin#messages » accepté, URL externe refusée (serveur et service worker)', () => {
+    expect(push.safeUrl('/admin#messages')).toBe('/admin#messages');
+    expect(push.safeUrl('/admin')).toBe('/admin');
+    for (const url of ['https://evil.example/admin', '//evil.example', '/admin/../x', '/administration', 'javascript:alert(1)']) {
+      expect([url, push.safeUrl(url)]).toEqual([url, '/app']);
+    }
+    const sw = require('fs').readFileSync(require('path').join(__dirname, '../frontend/sw.js'), 'utf8');
+    const regex = new RegExp(sw.match(/const ALLOWED_URL = \/(.*)\/;/)[1]);
+    expect(regex.test('/admin#messages')).toBe(true);
+    expect(regex.test('https://evil.example')).toBe(false);
+  });
+});
+
+describe('console admin', () => {
+  const read = (name) => require('fs').readFileSync(require('path').join(__dirname, '../frontend', name), 'utf8');
+
+  test('bandeau d’activation dans Messages, push-client.js chargé, « #messages » ouvre la messagerie', () => {
+    const html = read('admin.html');
+    expect(html.indexOf('src="/push-client.js"')).toBeGreaterThan(-1);
+    expect(html.indexOf('src="/push-client.js"')).toBeLessThan(html.indexOf('src="/admin.js"'));
+    const inbox = html.slice(html.indexOf('id="section-inbox"'), html.indexOf('id="inbox-list"'));
+    expect(inbox).toMatch(/<div id="push-banner"[^>]*hidden>/);
+    expect(inbox).toContain('Active les notifications pour être prévenu des nouveaux messages');
+    const js = read('admin.js');
+    expect(js).toContain("const SECTION_ALIASES = { messages: 'inbox' };");
+    // Permission demandée au clic seulement (HaisselPush.enable dans le gestionnaire du bouton).
+    expect(js).toMatch(/async function enablePushFromBanner\(\) \{[\s\S]*?HaisselPush\.enable\(/);
+    expect(js).not.toMatch(/async function renderPushBanner\(\) \{[^}]*requestPermission/);
+  });
+});

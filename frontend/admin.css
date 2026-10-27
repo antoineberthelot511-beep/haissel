@@ -286,3 +286,8 @@ tbody tr:hover { background: #fafbff; }
 
 /* Logo HAISSEL (logo.svg) à la place du carré « H ». */
 img.brand-mark { display: block; object-fit: contain; background: none !important; border-radius: 0; }
+
+/* Onglet Messages : proposition d'activer les notifications Web Push. */
+.push-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.push-banner[hidden] { display: none; }
+.push-banner p { margin: 0; font-weight: 600; }

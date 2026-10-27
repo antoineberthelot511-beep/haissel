@@ -51,8 +51,8 @@ function isValidKeys(keys) {
   return Boolean(p256dh && p256dh.length === 65 && p256dh[0] === 0x04 && auth && auth.length === 16);
 }
 
-// Même liste blanche que sw.js et les annonces : liens internes uniquement.
-const ALLOWED_URL = /^\/(?:app|mes-affilies|go\/\d{1,10})?(?:#[A-Za-z0-9_-]{1,40})?$/;
+// Même liste blanche que sw.js : liens internes uniquement (« /admin » pour les notifications de l'équipe).
+const ALLOWED_URL = /^\/(?:app|admin|mes-affilies|go\/\d{1,10})?(?:#[A-Za-z0-9_-]{1,40})?$/;
 
 /** Chemin relatif interne uniquement (« /app#messages ») ; sinon /app. */
 function safeUrl(value) {
