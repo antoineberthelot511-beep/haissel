@@ -1,0 +1,152 @@
+/*
+ * Système de mouvement HAISSEL : micro-animations légères.
+ *
+ * Règles :
+ *  - transform et opacity seulement (filter pour un flou ponctuel) : jamais
+ *    width, height, top ni left, qui recalculent la mise en page ;
+ *  - une animation ne bloque jamais un toucher (pas de pointer-events: none
+ *    pendant les transitions) ;
+ *  - au plus 2 animations en boucle visibles à la fois (loaders compris) ;
+ *  - prefers-reduced-motion : tout devient instantané ou un fondu de 100 ms
+ *    (bloc en fin de fichier).
+ * motion.js pose les classes (apparition, cascade, compteurs, toasts…).
+ */
+:root {
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 350ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --spring: var(--lg-spring, cubic-bezier(.34, 1.45, .55, 1));
+}
+
+@keyframes m-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-slide-fwd { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+@keyframes m-slide-back { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes m-out-fwd { to { opacity: 0; transform: translateX(-12px); } }
+@keyframes m-out-back { to { opacity: 0; transform: translateX(12px); } }
+@keyframes m-pop { 0% { transform: scale(0); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@keyframes m-bounce { 0% { transform: scale(1); } 35% { transform: scale(.82) translateY(1px); } 70% { transform: scale(1.12) translateY(-2px); } 100% { transform: scale(1); } }
+@keyframes m-bubble { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes m-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes m-spin { to { transform: rotate(1turn); } }
+@keyframes m-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes m-draw { to { stroke-dashoffset: 0; } }
+@keyframes m-toast-in { from { opacity: 0; transform: translateY(-24px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes m-toast-out { to { opacity: 0; transform: translateY(-16px); } }
+@keyframes m-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+/* --- Changement d'onglet ------------------------------------------------- */
+/*
+ * Pas de View Transitions : mesurées avec Playwright (Chromium, CPU x4), leurs
+ * captures d'écran ajoutaient 3 à 5 frames de plus de 50 ms à chaque
+ * changement d'onglet, même limitées au contenu. Le glissement CSS ci-dessous
+ * (transform + opacity, sur le compositeur) n'en ajoute aucune.
+ */
+/* Fondu + glissement de 12 px dans le sens de la navigation. */
+.view-panel:not(.hidden) { animation: m-slide-fwd var(--dur-2) var(--ease-out) both; }
+html[data-nav-dir="back"] .view-panel:not(.hidden) { animation-name: m-slide-back; }
+
+/* --- Entrée en cascade (premier écran seulement, 8 éléments au plus) ------ */
+.m-enter { animation: m-enter var(--dur-3) var(--ease-out) both; animation-delay: calc(var(--m-i, 0) * 30ms); }
+
+/* --- Apparition à l'écran (IntersectionObserver, une seule fois) ---------- */
+[data-reveal] { opacity: 0; transform: translateY(8px); transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out); }
+[data-reveal].is-visible { opacity: 1; transform: none; }
+
+/* --- Images : fondu sur fond squelette ------------------------------------ */
+.m-img-wrap { position: relative; overflow: hidden; background: var(--v2-surface-low, #eef1f6); }
+.m-img-wrap.is-loading::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .45), transparent);
+  animation: m-shimmer 1.2s ease-in-out infinite;
+}
+img.m-img { opacity: 0; transition: opacity var(--dur-3) var(--ease-out); }
+img.m-img.is-loaded { opacity: 1; }
+
+/* --- Stories : anneau qui tourne pendant l'ouverture ----------------------- */
+.story-ring.is-loading { isolation: isolate; }
+.story-ring.is-loading::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--brand), #7c3aed, #db2777, #f59e0b, var(--brand));
+  animation: m-spin 900ms linear infinite;
+}
+.story-ring .story-avatar { position: relative; }
+
+/* --- Boutons : appui à .96, relâchement avec ressort ---------------------- */
+.primary-button, .secondary-button, .ghost-button, .filters-button, .install-banner-action, .sheet-apply, .story-ring, .nav-fab-circle {
+  transition: transform var(--dur-3) var(--spring), background-color var(--dur-2) ease, color var(--dur-2) ease, box-shadow var(--dur-2) ease;
+}
+.primary-button:active:not(:disabled), .secondary-button:active:not(:disabled), .ghost-button:active:not(:disabled),
+.install-banner-action:active, .sheet-apply:active:not(:disabled), .story-ring:active {
+  transform: scale(.96); transition-duration: var(--dur-1);
+}
+
+/* --- Barre de navigation et pastilles ------------------------------------- */
+.nav-button .icon.m-bounce, .nav-button .nav-avatar.m-bounce { animation: m-bounce var(--dur-3) var(--spring); }
+.m-pop { animation: m-pop var(--dur-3) var(--spring) both; }
+
+/* --- Messagerie ------------------------------------------------------------ */
+.bubble.m-new { animation: m-bubble var(--dur-2) var(--ease-out) both; }
+.bubble.from-me.m-new { transform-origin: 100% 100%; }
+.bubble.from-team.m-new { transform-origin: 0 100%; }
+.chat-send .icon { transition: background-color var(--dur-2) ease, transform var(--dur-2) var(--spring); }
+.chat-send:not(:disabled):active .icon { transform: scale(.9); }
+.chat-send[aria-busy="true"] .icon { animation: m-pulse 900ms ease-in-out infinite; }
+
+/* --- Feuilles : fond en fondu (la montée avec ressort est dans app.js) ----- */
+.sheet[open]::backdrop { animation: m-fade var(--dur-2) ease both; }
+
+/* --- Interrupteurs, cases, filtres : 120 ms -------------------------------- */
+.ios-switch, .ios-switch::before, .ios-switch::after, input[type="checkbox"], input[type="radio"],
+.cat-tile, .sheet-toggle, .age-choice, .profile-tab, .learn-tab, .tuto-dot::before {
+  transition-duration: var(--dur-1);
+}
+
+/* --- États vides : icône qui flotte (3 px, 4 s) ---------------------------- */
+.activity-empty-icon, .m-float { display: inline-block; animation: m-float 4s ease-in-out infinite; }
+
+/* --- Tirer pour rafraîchir ------------------------------------------------- */
+.ptr {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 45;
+  display: grid; place-items: center; width: 40px; height: 40px; margin-left: -20px; border-radius: 50%;
+  opacity: 0; transform: translateY(-48px) scale(.6);
+}
+.ptr .loader { animation-play-state: paused; }
+.ptr.is-refreshing .loader { animation-play-state: running; }
+.ptr.is-settling { transition: transform var(--dur-3) var(--spring), opacity var(--dur-2) ease; }
+
+/* --- Toast de confirmation en verre, depuis le haut ------------------------ */
+.m-toast {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 80;
+  display: flex; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 32px)); padding: 10px 18px 10px 12px;
+  transform: translateX(-50%); color: var(--v2-on-surface, #1a1b22); font-weight: 600;
+}
+.m-toast-inner { display: flex; align-items: center; gap: 10px; animation: m-toast-in var(--dur-3) var(--spring) both; }
+.m-toast.is-leaving .m-toast-inner { animation: m-toast-out var(--dur-2) ease both; }
+.m-toast.is-leaving { opacity: 0; transition: opacity var(--dur-2) ease; }
+.m-check { width: 28px; height: 28px; flex: none; }
+.m-check circle { fill: var(--brand); }
+.m-check path {
+  fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 20; stroke-dashoffset: 20; animation: m-draw var(--dur-3) var(--ease-out) 120ms forwards;
+}
+
+/* --- Mouvement réduit : instantané ou fondu de 100 ms ---------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Exception : le filet de secours de l'écran de démarrage garde son délai de 12 s. */
+  .boot-screen { animation-duration: 0s !important; animation-delay: 12s !important; }
+  .view-panel:not(.hidden), .m-enter, .m-toast-inner, .bubble.m-new { animation: m-fade 100ms ease both !important; }
+  [data-reveal] { transform: none; }
+  [data-reveal], img.m-img { transition: opacity 100ms ease !important; }
+  .activity-empty-icon, .m-float, .story-ring.is-loading::before, .m-img-wrap.is-loading::after, .chat-send[aria-busy="true"] .icon { animation: none !important; }
+  .m-check path { stroke-dashoffset: 0; animation: none !important; }
+}

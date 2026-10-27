@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="app-v2.css" />
     <link rel="stylesheet" href="liquid-glass.css" />
+    <link rel="stylesheet" href="motion.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
@@ -157,7 +158,7 @@
             <!-- Raccourcis de l'en-tête (espace membre) -->
             <button id="bell-button" class="topbar-icon member-only lg-glass lg-pill lg-press" type="button" data-view="notifications" aria-label="Activité">
               <svg class="icon lg" aria-hidden="true"><use href="#i-bell" /></svg>
-              <span id="bell-badge" class="bell-badge" aria-hidden="true" hidden></span>
+              <span id="bell-badge" class="bell-badge" aria-hidden="true" data-pop hidden></span>
             </button>
             <button class="topbar-avatar member-only" type="button" data-view="profile" aria-label="Mon profil">
               <span id="topbar-avatar" class="avatar" aria-hidden="true">H</span>
@@ -177,7 +178,7 @@
             </button>
             <button class="nav-button" type="button" data-view="messages" aria-label="Messages">
               <svg class="icon lg" aria-hidden="true"><use href="#i-send" /></svg>
-              <span id="nav-messages-badge" class="nav-badge" hidden><span class="visually-hidden">Nouveaux messages</span></span>
+              <span id="nav-messages-badge" class="nav-badge" data-pop hidden><span class="visually-hidden">Nouveaux messages</span></span>
             </button>
             <button class="nav-button" type="button" data-view="links" aria-label="Recherche">
               <svg class="icon lg" aria-hidden="true"><use href="#i-search" /></svg>
@@ -619,7 +620,7 @@
                 <ul class="msg-list" aria-label="Conversations">
                   <li>
                     <button id="team-thread-open" class="msg-row" type="button" data-open-thread>
-                      <span id="team-thread-dot" class="msg-unread" hidden><span class="visually-hidden">Non lu</span></span>
+                      <span id="team-thread-dot" class="msg-unread" data-pop hidden><span class="visually-hidden">Non lu</span></span>
                       <img class="msg-avatar" src="/logo.svg" alt="" width="44" height="44" />
                       <span class="msg-row-body">
                         <span class="msg-row-top">
@@ -819,7 +820,7 @@
               <div class="profile-hero">
                 <div class="avatar large" id="profile-avatar" aria-hidden="true">H</div>
                 <!-- Chiffres façon Instagram (remplis par app.js) -->
-                <dl class="profile-stats">
+                <dl class="profile-stats" data-reveal>
                   <div data-adult-only><dt>Fiches publiées</dt><dd id="stat-published">0</dd></div>
                   <div><dt>Sauvegardées</dt><dd id="stat-saved">0</dd></div>
                 </dl>
@@ -1176,6 +1177,7 @@
     <script src="activity.js"></script>
     <script src="install.js"></script>
     <script src="images/tuto-ios/steps.js"></script>
+    <script src="motion.js"></script>
     <script src="tuto-ios.js"></script>
     <script src="push-client.js"></script>
     <script src="app.js"></script>

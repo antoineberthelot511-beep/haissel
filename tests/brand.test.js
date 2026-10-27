@@ -124,7 +124,9 @@ describe('tuto d’installation iPhone', () => {
 
     expect(tuto.count).toBe(2);
     expect(track.children).toHaveLength(2);
-    const img = track.children[0].children[0];
+    const media = track.children[0].children[0];
+    expect(media.className).toBe('tuto-media');
+    const img = media.children[0];
     // Taille réelle de l'image : place réservée, jamais agrandie.
     expect(img).toMatchObject({ loading: 'lazy', width: 207, height: 433, alt: 'Étape 1 : Touche le bouton ≡ à gauche de l’adresse' });
     expect(dots.children).toHaveLength(2);

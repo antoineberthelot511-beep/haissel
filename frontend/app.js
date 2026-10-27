@@ -224,6 +224,8 @@ function setActiveView(viewName) {
   });
   // Découvrir : barre du bas en version sombre (liquid-glass.css).
   document.body.dataset.view = viewName;
+  // Sens du glissement (motion.js) : ordre des onglets de la barre du bas.
+  window.HaisselMotion?.noteView(viewName);
   rememberView(viewName);
   // Quitter Messages arrête l'interrogation de la conversation.
   if (viewName !== 'messages') closeChat();
@@ -1193,6 +1195,7 @@ async function loadCommunity() {
           h('p', null, 'Aucun résultat'),
           h('button', { className: 'secondary-button', type: 'button', onclick: clearSearch }, 'Effacer les filtres'))
         : h('div', { className: 'panel-card' }, 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
+    if (items.length && ui.communityList.offsetParent) window.HaisselMotion?.cascade(ui.communityList);
 
     /*
      * Accueil : le fil complet, sans filtre. On ne le met à jour que lorsque
@@ -1208,6 +1211,8 @@ async function loadCommunity() {
         ? feed.map((offer) => postCard(offer))
         : [h('div', { className: 'panel-card' },
           'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
+      // Premier rendu visible : entrée en cascade (8 éléments au plus, motion.js).
+      if (feed.length && ui.homeOffers.offsetParent) window.HaisselMotion?.cascade(ui.homeOffers);
     }
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -1278,7 +1283,8 @@ function openSheet(dialog) {
   dialog.showModal();
   panel.style.transform = '';
   if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
-  else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  // Montée avec ressort (même courbe que le Liquid Glass) ; la fermeture est plus rapide.
+  else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 350, easing: 'cubic-bezier(.34, 1.2, .55, 1)' });
 }
 
 function closeSheet(dialog, { apply = false } = {}) {
@@ -1296,7 +1302,7 @@ function closeSheet(dialog, { apply = false } = {}) {
   const animation = reducedMotion()
     ? panel.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
     : panel.animate([{ transform: panel.style.transform || 'none' }, { transform: 'translateY(100%)' }],
-      { duration: 250, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+      { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
   animation.finished.then(() => { done(); animation.cancel(); }, done);
 }
 
@@ -2202,6 +2208,11 @@ function openStoryViewer(groups, g, i, fromElement = null) {
   pauseStory(false);
   paintStory();
 
+  // L'anneau touché tourne le temps de l'ouverture (motion.css).
+  if (fromElement?.classList.contains('story-ring')) {
+    fromElement.classList.add('is-loading');
+    setTimeout(() => fromElement.classList.remove('is-loading'), 450);
+  }
   const rect = fromElement?.getBoundingClientRect();
   if (rect && rect.width && !reducedMotion()) {
     viewer.face.animate([
@@ -2338,6 +2349,8 @@ function renderChat(messages) {
   const grew = chat.signature !== '';
   chat.signature = signature;
   ui.chatMessages.replaceChildren(...window.HaisselChat.layoutThread(messages).map(chatRow));
+  // Nouveau message : la dernière bulle apparaît depuis son coin (motion.css).
+  if (grew) [...ui.chatMessages.querySelectorAll('.bubble')].pop()?.classList.add('m-new');
   if (atBottom || !grew || !last.from_team) scrollChatToEnd();
   paintThreadPreview(last);
 }
@@ -2982,7 +2995,7 @@ async function loadSavedOffers() {
     const data = await api('/api/community/offers?saved=1');
     const items = data.items || [];
     ui.savedCount.textContent = `(${items.length})`;
-    ui.statSaved.textContent = String(items.length);
+    window.HaisselMotion ? window.HaisselMotion.setCount(ui.statSaved, items.length) : (ui.statSaved.textContent = String(items.length));
     ui.savedOffers.setAttribute('aria-busy', 'false');
     ui.savedOffers.replaceChildren(...(items.length
       ? items.map((offer) => gridTile(offer))
@@ -3003,7 +3016,10 @@ async function loadMyOffers() {
     renderCategoryTiles();
     ui.myOffers.setAttribute('aria-busy', 'false');
     ui.myOffersCount.textContent = `(${data.items.length})`;
-    ui.statPublished.textContent = String(data.items.filter((offer) => offer.status === 'published' && !offer.expired).length);
+    const published = data.items.filter((offer) => offer.status === 'published' && !offer.expired).length;
+    // Compte de 0 à la valeur à la première apparition (motion.js).
+    if (window.HaisselMotion) window.HaisselMotion.setCount(ui.statPublished, published);
+    else ui.statPublished.textContent = String(published);
     ui.myOfferDetail.hidden = true;
     ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferTile)
       : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.')]));
@@ -3042,6 +3058,7 @@ async function handlePublish(event) {
     resetPublishForm();
     resetTurnstile(ui.publishForm);
     publishFeedback('info', data.offer?.status === 'published' ? 'Ton offre est publiée.' : data.message);
+    window.HaisselMotion?.toast(editing ? 'Fiche modifiée' : 'Fiche envoyée à l’équipe');
     ui.publishSuccess.focus?.();
     loadMyOffers();
   } catch (error) {
@@ -3702,7 +3719,12 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', () => showAuthForm(`${button.dataset.form}-form`));
   });
   document.querySelectorAll('[data-view]').forEach((button) => {
-    button.addEventListener('click', () => setActiveView(button.dataset.view));
+    // View Transitions si disponibles (motion.js), sinon fondu et glissement en CSS.
+    button.addEventListener('click', () => {
+      const view = button.dataset.view;
+      if (window.HaisselMotion) window.HaisselMotion.navigate(view, () => setActiveView(view));
+      else setActiveView(view);
+    });
   });
   document.querySelectorAll('[data-back-to-login]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -3763,6 +3785,12 @@ document.addEventListener('DOMContentLoaded', () => {
     },
   });
   ui.notifHowto.addEventListener('click', openHowto);
+  // Tirer pour rafraîchir : Accueil, tout en haut de page, aucune feuille ni story ouverte.
+  window.HaisselMotion?.pullToRefresh({
+    isActive: () => Boolean(state.user) && document.body.dataset.view === 'home'
+      && !document.querySelector('dialog[open]') && !document.body.classList.contains('story-open'),
+    onRefresh: () => loadCommunity(),
+  });
   tuto = window.HaisselTuto.mount({
     track: document.getElementById('tuto-track'),
     dots: document.getElementById('tuto-dots'),

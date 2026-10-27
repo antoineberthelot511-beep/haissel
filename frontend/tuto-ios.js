@@ -62,7 +62,12 @@
       const caption = doc.createElement('figcaption');
       caption.className = 'tuto-caption';
       caption.textContent = step.caption;
-      figure.append(img, caption);
+      // Cadre : fond squelette pendant le chargement, puis fondu (motion.js).
+      const media = doc.createElement('span');
+      media.className = 'tuto-media';
+      media.append(img);
+      figure.append(media, caption);
+      if (root.HaisselMotion && root.HaisselMotion.fadeImage) root.HaisselMotion.fadeImage(img);
       return figure;
     }));
 
