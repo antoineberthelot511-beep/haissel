@@ -867,8 +867,9 @@ function categoryVisual(category, className, ...children) {
  */
 function postCard(offer) {
   const left = storyTimeLeft(offer);
+  // Pastille en verre posée sur le visuel coloré (liquid-glass.css).
   const visual = categoryVisual(offer.category, 'post-visual',
-    h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('span', { className: 'post-visual-icon lg-glass', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
     h('h3', { className: 'post-visual-title' }, offer.title),
     offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
   return h('article', { className: 'post-card' },
@@ -908,7 +909,8 @@ function discoverSlide(offer) {
       h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
       h('h2', { className: 'discover-title' }, offer.title),
       offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null),
-    h('div', { className: 'discover-text' },
+    // Panneau texte et colonne de boutons en verre sombre, posés sur l'image.
+    h('div', { className: 'discover-text lg-glass' },
       h('p', { className: 'discover-who' },
         storyAvatar(offer.author.username, 'story-avatar sm'),
         h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
@@ -916,7 +918,7 @@ function discoverSlide(offer) {
       h('p', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
       h('p', { className: 'discover-meta' },
         [offer.countries, offer.min_age ? `${offer.min_age} ans et +` : null, left].filter(Boolean).join(' · '))),
-    h('div', { className: 'discover-side' },
+    h('div', { className: 'discover-side lg-glass lg-pill' },
       save,
       offer.is_mine ? null : sideButton('Signaler', 'i-flag', () => openReport(offer)),
       offer.can_open ? sideButton('Voir', 'i-external', () => confirmLeave(offer)) : null));

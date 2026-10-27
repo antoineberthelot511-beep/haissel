@@ -139,30 +139,45 @@
 
   /*
    * Défilement : l'en-tête est transparent tout en haut et devient en verre
-   * au-delà de 8 px ; les boutons + et cloche font l'inverse (pilules en
-   * verre seulement sur l'en-tête transparent). La barre de recherche n'est
-   * en verre que collée sous l'en-tête. Une lecture par image au plus.
+   * au défilement ; les boutons + et cloche font l'inverse (pilules en verre
+   * seulement sur l'en-tête transparent). La recherche et les onglets du
+   * profil ne sont en verre que collés sous l'en-tête.
+   *
+   * Hystérésis : verre au-delà de 12 px, transparent sous 4 px. Avec un seuil
+   * unique, l'en-tête clignotait autour de la limite, surtout pendant le
+   * rebond élastique d'iOS (scrollY négatif puis repassant le seuil).
+   * Écouteur passif, une lecture et une écriture par image au plus.
    */
-  const SCROLL_THRESHOLD = 8;
+  const GLASS_ON = 12;
+  const GLASS_OFF = 4;
+
+  /** Nouvel état du verre de l'en-tête selon le défilement (hystérésis). */
+  function nextGlass(isGlass, scrollY) {
+    const y = Math.max(0, scrollY || 0);
+    if (!isGlass && y > GLASS_ON) return true;
+    if (isGlass && y < GLASS_OFF) return false;
+    return isGlass;
+  }
 
   function initScrollGlass() {
     const topbar = document.querySelector('.topbar');
     const layer = document.querySelector('.topbar-glass');
     if (!topbar || !layer) return;
     const pills = [...topbar.querySelectorAll('.topbar-icon.lg-glass')];
-    const search = document.getElementById('community-filters');
+    const stickies = [document.getElementById('community-filters'), document.querySelector('#profile-view .profile-tabs')].filter(Boolean);
     let pending = false;
+    let glass = false;
 
     function update() {
       pending = false;
-      const scrolled = window.scrollY > SCROLL_THRESHOLD;
-      layer.classList.toggle('is-flat', !scrolled);
-      pills.forEach((pill) => pill.classList.toggle('is-flat', scrolled));
-      if (search) {
-        const visible = search.offsetParent !== null;
-        const top = parseFloat(window.getComputedStyle(search).top) || 0;
-        const stuck = visible && scrolled && search.getBoundingClientRect().top <= top + 0.5;
-        search.classList.toggle('is-flat', !stuck);
+      glass = nextGlass(glass, window.scrollY);
+      layer.classList.toggle('is-flat', !glass);
+      pills.forEach((pill) => pill.classList.toggle('is-flat', glass));
+      for (const bar of stickies) {
+        const visible = bar.offsetParent !== null;
+        const top = parseFloat(window.getComputedStyle(bar).top) || 0;
+        const stuck = visible && glass && bar.getBoundingClientRect().top <= top + 0.5;
+        bar.classList.toggle('is-flat', !stuck);
       }
     }
 
@@ -180,10 +195,52 @@
     document.documentElement.classList.add('lg-ready');
   }
 
+  /*
+   * Au toucher : le reflet suit le doigt (--lg-x / --lg-y en %), surface
+   * marquée .is-touching tant que le doigt est posé. Écouteurs passifs.
+   */
+  function initTouchLight() {
+    let current = null;
+    let frame = 0;
+    let last = null;
+
+    function paint() {
+      frame = 0;
+      if (!current || !last) return;
+      const rect = current.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      current.style.setProperty('--lg-x', `${Math.round(((last.clientX - rect.left) / rect.width) * 100)}%`);
+      current.style.setProperty('--lg-y', `${Math.round(((last.clientY - rect.top) / rect.height) * 100)}%`);
+    }
+    function track(event) {
+      last = { clientX: event.clientX, clientY: event.clientY };
+      if (!frame) frame = window.requestAnimationFrame(paint);
+    }
+    function release() {
+      if (current) current.classList.remove('is-touching');
+      current = null;
+    }
+
+    document.addEventListener('pointerdown', (event) => {
+      release();
+      const surface = event.target.closest?.('.lg-glass:not(.is-flat)');
+      if (!surface) return;
+      current = surface;
+      surface.classList.add('is-touching');
+      track(event);
+    }, { passive: true });
+    document.addEventListener('pointermove', (event) => { if (current) track(event); }, { passive: true });
+    document.addEventListener('pointerup', release, { passive: true });
+    document.addEventListener('pointercancel', release, { passive: true });
+  }
+
   function start() {
     init();
     initScrollGlass();
+    initTouchLight();
   }
+
+  window.HaisselGlass = { nextGlass, GLASS_ON, GLASS_OFF };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
