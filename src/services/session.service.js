@@ -120,7 +120,7 @@ async function loadSession(req) {
       SELECT s.id AS session_id, s.mfa_pending, s.last_seen_at,
              u.id, u.username, u.email, u.display_name, u.first_name, u.last_name,
              u.avatar_url, u.bio, u.created_at, u.updated_at, u.is_active, u.is_banned,
-             u.email_verified_at, u.mfa_enabled, u.is_adult, u.adult_declared_at,
+             u.email_verified_at, u.mfa_enabled, u.is_adult, u.adult_declared_at, u.install_tuto_seen_at,
              COALESCE(a.role, 'USER') AS role
       FROM sessions s
       INNER JOIN users u ON u.id = s.user_id

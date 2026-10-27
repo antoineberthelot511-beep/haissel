@@ -23,6 +23,8 @@ router.post('/mfa/verify', mfaRateLimiter, pendingOk, auth.verifyMfaLogin);
 router.get('/me', pendingOk, auth.me);
 // Déclaration de majorité (comptes créés avant sa mise en place).
 router.post('/adult-declaration', authRateLimiter, signedIn, auth.declareAdult);
+// Session et jeton CSRF obligatoires (signedIn).
+router.post('/install-tuto/seen', authRateLimiter, signedIn, auth.markInstallTutoSeen);
 router.post('/logout', pendingOk, auth.logout);
 router.post('/logout-all', signedIn, auth.logoutAll);
 

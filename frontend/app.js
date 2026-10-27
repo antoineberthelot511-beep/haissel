@@ -431,6 +431,9 @@ function showLoggedIn(user) {
   // Première visite d'un membre connecté sur cet appareil : point de départ des 3 jours.
   if (!storageGet(INSTALL_KEYS.firstSeen)) storageSet(INSTALL_KEYS.firstSeen, String(Date.now()));
   renderInstallUi();
+  autoTuto.done = false;
+  autoTuto.tries = 0;
+  scheduleAutoTuto();
   if (notificationCenter) notificationCenter.start();
   startUnreadPolling();
   syncPush();
@@ -472,6 +475,9 @@ function closeAgeGate() {
   gate.hidden = true;
   document.body.classList.remove('age-gate-open');
   setGateInert(false);
+  // La feuille d'installation attendait peut-être la fin de la question.
+  autoTuto.tries = 0;
+  scheduleAutoTuto();
 }
 
 async function answerAgeGate(isAdultAnswer) {
@@ -1593,8 +1599,8 @@ async function installBannerMode() {
 
 async function renderInstallUi() {
   const current = installState();
-  ui.installRow.hidden = current !== 'prompt' && current !== 'ios-safari';
-  ui.installHelp.hidden = current !== 'ios-other';
+  // Ligne toujours visible ; une fois installée, elle ouvre quand même le tuto (pour aider un ami).
+  ui.installRowLabel.textContent = current === 'installed' ? 'Application installée ✓' : 'Installer l’app sur ton téléphone';
   const mode = state.user ? await installBannerMode() : null;
   ui.installBanner.hidden = !mode;
   ui.installBanner.dataset.mode = mode || '';
@@ -1609,7 +1615,78 @@ async function renderInstallUi() {
   }
 }
 
-/** Ligne de Réglages ou bouton « Installer » : invite Android, ou feuille « Comment faire ? » sur iPhone. */
+/*
+ * Feuille d'installation adaptée à l'appareil (install.js, tutoKind) :
+ * 'ios' → carrousel « Comment faire ? » ; 'android' → invite native ;
+ * 'safari' → « Ouvre HAISSEL dans Safari » et « Copier le lien ».
+ */
+let installSheetKind = null;
+
+function openInstallGuide(kind) {
+  if (kind !== 'android' && kind !== 'safari') {
+    openHowto();
+    return;
+  }
+  installSheetKind = kind;
+  ui.installSheetStatus.textContent = '';
+  if (kind === 'android') {
+    ui.installSheetTitle.textContent = 'Installe HAISSEL';
+    ui.installSheetText.textContent = 'Ajoute HAISSEL à ton écran d’accueil : il s’ouvre comme une application et peut te prévenir des nouveautés.';
+    ui.installSheetAction.textContent = 'Installer';
+  } else {
+    ui.installSheetTitle.textContent = 'Ouvre HAISSEL dans Safari';
+    ui.installSheetText.textContent = 'Ouvre HAISSEL dans Safari pour l’installer : seul Safari peut l’ajouter à l’écran d’accueil de l’iPhone.';
+    ui.installSheetAction.textContent = 'Copier le lien';
+  }
+  openSheet(ui.installSheet);
+}
+
+async function handleInstallSheetAction() {
+  if (installSheetKind === 'safari') {
+    const link = `${window.location.origin}/app`;
+    try {
+      await navigator.clipboard.writeText(link);
+      ui.installSheetStatus.textContent = 'Lien copié : colle-le dans Safari.';
+    } catch (error) {
+      ui.installSheetStatus.textContent = `Copie impossible : ${link}`;
+    }
+    return;
+  }
+  await runInstall();
+  closeSheet(ui.installSheet);
+}
+
+/* Feuille fermée (quelle que soit l'étape) : « vue » sur le compte, plus d'ouverture automatique. */
+function markInstallTutoSeen() {
+  if (!state.user || state.user.install_tuto_seen) return;
+  state.user.install_tuto_seen = true;
+  api('/api/auth/install-tuto/seen', { method: 'POST' }).catch(() => {});
+}
+
+/*
+ * Ouverture automatique après la première connexion du compte, seulement si
+ * elle est utile sur cet appareil. Jamais par-dessus l'écran de chargement ni
+ * la question de majorité : on attend qu'ils soient partis.
+ */
+const autoTuto = { timer: 0, done: false, tries: 0 };
+
+function scheduleAutoTuto() {
+  clearTimeout(autoTuto.timer);
+  if (autoTuto.done || !state.user) return;
+  const kind = window.HaisselInstall.autoTutoKind({ seen: Boolean(state.user.install_tuto_seen), state: installState() });
+  if (!kind) return;
+  const gate = document.getElementById('age-gate');
+  const blocked = document.getElementById('boot-screen') || (gate && !gate.hidden) || document.querySelector('dialog[open]');
+  if (blocked) {
+    autoTuto.tries += 1;
+    if (autoTuto.tries < 200) autoTuto.timer = setTimeout(scheduleAutoTuto, 300);
+    return;
+  }
+  autoTuto.done = true;
+  openInstallGuide(kind);
+}
+
+/** Bouton « Installer » de la bannière : invite Android, ou feuille « Comment faire ? » sur iPhone. */
 async function runInstall() {
   const current = installState();
   if (current === 'ios-safari') {
@@ -3567,7 +3644,7 @@ document.addEventListener('DOMContentLoaded', () => {
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
-    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installHelp: 'install-help', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
+    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installRowLabel: 'install-row-label', installSheet: 'install-sheet', installSheetTitle: 'install-sheet-title', installSheetText: 'install-sheet-text', installSheetStatus: 'install-sheet-status', installSheetAction: 'install-sheet-action', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -3679,7 +3756,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filters-reset').addEventListener('click', () => setFilterFields({}));
   bindFiltersSheet();
   // Réglages : notifications sur cet appareil.
-  bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
+  bindSheet(ui.howtoSheet, {
+    onClose: () => {
+      markInstallTutoSeen();
+      if (!ui.notifHowto.hidden) ui.notifHowto.focus({ preventScroll: true });
+    },
+  });
   ui.notifHowto.addEventListener('click', openHowto);
   tuto = window.HaisselTuto.mount({
     track: document.getElementById('tuto-track'),
@@ -3687,10 +3769,17 @@ document.addEventListener('DOMContentLoaded', () => {
     next: document.getElementById('tuto-next'),
     onDone: () => closeSheet(ui.howtoSheet),
   });
-  ui.installRow.addEventListener('click', runInstall);
+  ui.installRow.addEventListener('click', () => openInstallGuide(window.HaisselInstall.tutoKind(installState()) || 'ios'));
+  ui.installSheetAction.addEventListener('click', handleInstallSheetAction);
+  bindSheet(ui.installSheet, { onClose: markInstallTutoSeen });
   ui.installBannerAction.addEventListener('click', handleInstallBannerAction);
   ui.installBannerClose.addEventListener('click', closeInstallBanner);
-  window.addEventListener('haissel-install-change', () => { if (state.user) renderInstallUi(); });
+  window.addEventListener('haissel-install-change', () => {
+    if (!state.user) return;
+    renderInstallUi();
+    // Android : l'invite peut arriver après la connexion.
+    scheduleAutoTuto();
+  });
   ui.notifSwitch.addEventListener('change', handleNotifSwitch);
   window.addEventListener('hashchange', openViewFromHash);
   // Retour sur l'application (réglages du téléphone modifiés entre-temps).

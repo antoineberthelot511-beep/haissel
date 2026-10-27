@@ -909,13 +909,12 @@
               <div id="ppanel-settings" class="profile-panel profile-grid" role="tabpanel" aria-label="Réglages" hidden>
                 <div class="profile-card-box settings-box">
                   <h3 class="card-title">Réglages</h3>
-                  <!-- Installer l'application : Android (invite du navigateur) ou iPhone Safari (feuille « Comment faire ? »). -->
-                  <button id="install-row" class="install-row" type="button" hidden>
+                  <!-- Installer l'app : toujours visible ; ouvre la feuille adaptée à l'appareil (app.js). -->
+                  <button id="install-row" class="install-row" type="button">
                     <img class="install-row-icon" src="/icons/icon-192.png" alt="" width="32" height="32" />
-                    <span class="install-row-label">Installer l'application HAISSEL</span>
+                    <span id="install-row-label" class="install-row-label">Installer l'app sur ton téléphone</span>
                     <svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg>
                   </button>
-                  <p id="install-help" class="setting-help" hidden>Ouvre HAISSEL dans Safari pour l'installer.</p>
                   <div class="setting-row">
                     <label class="setting-label" for="notif-switch">Notifications sur cet appareil</label>
                     <input id="notif-switch" class="ios-switch" type="checkbox" role="switch" aria-describedby="notif-help" />
@@ -945,6 +944,21 @@
                   <div id="tuto-dots" class="tuto-dots"></div>
                   <div class="sheet-actions">
                     <button id="tuto-next" class="primary-button sheet-apply" type="button">Suivant</button>
+                  </div>
+                </div>
+              </dialog>
+
+              <!-- Installer : Android (invite native) ou autre navigateur iOS (« Ouvre HAISSEL dans Safari »). -->
+              <dialog id="install-sheet" class="sheet" aria-labelledby="install-sheet-title">
+                <div class="sheet-panel lg-glass lg-sheet">
+                  <div class="sheet-grabber" aria-hidden="true"></div>
+                  <img class="install-sheet-icon" src="/icons/icon-192.png" alt="" width="64" height="64" />
+                  <h2 id="install-sheet-title" class="sheet-title">Installe HAISSEL</h2>
+                  <p id="install-sheet-text" class="install-sheet-text"></p>
+                  <p id="install-sheet-status" class="install-sheet-status" role="status" aria-live="polite"></p>
+                  <div class="sheet-actions">
+                    <button id="install-sheet-action" class="primary-button sheet-apply" type="button">Installer</button>
+                    <button class="sheet-reset" type="button" data-close-sheet>Plus tard</button>
                   </div>
                 </div>
               </dialog>

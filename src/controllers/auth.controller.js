@@ -73,6 +73,8 @@ function publicUser(user, role) {
      */
     is_adult: user.is_adult === null || user.is_adult === undefined ? null : Boolean(user.is_adult),
     adult_declaration_required: needsDeclaration(user),
+    // Feuille d'installation de l'app déjà fermée une fois (sur n'importe quel appareil).
+    install_tuto_seen: Boolean(user.install_tuto_seen_at),
   };
 }
 
@@ -83,7 +85,7 @@ async function getRole(userId) {
 
 const USER_COLUMNS = `id, username, email, display_name, first_name, last_name, created_at,
   is_active, is_banned, email_verified_at, mfa_enabled, password_hash,
-  is_adult, adult_declared_at`;
+  is_adult, adult_declared_at, install_tuto_seen_at`;
 
 // ---------------------------------------------------------------------------
 // Configuration publique (le frontend n'affiche que ce qui fonctionne)
@@ -386,6 +388,23 @@ function me(req, res) {
  * s'agit d'une déclaration sur l'honneur, pas d'une vérification. Chaque
  * réponse est horodatée et journalisée.
  */
+/**
+ * POST /api/auth/install-tuto/seen : feuille d'installation fermée.
+ * Mémorisé sur le compte : elle ne s'ouvrira plus d'elle-même, sur aucun
+ * appareil. La première date est conservée.
+ */
+async function markInstallTutoSeen(req, res, next) {
+  try {
+    await pool.query(
+      'UPDATE users SET install_tuto_seen_at = COALESCE(install_tuto_seen_at, NOW()) WHERE id = $1',
+      [req.user.id]
+    );
+    return res.status(200).json({ success: true, data: { install_tuto_seen: true } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function declareAdult(req, res, next) {
   try {
     const value = (req.body || {}).is_adult;
@@ -785,6 +804,7 @@ module.exports = {
   logoutAll,
   verifyEmail,
   declareAdult,
+  markInstallTutoSeen,
   resendVerification,
   forgotPassword,
   resetPassword,
