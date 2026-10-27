@@ -1608,3 +1608,32 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
   display: block; flex: none; object-fit: contain; background: none; box-shadow: none; border-radius: 0;
 }
+
+/* ---------- Installer l'application ---------- */
+.install-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; margin: 4px 0 8px; padding: 0;
+  border: 0; border-bottom: .5px solid var(--ios-separator); background: none; color: var(--v2-on-surface);
+  font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.install-row[hidden] { display: none; }
+.install-row-icon { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+.install-row-label { flex: 1; min-width: 0; }
+.install-row .icon { width: 18px; height: 18px; color: var(--ios-secondary); flex: none; }
+#install-help { margin: 4px 0 12px; }
+
+/* Bannière en verre, au-dessus de la barre de navigation, sur l'Accueil seulement. */
+.install-banner {
+  position: fixed; left: var(--v2-margin); right: var(--v2-margin); bottom: calc(var(--v2-dock-space) + 8px); z-index: 50;
+  display: flex; align-items: center; gap: 8px; max-width: 448px; margin: 0 auto; padding: 6px 6px 6px 18px;
+  color: var(--v2-on-surface);
+}
+.install-banner[hidden], body:not([data-view="home"]) .install-banner, body:has(#auth-screen:not(.hidden)) .install-banner { display: none; }
+.install-banner-text { flex: 1; min-width: 0; margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; }
+.install-banner-action {
+  flex: none; min-height: 40px; padding: 0 16px; border: 0; border-radius: 9999px;
+  background: var(--v2-primary-container); color: var(--v2-on-primary); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.install-banner-close {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -2px 0; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--v2-secondary); font-size: 22px; line-height: 1; cursor: pointer;
+}

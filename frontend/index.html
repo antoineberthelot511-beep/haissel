@@ -908,6 +908,13 @@
               <div id="ppanel-settings" class="profile-panel profile-grid" role="tabpanel" aria-label="Réglages" hidden>
                 <div class="profile-card-box settings-box">
                   <h3 class="card-title">Réglages</h3>
+                  <!-- Installer l'application : Android (invite du navigateur) ou iPhone Safari (feuille « Comment faire ? »). -->
+                  <button id="install-row" class="install-row" type="button" hidden>
+                    <img class="install-row-icon" src="/icons/icon-192.png" alt="" width="32" height="32" />
+                    <span class="install-row-label">Installer l'application HAISSEL</span>
+                    <svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+                  </button>
+                  <p id="install-help" class="setting-help" hidden>Ouvre HAISSEL dans Safari pour l'installer.</p>
                   <div class="setting-row">
                     <label class="setting-label" for="notif-switch">Notifications sur cet appareil</label>
                     <input id="notif-switch" class="ios-switch" type="checkbox" role="switch" aria-describedby="notif-help" />
@@ -1086,6 +1093,13 @@
     <!-- Notifications reçues pendant la visite (texte brut uniquement). -->
     <div id="notif-stack" class="notif-stack" role="status" aria-live="polite"></div>
 
+    <!-- Bannière de l'Accueil : installer l'app, ou activer les notifications une fois installée (app.js). -->
+    <div id="install-banner" class="install-banner lg-glass lg-pill" role="region" aria-label="Installer HAISSEL" hidden>
+      <p id="install-banner-text" class="install-banner-text">Installe HAISSEL pour recevoir les notifications</p>
+      <button id="install-banner-action" class="install-banner-action" type="button">Installer</button>
+      <button id="install-banner-close" class="install-banner-close" type="button" aria-label="Fermer">×</button>
+    </div>
+
     <!-- Avant d'ouvrir un lien publié par un membre -->
     <dialog id="leave-dialog" class="app-dialog" aria-labelledby="leave-title">
       <form method="dialog">
@@ -1148,6 +1162,7 @@
     <script src="stories.js"></script>
     <script src="chat-thread.js"></script>
     <script src="activity.js"></script>
+    <script src="install.js"></script>
     <script src="push-client.js"></script>
     <script src="app.js"></script>
     <script src="liquid-glass.js"></script>

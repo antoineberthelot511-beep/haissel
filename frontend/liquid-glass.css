@@ -127,7 +127,7 @@
  * Le reste de l'interface n'a pas de thème sombre : en-tête, recherche et
  * toasts gardent un verre clair et dense en mode sombre, sous leur texte foncé.
  */
-.topbar-glass, .topbar .topbar-icon.lg-glass, #community-filters.lg-glass, .filters-button.lg-glass, .notif-card.lg-glass {
+.topbar-glass, .topbar .topbar-icon.lg-glass, #community-filters.lg-glass, .filters-button.lg-glass, .notif-card.lg-glass, .install-banner.lg-glass {
   --lg-tint: rgba(255, 255, 255, .88); --lg-native-tint: rgba(255, 255, 255, .6);
   --lg-line: rgba(15, 23, 42, .1); --lg-edge: rgba(255, 255, 255, .6); --lg-edge-low: rgba(255, 255, 255, .08);
   --lg-shadow: 0 10px 30px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);

@@ -428,6 +428,9 @@ function showLoggedIn(user) {
   // Sans liste d'offres à charger, rien d'autre n'attend l'écran de démarrage.
   if (!['home', 'links', 'discover'].includes(startView)) bootReady();
   loadLinks();
+  // Première visite d'un membre connecté sur cet appareil : point de départ des 3 jours.
+  if (!storageGet(INSTALL_KEYS.firstSeen)) storageSet(INSTALL_KEYS.firstSeen, String(Date.now()));
+  renderInstallUi();
   if (notificationCenter) notificationCenter.start();
   startUnreadPolling();
   syncPush();
@@ -1535,6 +1538,109 @@ async function handleNotifSwitch() {
     : await window.HaisselPush.disable(pushDeps());
   await renderNotifSetting();
   if (result === 'error') ui.notifHelp.textContent = 'Activation impossible pour le moment. Réessaie dans un instant.';
+}
+
+// ---------------------------------------------------------------------------
+// Installer l'application (install.js) : ligne de Réglages et bannière de l'Accueil
+// ---------------------------------------------------------------------------
+
+const INSTALL_KEYS = {
+  firstSeen: 'haissel-first-seen',
+  bannerDismissed: 'haissel-install-banner-dismissed',
+  notifyDismissed: 'haissel-notify-offer-dismissed',
+};
+
+function storageGet(key) {
+  try { return safeStorage()?.getItem(key) ?? null; } catch (error) { return null; }
+}
+
+function storageSet(key, value) {
+  try { safeStorage()?.setItem(key, value); } catch (error) { /* stockage indisponible : rien à retenir */ }
+}
+
+function installState() {
+  return window.HaisselInstall.installState({
+    ...deviceEnv(), hasPrompt: Boolean(window.HaisselInstall.deferred), installed: window.HaisselInstall.installed,
+  });
+}
+
+/** Mode de la bannière : 'install', 'notify' (déjà installée) ou null. */
+async function installBannerMode() {
+  const state = installState();
+  if (window.HaisselInstall.bannerVisible({
+    state, firstSeenAt: storageGet(INSTALL_KEYS.firstSeen), dismissed: storageGet(INSTALL_KEYS.bannerDismissed) === '1',
+  })) return 'install';
+  const config = await loadPushConfig();
+  const canPush = 'Notification' in window && window.HaisselPush.canPush(navigator);
+  const offer = window.HaisselInstall.notifyOfferVisible({
+    state,
+    pushEnabled: Boolean(config.enabled),
+    canPush,
+    permission: canPush ? window.Notification.permission : 'denied',
+    subscribed: canPush && Boolean(await window.HaisselPush.current(navigator)),
+    dismissed: storageGet(INSTALL_KEYS.notifyDismissed) === '1',
+  });
+  return offer ? 'notify' : null;
+}
+
+async function renderInstallUi() {
+  const current = installState();
+  ui.installRow.hidden = current !== 'prompt' && current !== 'ios-safari';
+  ui.installHelp.hidden = current !== 'ios-other';
+  const mode = state.user ? await installBannerMode() : null;
+  ui.installBanner.hidden = !mode;
+  ui.installBanner.dataset.mode = mode || '';
+  if (mode === 'notify') {
+    ui.installBannerText.textContent = 'Active les notifications pour être prévenu des nouveautés';
+    ui.installBannerAction.textContent = 'Activer';
+    ui.installBanner.setAttribute('aria-label', 'Activer les notifications');
+  } else {
+    ui.installBannerText.textContent = 'Installe HAISSEL pour recevoir les notifications';
+    ui.installBannerAction.textContent = 'Installer';
+    ui.installBanner.setAttribute('aria-label', 'Installer HAISSEL');
+  }
+}
+
+/** Ligne de Réglages ou bouton « Installer » : invite Android, ou feuille « Comment faire ? » sur iPhone. */
+async function runInstall() {
+  const current = installState();
+  if (current === 'ios-safari') {
+    openSheet(ui.howtoSheet);
+    return;
+  }
+  const event = window.HaisselInstall.deferred;
+  if (current !== 'prompt' || !event) return;
+  // L'invite ne sert qu'une fois.
+  window.HaisselInstall.deferred = null;
+  try {
+    await event.prompt();
+    const choice = await event.userChoice;
+    if (choice && choice.outcome === 'accepted') {
+      window.HaisselInstall.installed = true;
+      storageSet(INSTALL_KEYS.bannerDismissed, '1');
+    }
+  } catch (error) { /* invite refusée par le navigateur : rien à faire */ }
+  await renderInstallUi();
+  if (!ui.notifSwitch.closest('[hidden]')) renderNotifSetting();
+}
+
+async function handleInstallBannerAction() {
+  if (ui.installBanner.dataset.mode === 'notify') {
+    // Même chemin que l'interrupteur de Réglages : permission demandée ici, au toucher.
+    ui.installBannerAction.disabled = true;
+    await window.HaisselPush.enable(pushDeps());
+    storageSet(INSTALL_KEYS.notifyDismissed, '1');
+    ui.installBannerAction.disabled = false;
+    await renderInstallUi();
+    return;
+  }
+  await runInstall();
+}
+
+function closeInstallBanner() {
+  const key = ui.installBanner.dataset.mode === 'notify' ? INSTALL_KEYS.notifyDismissed : INSTALL_KEYS.bannerDismissed;
+  storageSet(key, '1');
+  ui.installBanner.hidden = true;
 }
 
 /* Au chargement : l'abonnement déjà présent sur l'appareil est renvoyé au serveur (sans rien demander). */
@@ -3453,7 +3559,7 @@ document.addEventListener('DOMContentLoaded', () => {
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
-    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
+    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installHelp: 'install-help', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -3567,6 +3673,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Réglages : notifications sur cet appareil.
   bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
   ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
+  ui.installRow.addEventListener('click', runInstall);
+  ui.installBannerAction.addEventListener('click', handleInstallBannerAction);
+  ui.installBannerClose.addEventListener('click', closeInstallBanner);
+  window.addEventListener('haissel-install-change', () => { if (state.user) renderInstallUi(); });
   ui.notifSwitch.addEventListener('change', handleNotifSwitch);
   window.addEventListener('hashchange', openViewFromHash);
   // Retour sur l'application (réglages du téléphone modifiés entre-temps).
