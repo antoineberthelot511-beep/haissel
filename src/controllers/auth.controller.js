@@ -155,6 +155,11 @@ function validateRegistration(body) {
     return { error: ['ADULT_ANSWER_REQUIRED', `Indique si tu as ${ADULT_AGE} ans ou plus : la réponse est obligatoire.`] };
   }
 
+  // Condition d'âge de l'inscription (15 ans ou accord d'un parent) : case cochée obligatoire.
+  if (source.age_terms_accepted !== true) {
+    return { error: ['AGE_TERMS_REQUIRED', 'Coche la case pour confirmer que tu as 15 ans ou plus, ou l’accord d’un parent.'] };
+  }
+
   return {
     value: {
       firstName, lastName, username, email, password,
@@ -177,8 +182,8 @@ async function register(req, res, next) {
       const result = await pool.query(
         `
           INSERT INTO users (username, email, password_hash, display_name, first_name, last_name,
-                             is_adult, adult_declared_at, password_changed_at, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW(), NOW())
+                             is_adult, adult_declared_at, age_terms_accepted_at, password_changed_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW(), NOW(), NOW())
           RETURNING ${USER_COLUMNS}
         `,
         [value.username, value.email, passwordHash, value.displayName, value.firstName, value.lastName,

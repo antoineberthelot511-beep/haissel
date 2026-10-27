@@ -91,10 +91,34 @@ describe('contenu', () => {
     expect(page).toMatch(/liens affiliés sont réservés à l'équipe HAISSEL/);
   });
 
-  test('repères à compléter visibles', () => {
-    expect(read('mentions-legales.html')).toContain('[À COMPLÉTER PAR ANTOINE : nom ou raison sociale de l’éditeur]');
-    expect(read('cgu.html')).toContain('[À VALIDER PAR ANTOINE : 15 ans minimum ?]');
-    expect(read('mentions-legales.html')).toContain('Vercel Inc.');
+  test('plus aucun repère [À …], sauf le téléphone de Vercel à vérifier', () => {
+    for (const page of [...PAGES, 'contact.html']) {
+      const markers = [...read(page).matchAll(/\[À [^\]]*\]/g)].map((m) => m[0]);
+      const allowed = page === 'mentions-legales.html' ? ['[À VÉRIFIER : la page légale publique de Vercel n’indique aucun numéro]'] : [];
+      expect([page, markers]).toEqual([page, allowed]);
+      expect(read(page)).not.toMatch(/À COMPLÉTER|À VALIDER|médiateur/);
+    }
+  });
+
+  test('éditeur non professionnel, hébergeur, serveurs en Europe, contact par formulaire', () => {
+    const mentions = read('mentions-legales.html');
+    expect(mentions).toContain("HAISSEL est édité par une personne physique à titre non professionnel. Conformément à l'article 6 III-2 de la loi n° 2004-575 du 21 juin 2004, son identité a été communiquée à l'hébergeur.");
+    expect(mentions).not.toMatch(/SIRET|directeur de la publication|adresse postale/i);
+    expect(mentions).toContain('<strong>Vercel Inc.</strong>, 440 N Barranca Ave #4133, Covina, CA 91723');
+    const privacy = read('confidentialite.html');
+    expect(privacy).toContain("Les données sont hébergées et traitées dans l'Union européenne (Francfort, Allemagne) par Vercel et Neon.");
+    expect(privacy).toContain(`Responsable du traitement : l'éditeur de HAISSEL, joignable via le <a href="/contact">`);
+    expect(privacy).toMatch(/Data Privacy Framework/);
+    expect(privacy).toMatch(/formulaire de contact[^<]*<\/td><td[^>]*>[^<]*<\/td><td[^>]*>[^<]*<\/td><td[^>]*>12 mois/);
+    expect(privacy).toMatch(/date et l'heure de cette acceptation sont enregistrées/);
+    for (const page of [...PAGES, 'contact.html']) {
+      expect(read(page)).not.toMatch(/adresse e-mail de contact/);
+      expect(read(page)).toContain('<a href="/contact"');
+      if (page !== 'contact.html') expect(read(page)).toContain('Dernière mise à jour : 27 octobre 2026');
+    }
+    const vercel = JSON.parse(fs.readFileSync(path.join(__dirname, '../vercel.json'), 'utf8'));
+    expect(vercel.regions).toEqual(['fra1']);
+    expect(vercel.builds).toHaveLength(1);
   });
 });
 

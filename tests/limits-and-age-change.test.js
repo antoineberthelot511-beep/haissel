@@ -24,6 +24,7 @@ const registration = (overrides = {}) => ({
   password: PASSWORD,
   confirm_password: PASSWORD,
   is_adult: true,
+  age_terms_accepted: true,
   ...overrides,
 });
 

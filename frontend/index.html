@@ -356,6 +356,12 @@
                   <p class="age-consequence"><svg class="icon sm" aria-hidden="true"><use href="#i-shield-check" /></svg><span>Avec moins de 18 ans, tu gardes l'accès aux guides de l'espace Apprendre. Le parcours MyLead, le parrainage, la publication d'offres et l'ouverture des liens affiliés ne sont pas accessibles.</span></p>
                 </fieldset>
 
+                <label class="toggle-row age-terms">
+                  <input id="register-age-terms" type="checkbox" required />
+                  <span>J'ai 15 ans ou plus, ou j'ai l'accord d'un parent pour m'inscrire.</span>
+                </label>
+                <p class="field-error hidden" id="err-register-age-terms" role="alert"></p>
+
                 <div class="turnstile-slot hidden" data-turnstile-action="register"></div>
                 <button class="primary-button" type="submit">Créer mon compte</button>
                 <p class="auth-switch">Déjà un compte ? <button class="text-button" type="button" data-switch-form="login">Connecte-toi</button></p>
@@ -931,6 +937,7 @@
                     <li><a class="about-row" href="transparence.html">Transparence<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
                     <li><a class="about-row" href="confidentialite.html">Confidentialité<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
                     <li><a class="about-row" href="cgu.html">Conditions d'utilisation<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="/contact">Contact<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
                   </ul>
                   <p class="about-meta">HAISSEL · <span id="about-year">2026</span></p>
                 </section>
@@ -1099,6 +1106,7 @@
           <a href="transparence.html">Transparence</a>
           <a href="confidentialite.html">Confidentialité</a>
           <a href="cgu.html">CGU</a>
+          <a href="/contact">Contact</a>
         </div>
       </footer>
     </div>

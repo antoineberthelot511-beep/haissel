@@ -25,13 +25,14 @@ function storeFor(name) {
   return isVercel() ? new PostgresRateLimitStore(name) : undefined;
 }
 
-function limiter({ name, windowMs, limit, message, skipSuccessfulRequests = false, byUser = false }) {
+function limiter({ name, windowMs, limit, message, skipSuccessfulRequests = false, skipFailedRequests = false, byUser = false }) {
   return rateLimit({
     windowMs,
     limit,
     store: storeFor(name),
     keyGenerator: byUser ? userKeyGenerator : keyGenerator,
     skipSuccessfulRequests,
+    skipFailedRequests,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     skip: () => process.env.NODE_ENV === 'test' && process.env.RATE_LIMIT_IN_TESTS !== 'true',
@@ -146,7 +147,21 @@ const pushRateLimiter = limiter({
   message: 'Trop de demandes de notifications. Réessaie dans quelques minutes.',
 });
 
+/*
+ * Formulaire de contact : 3 envois par heure et par adresse IP. Seuls les
+ * envois acceptés comptent (une erreur de saisie ne consomme rien). La limite
+ * par compte est comptée en base (contact.controller).
+ */
+const contactRateLimiter = limiter({
+  name: 'contact',
+  windowMs: 60 * 60 * 1000,
+  limit: 3,
+  skipFailedRequests: true,
+  message: 'Tu as déjà envoyé 3 demandes cette heure-ci. Réessaie plus tard.',
+});
+
 module.exports = {
+  contactRateLimiter,
   pushRateLimiter,
   broadcastBurstLimiter,
   broadcastHourlyLimiter,

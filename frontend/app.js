@@ -3403,6 +3403,18 @@ async function handleRegister(event) {
   }
   body.is_adult = choice.value === 'yes';
 
+  // Condition d'âge de l'inscription (15 ans ou accord d'un parent) : case obligatoire.
+  const termsBox = document.getElementById('register-age-terms');
+  const termsError = document.getElementById('err-register-age-terms');
+  termsError.classList.add('hidden');
+  if (!termsBox.checked) {
+    termsError.textContent = 'Coche la case pour confirmer que tu as 15 ans ou plus, ou l’accord d’un parent.';
+    termsError.classList.remove('hidden');
+    termsBox.focus();
+    return;
+  }
+  body.age_terms_accepted = true;
+
   if (!attachTurnstile(form, body)) {
     setMessage('error', 'Valide la vérification anti-robot avant de continuer.');
     return;

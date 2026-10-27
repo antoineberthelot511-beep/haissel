@@ -7,6 +7,7 @@
  *  - sessions et jetons expirés : supprimés dès qu'ils ne servent plus ;
  *  - messagerie avec l'équipe : conversation et messages supprimés 12 mois
  *    après le dernier échange ;
+ *  - demandes du formulaire de contact : supprimées 12 mois après l'envoi ;
  *  - compteurs de limitation : supprimés dès que leur fenêtre est passée
  *    (ils n'existent que sur Vercel, où les compteurs sont en base).
  */
@@ -24,6 +25,7 @@ const PURGE_QUERIES = [
   ['auth_tokens', `DELETE FROM auth_tokens WHERE expires_at < NOW() - INTERVAL '1 day'`],
   ['team_conversations', `DELETE FROM conversations
                           WHERE member_id IS NOT NULL AND last_message_at < NOW() - INTERVAL '12 months'`],
+  ['contact_requests', `DELETE FROM contact_requests WHERE created_at < NOW() - INTERVAL '12 months'`],
   ['rate_limit_counters', `DELETE FROM rate_limit_counters WHERE expires_at < NOW() - INTERVAL '1 hour'`],
   ['login_throttle_failures', `DELETE FROM login_throttle_failures WHERE last_failure_at < NOW() - INTERVAL '1 day'`],
 ];

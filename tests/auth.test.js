@@ -44,6 +44,7 @@ function registration(overrides = {}) {
     confirm_password: NEW_PASSWORD,
     // Réponse obligatoire depuis la déclaration de majorité (voir adult.test.js).
     is_adult: true,
+    age_terms_accepted: true,
     ...overrides,
   };
 }

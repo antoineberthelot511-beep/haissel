@@ -291,3 +291,4 @@ img.brand-mark { display: block; object-fit: contain; background: none !importan
 .push-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .push-banner[hidden] { display: none; }
 .push-banner p { margin: 0; font-weight: 600; }
+.contact-message { white-space: pre-line; overflow-wrap: anywhere; }

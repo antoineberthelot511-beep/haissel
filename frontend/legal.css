@@ -106,3 +106,19 @@ body {
 .legal-links a { display: inline-flex; align-items: center; min-height: 32px; color: var(--legal-muted); white-space: nowrap; }
 .legal-links a + a::before { content: "·"; margin: 0 .5em; }
 .legal-links a[aria-current="page"] { color: var(--legal-text); font-weight: 600; text-decoration: none; }
+
+/* Formulaire de contact (/contact). */
+.contact-form { display: grid; gap: 16px; margin-top: 8px; }
+.contact-field { display: grid; gap: 6px; font-weight: 600; }
+.contact-field select, .contact-field textarea, .contact-field input {
+  width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 12px; border: 1px solid var(--legal-line); border-radius: 12px;
+  background: var(--legal-surface); color: var(--legal-text); font: inherit; font-weight: 400; font-size: 16px;
+}
+.contact-field textarea { resize: vertical; min-height: 140px; }
+.contact-hint { color: var(--legal-muted); font-size: .875rem; font-weight: 400; }
+.contact-status { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--legal-surface); border: 1px solid var(--legal-line); }
+.contact-status[data-kind="error"] { border-color: #d93025; }
+.contact-submit {
+  min-height: 48px; border: 0; border-radius: 999px; background: var(--brand); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.contact-submit:disabled { opacity: .6; cursor: progress; }

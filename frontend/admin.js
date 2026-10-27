@@ -385,7 +385,7 @@ async function handleLogout() {
 // Navigation
 // ---------------------------------------------------------------------------
 
-const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'inbox', 'categories',
+const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'inbox', 'contact', 'categories',
   'content', 'opportunities', 'referral'];
 
 // « #messages » : lien des notifications Web Push de l'équipe (sw.js).
@@ -1272,6 +1272,52 @@ async function openInboxThread(id, { refreshList = true } = {}) {
   if (refreshList) await loadInbox();
 }
 
+// ---------------------------------------------------------------------------
+// Contact : demandes du formulaire /contact (affichées en textContent via h)
+// ---------------------------------------------------------------------------
+state.contactOpen = null;
+
+async function loadContact() {
+  const data = await api('/api/admin/contact');
+  state.contactItems = data.items;
+  $('contact-list').replaceChildren(...(data.items.length ? data.items.map((item) => h('li', null,
+    h('button', {
+      className: `inbox-item${item.handled_at ? '' : ' unread'}${state.contactOpen === item.id ? ' active' : ''}`, type: 'button',
+      onclick: () => openContact(item.id),
+    },
+    h('strong', null, item.subject_label),
+    item.handled_at ? badge('Traitée', 'ok') : badge('À traiter', 'bad'),
+    h('span', { className: 'muted' }, item.message.slice(0, 120)),
+    h('small', { className: 'muted' }, date(item.created_at)))))
+    : [h('li', { className: 'empty' }, 'Aucune demande pour le moment.')]));
+  if (state.contactOpen) openContact(state.contactOpen, { refreshList: false });
+}
+
+function openContact(id, { refreshList = true } = {}) {
+  state.contactOpen = id;
+  const item = (state.contactItems || []).find((row) => row.id === id);
+  if (!item) return;
+  const from = item.username ? `@${item.username}${item.account_email ? ` (${item.account_email})` : ''}` : 'Visiteur sans compte';
+  const button = h('button', { className: 'btn primary', type: 'button', disabled: Boolean(item.handled_at) },
+    item.handled_at ? `Traitée le ${date(item.handled_at)}` : 'Marquer comme traité');
+  button.addEventListener('click', async () => {
+    try {
+      await api(`/api/admin/contact/${encodeURIComponent(id)}/handled`, { method: 'POST', body: '{}' });
+      toast('Demande marquée comme traitée.');
+      await loadContact();
+    } catch (error) {
+      handleError(error);
+    }
+  });
+  $('contact-detail').replaceChildren(
+    h('h2', null, item.subject_label),
+    h('p', { className: 'muted' }, `${from} · ${date(item.created_at)}`),
+    h('p', null, `Répondre à : ${item.reply_email || (item.username ? 'onglet Messages du membre' : '—')}`),
+    h('p', { className: 'contact-message' }, item.message),
+    button);
+  if (refreshList) loadContact().catch(handleError);
+}
+
 const LOADERS = {
   dashboard: loadDashboard,
   links: loadLinks,
@@ -1283,6 +1329,7 @@ const LOADERS = {
   referral: loadReferral,
   moderation: loadModeration,
   inbox: loadInbox,
+  contact: loadContact,
   categories: loadCategories,
 };
 

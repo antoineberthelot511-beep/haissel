@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Contact — HAISSEL</title>
+    <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="stylesheet" href="/brand.css" />
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <header class="legal-head">
+      <a class="legal-back" href="/app" data-legal-back>‹ Retour</a>
+      <a class="legal-brand" href="/app"><img src="/logo.svg" alt="" width="28" height="28" /><span>HAISSEL</span></a>
+    </header>
+
+    <main class="legal-page">
+      <h1>Contact</h1>
+      <p class="updated">Une question, un contenu à signaler ou une demande sur tes données personnelles ? Écris-nous ici, avec ou sans compte.</p>
+
+      <form id="contact-form" class="contact-form" novalidate>
+        <label class="contact-field" for="contact-subject">Sujet
+          <select id="contact-subject" name="subject" required>
+            <option value="question">Question</option>
+            <option value="report">Signaler un contenu</option>
+            <option value="privacy">Données personnelles (RGPD)</option>
+            <option value="other">Autre</option>
+          </select>
+        </label>
+
+        <label class="contact-field" for="contact-message">Message
+          <textarea id="contact-message" name="message" rows="7" minlength="20" maxlength="2000" required placeholder="Explique ta demande (20 caractères au moins)."></textarea>
+          <small id="contact-count" class="contact-hint" aria-live="polite">0 / 2000</small>
+        </label>
+
+        <label class="contact-field" for="contact-email"><span id="contact-email-label">E-mail de réponse</span>
+          <input id="contact-email" name="reply_email" type="email" maxlength="254" autocomplete="email" required />
+          <small id="contact-email-hint" class="contact-hint">Obligatoire pour qu'on puisse te répondre.</small>
+        </label>
+
+        <div class="turnstile-slot" data-turnstile-action="contact" hidden></div>
+        <p id="contact-status" class="contact-status" role="status" hidden></p>
+        <button id="contact-submit" class="contact-submit" type="submit">Envoyer</button>
+        <p class="contact-hint">Pour une demande sur tes données (accès, rectification, suppression…), choisis le sujet « Données personnelles (RGPD) ». Ta demande est conservée 12 mois (<a href="confidentialite.html">confidentialité</a>).</p>
+      </form>
+    </main>
+
+    <nav class="legal-links" aria-label="Pages légales">
+      <a href="mentions-legales.html">Mentions légales</a>
+      <a href="transparence.html">Transparence</a>
+      <a href="confidentialite.html">Confidentialité</a>
+      <a href="cgu.html">CGU</a>
+      <a href="/contact" aria-current="page">Contact</a>
+    </nav>
+    <script src="/legal.js"></script>
+    <script src="/turnstile.js"></script>
+    <script src="/contact.js"></script>
+  </body>
+</html>

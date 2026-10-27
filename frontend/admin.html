@@ -108,6 +108,7 @@
           <a href="#notifications" data-section="notifications">Notifications</a>
           <a href="#moderation" data-section="moderation">Offres membres</a>
           <a href="#inbox" data-section="inbox">Messages</a>
+          <a href="#contact" data-section="contact">Contact</a>
           <a href="#categories" data-section="categories">Catégories</a>
           <a href="#content" data-section="content">Guides et tutoriels</a>
           <a href="#opportunities" data-section="opportunities">Opportunités</a>
@@ -304,6 +305,24 @@
             <ul id="inbox-list" class="panel inbox-list" aria-label="Conversations"></ul>
             <div id="inbox-thread" class="panel inbox-thread" aria-live="polite">
               <p class="empty">Choisissez une conversation.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- CONTACT : demandes du formulaire /contact -->
+        <section id="section-contact" class="section" aria-labelledby="h-contact" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Communauté</p>
+              <h1 id="h-contact">Contact</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="contact">Actualiser</button>
+          </header>
+          <p class="muted">Demandes envoyées depuis le formulaire de contact, non traitées en premier. Texte brut ; supprimées 12 mois après l'envoi.</p>
+          <div class="inbox">
+            <ul id="contact-list" class="panel inbox-list" aria-label="Demandes de contact"></ul>
+            <div id="contact-detail" class="panel inbox-thread" aria-live="polite">
+              <p class="empty">Choisissez une demande.</p>
             </div>
           </div>
         </section>
