@@ -910,6 +910,17 @@
                   <p id="notif-help" class="setting-help"></p>
                   <button id="notif-howto" class="setting-link" type="button" aria-haspopup="dialog" hidden>Comment faire ?</button>
                 </div>
+                <!-- À propos : les pages légales (plus de pied de page dans l'espace membre). -->
+                <section class="about-box" aria-labelledby="about-title">
+                  <h3 id="about-title" class="about-title">À propos</h3>
+                  <ul class="about-list">
+                    <li><a class="about-row" href="mentions-legales.html">Mentions légales<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="transparence.html">Transparence<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="confidentialite.html">Confidentialité<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="cgu.html">Conditions d'utilisation<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                  </ul>
+                  <p class="about-meta">HAISSEL · <span id="about-year">2026</span></p>
+                </section>
               </div>
 
               <!-- Ajouter à l'écran d'accueil (iPhone) : trois étapes. -->
@@ -1056,9 +1067,9 @@
       </main>
 
       <!-- ====================== PIED DE PAGE ====================== -->
+      <!-- Pages publiques seulement : masqué dans l'espace membre (liens dans Profil → Réglages). -->
       <footer class="site-footer">
         <div class="footer-meta">
-          <span><strong>HAISSEL</strong> · espace membre</span>
           <a href="mentions-legales.html">Mentions légales</a>
           <a href="transparence.html">Transparence</a>
           <a href="confidentialite.html">Confidentialité</a>

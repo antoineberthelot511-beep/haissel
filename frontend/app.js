@@ -3379,6 +3379,8 @@ async function handleEmailLinks() {
 
 async function init() {
   purgeLegacyStorage();
+  const aboutYear = document.getElementById('about-year');
+  if (aboutYear) aboutYear.textContent = String(new Date().getFullYear());
   try {
     state.config = await api('/api/auth/config');
   } catch (error) { /* valeurs par défaut */ }
