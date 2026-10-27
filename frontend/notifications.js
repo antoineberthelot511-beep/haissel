@@ -271,6 +271,17 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     // La page « Activité » et la pastille de la cloche se mettent à jour.
     if (typeof options.onNotification === 'function') options.onNotification(notification);
 
+    /*
+     * Abonnement Web Push actif sur cet appareil : la vraie notification
+     * arrive par le service worker. La page n'en affiche pas une seconde
+     * (ni système ni encadré) : pastille et Activité suffisent.
+     */
+    if (typeof options.hasPushSubscription === 'function') {
+      let subscribed = false;
+      try { subscribed = Boolean(await options.hasPushSubscription()); } catch (error) { subscribed = false; }
+      if (subscribed) return;
+    }
+
     if (!systemNotificationsAllowed()) {
       if (supportsSystemNotifications() && !window.isSecureContext) {
         setLastResult('Message reçu, affiché dans la page : notification système impossible sur une connexion non sécurisée.', true);

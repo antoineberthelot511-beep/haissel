@@ -111,7 +111,15 @@ async function sendPushTest() {
     const result = await api('/api/admin/push/test', { method: 'POST', body: '{}' });
     if (!result.devices) toast('Aucun appareil abonné : active les notifications dans Profil › Réglages avec ce compte.', 'error');
     else if (result.timeout) toast('Envoi trop long : réessaie dans un instant.', 'error');
-    else toast(`Notification envoyée à ${result.sent} appareil(s) sur ${result.devices}.`);
+    else {
+      const failures = (result.failures || []).map((code) => `HTTP ${code}`).join(', ');
+      const text = `Envoyée à ${result.sent} appareil(s) sur ${result.devices}.`;
+      if (result.sent < result.devices) {
+        toast(`${text} Échec : ${failures || 'pas de réponse du service'}.`, 'error');
+      } else {
+        toast(text);
+      }
+    }
   } catch (error) {
     toast(error.message, 'error');
   } finally {

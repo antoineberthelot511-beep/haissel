@@ -33,13 +33,15 @@ const subscription = (host = 'fcm.googleapis.com') => { n += 1; return { endpoin
 
 let pool;
 let admin;
+let adminUser;
 let alice;
 let aliceUser;
 let sent;
 
 beforeAll(async () => {
   pool = await helpers.setupDatabase();
-  admin = await login(app, await createUser({ admin: true, prefix: 'pushadmin' }));
+  adminUser = await createUser({ admin: true, prefix: 'pushadmin' });
+  admin = await login(app, adminUser);
   aliceUser = await createUser({ prefix: 'pushalice' });
   alice = await login(app, aliceUser);
 }, 60000);
@@ -144,6 +146,14 @@ describe('envoi', () => {
     expect(await countFor(user.id)).toBe(0);
   });
 
+  test('urgence configurable ; valeur inconnue ramenée à « normal »', async () => {
+    const user = await createUser({ prefix: 'pushurg' });
+    await push.saveSubscription(user.id, subscription(), 'test');
+    await push.sendToUser(user.id, { title: 'HAISSEL', body: 'Test' }, { urgency: 'high' });
+    await push.sendToUser(user.id, { title: 'HAISSEL', body: 'Test' }, { urgency: 'immédiate' });
+    expect(sent.map((item) => item.options.urgency)).toEqual(['high', 'normal']);
+  });
+
   test('TTL 24 h, urgence normale, plafond de 3 s même si le service ne répond pas', async () => {
     const user = await createUser({ prefix: 'pushlent' });
     await push.saveSubscription(user.id, subscription(), 'test');
@@ -164,6 +174,7 @@ describe('envoi', () => {
     const secret = 'Ton code secret est 4242';
     await request(app).post(`/api/admin/messages/${conversation}`).set(auth(admin)).send({ content: secret }).expect(201);
     expect(sent).toHaveLength(1);
+    expect(sent[0].options.urgency).toBe('high');
     expect(sent[0].payload).not.toContain('4242');
     expect(JSON.parse(sent[0].payload)).toEqual({ title: 'HAISSEL', body: 'Nouveau message de l’équipe HAISSEL', url: '/app#messages', tag: 'team-message' });
   });
@@ -181,6 +192,42 @@ describe('envoi', () => {
     const payload = JSON.parse(sent[0].payload);
     expect(payload.body).toBe('Ta fiche a été validée : Une application très pratique pour révi…');
     expect(payload.url).toBe('/app#profile');
+    expect(sent[0].options.urgency).toBe('high');
+  });
+
+  test('fiche refusée : urgence haute', async () => {
+    const res = await request(app).post('/api/community/offers').set(auth(alice)).send({
+      title: 'Une autre application à refuser', url: 'https://www.annonceur.example/push/2',
+      campaign_name: 'Campagne refusée', description: 'Une application pour réviser ses cours, gratuite au téléchargement.',
+      category: 'applications', countries: 'FR', expected_action: 'Installer et ouvrir l’application', min_age: null,
+      conditions: 'Pas de trafic incité.', rights_confirmed: true,
+    });
+    expect(res.status).toBe(201);
+    sent = [];
+    await request(app).post(`/api/admin/community/offers/${res.body.data.offer.id}/moderate`).set(auth(admin))
+      .send({ decision: 'reject', note: 'Conditions de l’annonceur manquantes.' }).expect(200);
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(sent[0].payload).body).toMatch(/^Ta fiche n’a pas été validée/);
+    expect(sent[0].options.urgency).toBe('high');
+  });
+
+  test('test de l’admin : urgence haute, résultat lisible avec les codes HTTP, sans endpoint', async () => {
+    const ok = subscription();
+    const refused = subscription();
+    await push.saveSubscription(adminUser.id, ok, 'test');
+    await push.saveSubscription(adminUser.id, refused, 'test');
+    push.setSender(async (sub, payload, options) => {
+      sent.push({ sub, payload, options });
+      if (sub.endpoint === refused.endpoint) {
+        const error = new Error('refus');
+        error.statusCode = 403;
+        throw error;
+      }
+    });
+    const res = await request(app).post('/api/admin/push/test').set(auth(admin)).send({}).expect(200);
+    expect(sent.every((item) => item.options.urgency === 'high')).toBe(true);
+    expect(res.body.data).toMatchObject({ devices: 2, sent: 1, failures: [403] });
+    expect(JSON.stringify(res.body)).not.toContain(refused.endpoint);
   });
 
   test('url externe remplacée par /app', () => {

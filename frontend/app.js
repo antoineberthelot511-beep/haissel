@@ -3478,6 +3478,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   notificationCenter = window.createNotificationCenter({
     post: (url, body) => api(url, { method: 'POST', body }),
+    // Appareil abonné au Web Push : pas de doublon affiché par la page.
+    hasPushSubscription: async () => Boolean(await window.HaisselPush.current(navigator)),
     get: (url) => api(url),
     /*
      * « sse » en local et sous Docker, « poll » sur Vercel. Fonction et non

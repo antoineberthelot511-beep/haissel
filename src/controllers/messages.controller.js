@@ -207,7 +207,7 @@ async function adminReply(req, res, next) {
     if (member.rows[0]) {
       await push.sendToUser(member.rows[0].member_id, {
         title: 'HAISSEL', body: 'Nouveau message de l’équipe HAISSEL', url: '/app#messages', tag: 'team-message',
-      });
+      }, { urgency: 'high' });
     }
     return res.status(201).json({ success: true, data: { message } });
   } catch (error) {
