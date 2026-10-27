@@ -2,45 +2,70 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Transparence — HAISSEL</title>
+    <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
-    <link rel="stylesheet" href="styles.css" />
-    <!-- Après styles.css : son --brand (vert) est remplacé par le bleu du logo. -->
     <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="legal.css" />
   </head>
   <body>
+    <header class="legal-head">
+      <a class="legal-back" href="/app" data-legal-back>‹ Retour</a>
+      <a class="legal-brand" href="/app"><img src="/logo.svg" alt="" width="28" height="28" /><span>HAISSEL</span></a>
+    </header>
+
     <main class="legal-page">
-      <nav><a href="/">← Retour au site</a><a href="mentions-legales.html">Mentions légales</a><a href="confidentialite.html">Confidentialité</a><a href="cgu.html">CGU</a></nav>
       <h1>Transparence : liens affiliés et commissions</h1>
-      <p class="updated">Dernière mise à jour : 15 octobre 2026</p>
+      <p class="updated">Dernière mise à jour : 27 octobre 2026</p>
 
-      <h2>Les intérêts financiers de HAISSEL</h2>
-      <p>HAISSEL est édité par Antoine Berthelot (voir les <a href="mentions-legales.html">mentions légales</a>). Le site peut percevoir de l'argent de deux façons :</p>
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title" class="toc-title">Sommaire</h2>
+        <ol>
+          <li><a href="#interets">Les intérêts financiers de HAISSEL</a></li>
+          <li><a href="#fiches">Les fiches campagne des membres</a></li>
+          <li><a href="#ne-fait-pas">Ce que HAISSEL ne fait pas</a></li>
+          <li><a href="#choix">Comment les contenus sont choisis</a></li>
+          <li><a href="#erreur">Signaler une erreur</a></li>
+        </ol>
+      </nav>
+
+      <h2 id="interets">Les intérêts financiers de HAISSEL</h2>
+<p>HAISSEL est édité par <span class="todo">[À COMPLÉTER PAR ANTOINE : nom de l’éditeur]</span> (voir les <a href="mentions-legales.html">mentions légales</a>). Le site peut percevoir de l'argent de deux façons, et seulement de ces deux façons :</p>
       <ul>
-        <li><strong>Les liens affiliés.</strong> Les liens et offres marqués « Publicité » sont des liens affiliés. Si vous réalisez l'action prévue par l'annonceur (par exemple une inscription validée ou un achat), l'annonceur ou la plateforme d'affiliation peut verser une commission à l'éditeur. Cela ne vous coûte rien de plus.</li>
-        <li><strong>Le parrainage MyLead.</strong> Le lien de parrainage affiché dans la rubrique « Parrainage » est le lien personnel de l'éditeur. Si vous vous inscrivez sur MyLead avec ce lien, MyLead peut verser à l'éditeur une part de vos futurs gains, selon les conditions en vigueur de son programme. Cette part est financée par MyLead et ne réduit pas vos gains. Vous pouvez aussi vous inscrire directement, sans ce lien.</li>
+        <li><strong>Les liens affiliés de l'équipe.</strong> Seule l'équipe HAISSEL publie des liens affiliés. Ils sont marqués « Publicité ». Si tu réalises l'action prévue par l'annonceur (par exemple une inscription validée ou un achat), l'annonceur ou la plateforme d'affiliation peut verser une commission à l'éditeur. Cela ne te coûte rien de plus.</li>
+        <li><strong>Le parrainage MyLead.</strong> Le lien de parrainage de la rubrique « Parrainage » est le lien personnel de l'éditeur. Si tu t'inscris sur MyLead avec ce lien, MyLead peut verser à l'éditeur une part de tes futurs gains, selon les conditions de son programme. Cette part est financée par MyLead et ne réduit pas tes gains. Tu peux aussi t'inscrire directement, sans ce lien.</li>
       </ul>
 
-      <h2>Les offres publiées par les membres</h2>
-      <p>Une offre publiée par un membre contient <strong>son propre lien d'affiliation</strong>. Si vous réalisez l'action demandée, c'est ce membre qui peut toucher une commission, versée par sa plateforme d'affiliation (par exemple MyLead). Ces commissions n'ont <strong>rien à voir</strong> avec le parrainage de l'éditeur : HAISSEL ne prélève rien sur les liens des membres et ne leur verse rien. Chaque offre est vérifiée par l'équipe avant d'être visible, mais cela ne vaut pas approbation de la campagne par HAISSEL, MyLead ou l'annonceur.</p>
+      <h2 id="fiches">Les fiches campagne des membres</h2>
+<p>Les membres majeurs peuvent publier des <strong>fiches campagne</strong> : un lien vers la <strong>page officielle</strong> de la campagne (site de l'annonceur ou page de la campagne sur MyLead), des conseils et les conditions. Une fiche ne contient <strong>jamais de lien affilié</strong> : chaque membre récupère son propre lien sur sa plateforme d'affiliation, s'il le souhaite.</p>
+      <p>HAISSEL ne touche rien sur ces fiches et ne verse rien à leurs auteurs. Chaque fiche est vérifiée par l'équipe avant d'être visible, puis s'affiche 24 h comme une story ; cette vérification ne vaut pas approbation de la campagne par HAISSEL, par MyLead ou par l'annonceur.</p>
 
-      <h2>Ce que HAISSEL ne fait pas</h2>
-      <ul>
-        <li>HAISSEL ne verse <strong>aucune commission</strong> à ses membres et ne gère aucun système de rémunération interne. Seuls les programmes officiels auxquels vous vous inscrivez vous-même peuvent vous rémunérer, selon leurs propres conditions.</li>
-        <li>HAISSEL ne garantit aucun gain. Les montants affichés sont ceux annoncés par les annonceurs ; ils peuvent changer à tout moment et ne sont versés que pour des actions validées.</li>
-        <li>HAISSEL ne transmet ni votre nom ni votre adresse e-mail aux annonceurs, et ne collecte aucune coordonnée pour le compte d'un annonceur.</li>
-        <li>HAISSEL n'enregistre pas les clics sur les fiches de la rubrique « Opportunités ». Le filtre par âge et par pays fonctionne uniquement dans votre navigateur.</li>
+      <h2 id="ne-fait-pas">Ce que HAISSEL ne fait pas</h2>
+<ul>
+        <li>HAISSEL ne verse <strong>aucune commission</strong> à ses membres et ne gère aucun système de rémunération interne (l'ancienne fonction de codes d'affiliation des membres est désactivée). Seuls les programmes officiels auxquels tu t'inscris toi-même peuvent te rémunérer, selon leurs propres conditions.</li>
+        <li>HAISSEL ne garantit aucun gain. Les montants affichés sont ceux annoncés par les annonceurs ; ils peuvent changer et ne sont versés que pour des actions validées.</li>
+        <li>HAISSEL ne transmet ni ton nom ni ton adresse e-mail aux annonceurs et ne collecte aucune coordonnée pour le compte d'un annonceur.</li>
+        <li>HAISSEL n'enregistre pas les clics sur les fiches de la rubrique « Opportunités ». Le filtre par âge et par pays fonctionne uniquement dans ton navigateur.</li>
+        <li>Les liens affiliés et le parcours MyLead sont réservés aux membres qui ont déclaré avoir 18 ans ou plus.</li>
       </ul>
 
-      <h2>Comment les contenus sont choisis</h2>
-      <p>Les guides et tutoriels sont rédigés pour expliquer, pas pour vendre ; ils ne sont pas sponsorisés. Une opportunité n'est publiée qu'après qu'un administrateur a vérifié ses conditions officielles : action rémunérée, pays acceptés, âge minimum et restrictions de promotion. La date de cette vérification est affichée sur chaque fiche. En cas de différence, <strong>les conditions officielles de l'annonceur font foi</strong>.</p>
+      <h2 id="choix">Comment les contenus sont choisis</h2>
+<p>Les guides et tutoriels sont rédigés pour expliquer, pas pour vendre ; ils ne sont pas sponsorisés. Une opportunité n'est publiée qu'après vérification de ses conditions officielles par un administrateur : action rémunérée, pays acceptés, âge minimum et restrictions de promotion. En cas de différence, <strong>les conditions officielles de l'annonceur font foi</strong>.</p>
 
-      <h2>Signaler une erreur</h2>
-      <p>Une fiche vous semble inexacte ou trompeuse ? Écrivez à <a href="mailto:antoineberthelot511@gmail.com">antoineberthelot511@gmail.com</a> : elle sera vérifiée et, si besoin, retirée.</p>
+      <h2 id="erreur">Signaler une erreur</h2>
+<p>Une fiche te semble inexacte ou trompeuse ? Signale-la depuis l'application, écris à l'équipe dans l'onglet Messages, ou à <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse e-mail de contact]</span> : elle sera vérifiée et, si besoin, retirée.</p>
     </main>
+
+    <nav class="legal-links" aria-label="Pages légales">
+      <a href="mentions-legales.html">Mentions légales</a>
+      <a href="transparence.html" aria-current="page">Transparence</a>
+      <a href="confidentialite.html">Confidentialité</a>
+      <a href="cgu.html">CGU</a>
+    </nav>
+    <script src="/legal.js"></script>
   </body>
 </html>

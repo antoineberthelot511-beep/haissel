@@ -2,62 +2,105 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Conditions générales d'utilisation — HAISSEL</title>
+    <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
-    <link rel="stylesheet" href="styles.css" />
-    <!-- Après styles.css : son --brand (vert) est remplacé par le bleu du logo. -->
     <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="legal.css" />
   </head>
   <body>
+    <header class="legal-head">
+      <a class="legal-back" href="/app" data-legal-back>‹ Retour</a>
+      <a class="legal-brand" href="/app"><img src="/logo.svg" alt="" width="28" height="28" /><span>HAISSEL</span></a>
+    </header>
+
     <main class="legal-page">
-      <nav><a href="/">← Retour au site</a><a href="mentions-legales.html">Mentions légales</a><a href="confidentialite.html">Confidentialité</a></nav>
       <h1>Conditions générales d'utilisation</h1>
-      <p class="updated">Dernière mise à jour : 15 octobre 2026</p>
+      <p class="updated">Dernière mise à jour : 27 octobre 2026</p>
 
-      <h2>1. Objet</h2>
-      <p>Les présentes conditions encadrent l'utilisation de HAISSEL, plateforme communautaire où les membres consultent des offres partenaires, apprennent le fonctionnement de l'affiliation et peuvent publier leurs propres liens d'affiliation, obtenus auprès de plateformes officielles comme MyLead. Créer un compte vaut acceptation de ces conditions.</p>
-      <p><strong>HAISSEL ne verse aucune rémunération à ses membres.</strong> Les commissions générées par le lien d'un membre sont versées, le cas échéant, par la plateforme d'affiliation de ce membre, selon ses propres conditions. Aucun gain n'est garanti.</p>
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title" class="toc-title">Sommaire</h2>
+        <ol>
+          <li><a href="#objet">1. Objet</a></li>
+          <li><a href="#inscription">2. Inscription</a></li>
+          <li><a href="#majorite">3. Déclaration de majorité</a></li>
+          <li><a href="#fiches">4. Fiches campagne des membres</a></li>
+          <li><a href="#interdits">5. Pratiques interdites</a></li>
+          <li><a href="#messagerie">6. Messagerie avec l’équipe</a></li>
+          <li><a href="#app">7. Notifications et installation de l’application</a></li>
+          <li><a href="#commissions">8. Commissions</a></li>
+          <li><a href="#sanctions">9. Sanctions, suspension et suppression</a></li>
+          <li><a href="#responsabilite">10. Responsabilité</a></li>
+          <li><a href="#droit">11. Droit applicable</a></li>
+        </ol>
+      </nav>
 
-      <h2>2. Inscription</h2>
-      <p>L'inscription est réservée aux personnes de 15 ans et plus (ou plus jeunes avec l'accord d'un parent). Les informations fournies doivent être exactes. Vous êtes responsable de la confidentialité de votre mot de passe ; activez la double authentification si possible.</p>
+      <h2 id="objet">1. Objet</h2>
+<p>Les présentes conditions encadrent l'utilisation de HAISSEL, plateforme communautaire où les membres découvrent des offres partenaires, apprennent le fonctionnement de l'affiliation et partagent des fiches campagne. Créer un compte vaut acceptation de ces conditions.</p>
+      <p><strong>HAISSEL ne verse aucune rémunération à ses membres.</strong> Aucun gain n'est garanti.</p>
 
-      <h2>3. Partage des liens : obligations de l'utilisateur</h2>
+      <h2 id="inscription">2. Inscription</h2>
+<p>L'inscription est réservée aux personnes de 15 ans et plus (ou plus jeunes avec l'accord d'un parent). <span class="todo">[À VALIDER PAR ANTOINE : 15 ans minimum ?]</span> Les informations fournies doivent être exactes ; un seul compte par personne. Tu es responsable de la confidentialité de ton mot de passe ; active la double authentification si possible.</p>
+
+      <h2 id="majorite">3. Déclaration de majorité</h2>
+<p>À l'inscription (ou à la première connexion pour les comptes plus anciens), tu indiques si tu as 18 ans ou plus. C'est une déclaration sur l'honneur : aucune date de naissance n'est demandée.</p>
       <ul>
-        <li>Indiquer clairement le caractère commercial de chaque lien partagé (« lien affilié », « #publicité » ou équivalent), conformément à l'article L. 121-1 du Code de la consommation et à la loi n° 2023-451 du 9 juin 2023 ;</li>
-        <li>Ne pas envoyer de messages commerciaux non sollicités (spam) : la prospection par e-mail ou SMS exige le consentement préalable du destinataire (article L. 34-5 du Code des postes et des communications électroniques) ;</li>
-        <li>Ne pas générer de faux clics ou de fausses conversions (robots, auto-clics, comptes multiples) ;</li>
-        <li>Ne pas présenter les offres de façon trompeuse.</li>
+        <li>Les liens affiliés, le parcours MyLead, le parrainage et la publication de fiches sont réservés aux membres qui déclarent avoir 18 ans ou plus.</li>
+        <li>Passer de « moins de 18 ans » à « 18 ans ou plus » n'est possible que <strong>30 jours</strong> après la dernière réponse ; en cas d'erreur, écris à l'équipe. L'inverse est toujours immédiat.</li>
       </ul>
 
-      <h2>3 bis. Publier une offre sur HAISSEL</h2>
-      <ul>
-        <li>Les membres publient des fiches campagne : un lien vers la page officielle (site de l'annonceur ou page de la campagne sur MyLead), des conseils et les conditions. Ils ne publient jamais leur lien affilié ; seule l'équipe HAISSEL publie des liens affiliés. Chaque membre récupère son propre lien sur sa plateforme d'affiliation.</li>
-        <li>Vous respectez les conditions de l'annonceur (pays, âge minimum, canaux autorisés).</li>
-        <li>Il est interdit de demander aux membres de s'inscrire sur un lien, y compris en échange d'une inscription sur le vôtre. Ces inscriptions sont de faux leads : elles sont refusées par l'annonceur, les gains correspondants sont annulés et les comptes peuvent être fermés. Une telle demande est retirée et peut être signalée avec le motif « Échange d'inscriptions ».</li>
-        <li>La description est honnête : aucune promesse de gains, aucune fausse information, aucune présentation d'une inscription comme rémunérée si elle ne l'est pas.</li>
+      <h2 id="fiches">4. Fiches campagne des membres</h2>
+<ul>
+        <li>Les membres majeurs publient des fiches campagne : un lien vers la <strong>page officielle</strong> (site de l'annonceur ou page de la campagne sur MyLead), des conseils et les conditions. Seuls les liens sécurisés (https) sont acceptés.</li>
+        <li>Une fiche ne contient <strong>jamais ton lien affilié</strong> : les liens affiliés sont réservés à l'équipe HAISSEL. Chaque membre récupère son propre lien sur sa plateforme d'affiliation.</li>
+        <li>Chaque fiche est <strong>vérifiée par l'équipe avant publication</strong> ; elle peut être refusée ou retirée, avec un motif. Une fiche modifiée est vérifiée à nouveau.</li>
+        <li>Une fois validée, la fiche est visible <strong>24 heures</strong>, comme une story. Tu peux la <strong>republier</strong> pour 24 heures de plus, au plus tôt <strong>20 heures</strong> après sa dernière publication.</li>
+        <li>Tu respectes les conditions de l'annonceur (pays, âge minimum, canaux autorisés). La description est honnête : aucune promesse de gains, aucune fausse information.</li>
         <li>Sont interdits : jeux d'argent, crypto-actifs, crédit, rencontres, contenus pour adultes, tabac, alcool, et toute offre illégale ou inadaptée à un public jeune.</li>
-        <li>Seuls les liens sécurisés (https) sont acceptés. Chaque offre est vérifiée par l'équipe avant d'être visible ; une offre peut être refusée ou retirée, avec un motif. Une offre signalée plusieurs fois est masquée jusqu'à vérification.</li>
-        <li>Vous pouvez modifier ou retirer vos offres à tout moment ; une offre modifiée est vérifiée à nouveau. Vous ne pouvez pas modifier les offres des autres membres.</li>
-        <li>Pour limiter le spam : 5 offres par 24 heures et 10 offres en attente au maximum par membre.</li>
-        <li>HAISSEL ne vous demandera jamais votre identifiant, votre mot de passe ou vos accès à une plateforme d'affiliation.</li>
+        <li>Pour limiter le spam : 5 fiches par 24 heures et 10 fiches en attente de vérification au maximum. Une fiche signalée par trois membres est masquée jusqu'à vérification.</li>
+        <li>Tu peux retirer tes fiches à tout moment. Tu ne peux pas modifier celles des autres membres.</li>
         <li>Une vérification par HAISSEL ne vaut pas approbation de la campagne par HAISSEL, par MyLead ou par l'annonceur.</li>
       </ul>
 
-      <h2>4. Commissions</h2>
-      <p>HAISSEL ne verse aucune commission à ses membres. Pour les liens que vous publiez, la commission éventuelle est versée par votre plateforme d'affiliation, qui reste seule juge de sa validation. Une commission n'est due qu'après confirmation de la conversion par le partenaire. Les conversions frauduleuses ou annulées ne donnent lieu à aucun paiement. Les revenus perçus peuvent être imposables : chaque utilisateur est responsable de ses déclarations.</p>
+      <h2 id="interdits">5. Pratiques interdites</h2>
+<ul>
+        <li><strong>Auto-clics</strong> et faux clics ou fausses conversions (robots, scripts, clics sur ses propres liens) ;</li>
+        <li><strong>Faux comptes</strong> et comptes multiples ;</li>
+        <li><strong>Échanges d'inscriptions</strong> : demander aux membres de s'inscrire sur un lien, y compris en échange d'une inscription sur le tien. Ces inscriptions sont de faux leads, refusés par l'annonceur ; la demande est retirée et peut être signalée avec le motif « Échange d'inscriptions » ;</li>
+        <li>Envoyer des messages commerciaux non sollicités (spam) : la prospection par e-mail ou SMS exige le consentement préalable du destinataire (article L. 34-5 du Code des postes et des communications électroniques) ;</li>
+        <li>Présenter une offre de façon trompeuse, ou partager un lien commercial sans l'indiquer clairement (« lien affilié », « #publicité »), conformément à l'article L. 121-1 du Code de la consommation et à la loi n° 2023-451 du 9 juin 2023.</li>
+      </ul>
 
-      <h2>5. Suspension et suppression</h2>
-      <p>Un compte peut être suspendu en cas de non-respect de ces conditions. Vous pouvez supprimer votre compte à tout moment depuis la rubrique « Sécurité du compte ».</p>
+      <h2 id="messagerie">6. Messagerie avec l’équipe</h2>
+<p>La messagerie relie chaque membre à l'<strong>équipe HAISSEL uniquement</strong> : les membres ne peuvent pas s'écrire entre eux. Les messages sont en texte brut ; les liens n'y sont pas cliquables. Pour éviter les abus, 20 messages par heure au plus.</p>
+      <p>Règles de conduite : rester poli et respectueux, ne pas harceler, ne pas envoyer de contenu illégal, haineux ou à caractère sexuel, ne pas partager de données personnelles d'autres personnes ni tes mots de passe. Les conversations sont supprimées 12 mois après le dernier échange.</p>
 
-      <h2>6. Responsabilité</h2>
-      <p>HAISSEL n'est pas vendeur des produits ou services des partenaires et ne répond pas de leur exécution. Le service est fourni sans garantie de disponibilité permanente.</p>
+      <h2 id="app">7. Notifications et installation de l’application</h2>
+<p>Installer HAISSEL sur l'écran d'accueil et activer les notifications sont <strong>facultatifs</strong> : le site fonctionne sans. Les notifications ne sont activées qu'à ta demande et se coupent à tout moment dans Profil › Réglages.</p>
 
-      <h2>7. Droit applicable</h2>
-      <p>Ces conditions sont soumises au droit français. En cas de litige, une solution amiable sera recherchée avant toute action ; le consommateur peut recourir gratuitement à un médiateur de la consommation (<span class="todo">[NOM DU MÉDIATEUR, SI ACTIVITÉ PROFESSIONNELLE]</span>).</p>
+      <h2 id="commissions">8. Commissions</h2>
+<p>HAISSEL ne verse aucune commission à ses membres. Si tu t'inscris toi-même à un programme d'affiliation, la commission éventuelle est versée par cette plateforme, seule juge de sa validation. Les conversions frauduleuses ou annulées ne donnent lieu à aucun paiement. Les revenus perçus peuvent être imposables : chacun est responsable de ses déclarations.</p>
+
+      <h2 id="sanctions">9. Sanctions, suspension et suppression</h2>
+<p>En cas de non-respect de ces conditions, l'équipe peut, selon la gravité : <strong>refuser</strong> ou retirer une fiche (avec un motif), <strong>suspendre</strong> le compte, ou le bannir. Tu peux supprimer ton compte à tout moment depuis Profil › Modifier le profil › Mes données personnelles.</p>
+
+      <h2 id="responsabilite">10. Responsabilité</h2>
+<p>HAISSEL n'est pas vendeur des produits ou services des partenaires et ne répond pas de leur exécution. Le service est fourni sans garantie de disponibilité permanente.</p>
+
+      <h2 id="droit">11. Droit applicable</h2>
+<p>Ces conditions sont soumises au droit français. En cas de litige, une solution amiable sera recherchée avant toute action ; le consommateur peut recourir gratuitement à un médiateur de la consommation (<span class="todo">[À COMPLÉTER PAR ANTOINE : nom du médiateur de la consommation, si activité professionnelle]</span>).</p>
     </main>
+
+    <nav class="legal-links" aria-label="Pages légales">
+      <a href="mentions-legales.html">Mentions légales</a>
+      <a href="transparence.html">Transparence</a>
+      <a href="confidentialite.html">Confidentialité</a>
+      <a href="cgu.html" aria-current="page">CGU</a>
+    </nav>
+    <script src="/legal.js"></script>
   </body>
 </html>

@@ -2,51 +2,80 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Mentions légales — HAISSEL</title>
+    <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
-    <link rel="stylesheet" href="styles.css" />
-    <!-- Après styles.css : son --brand (vert) est remplacé par le bleu du logo. -->
     <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="legal.css" />
   </head>
   <body>
+    <header class="legal-head">
+      <a class="legal-back" href="/app" data-legal-back>‹ Retour</a>
+      <a class="legal-brand" href="/app"><img src="/logo.svg" alt="" width="28" height="28" /><span>HAISSEL</span></a>
+    </header>
+
     <main class="legal-page">
-      <nav><a href="/">← Retour au site</a><a href="confidentialite.html">Confidentialité</a><a href="transparence.html">Transparence</a><a href="cgu.html">CGU</a></nav>
       <h1>Mentions légales</h1>
-      <p class="updated">Dernière mise à jour : 14 octobre 2026</p>
-      <p>Informations publiées en application de l'article 6-III de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique (LCEN).</p>
+      <p class="updated">Dernière mise à jour : 27 octobre 2026</p>
 
-      <h2>Éditeur du site</h2>
-      <p>
-        Nom ou raison sociale : Antoine Berthelot<br />
-        Statut (particulier, micro-entreprise, association…) et SIRET le cas échéant : <span class="todo">[À COMPLÉTER]</span><br />
-        Adresse : <span class="todo">[À COMPLÉTER]</span><br />
-        Contact : <a href="mailto:antoineberthelot511@gmail.com">antoineberthelot511@gmail.com</a><br />
-        Directeur de la publication : Antoine Berthelot
-      </p>
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title" class="toc-title">Sommaire</h2>
+        <ol>
+          <li><a href="#editeur">Éditeur du site</a></li>
+          <li><a href="#hebergement">Hébergement</a></li>
+          <li><a href="#contact">Contact</a></li>
+          <li><a href="#signaler">Signaler un contenu</a></li>
+          <li><a href="#affiliation">Liens d’affiliation</a></li>
+          <li><a href="#contenus">Contenus pédagogiques</a></li>
+          <li><a href="#propriete">Propriété intellectuelle</a></li>
+          <li><a href="#donnees">Données personnelles</a></li>
+        </ol>
+      </nav>
 
-      <h2>Hébergement</h2>
-      <p>
-        Hébergeur : Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis — <a href="https://vercel.com/contact" rel="noopener noreferrer">vercel.com/contact</a>
-      </p>
+      <h2 id="editeur">Éditeur du site</h2>
+<p>Informations publiées en application de l'article 6-III de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique (LCEN).</p>
+      <ul>
+        <li>Nom ou raison sociale : <span class="todo">[À COMPLÉTER PAR ANTOINE : nom ou raison sociale de l’éditeur]</span></li>
+        <li>Statut (particulier, micro-entreprise, association…) et SIRET le cas échéant : <span class="todo">[À COMPLÉTER PAR ANTOINE : statut et SIRET]</span></li>
+        <li>Adresse : <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse postale de l’éditeur]</span></li>
+        <li>Contact : <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse e-mail de contact]</span></li>
+        <li>Directeur ou directrice de la publication : <span class="todo">[À COMPLÉTER PAR ANTOINE : nom du directeur de la publication]</span></li>
+      </ul>
 
-      <h2>Liens d'affiliation</h2>
-      <p>Les liens marqués « Publicité » et le lien de parrainage MyLead sont des <strong>liens commerciaux</strong> : lorsqu'une action prévue par l'annonceur est réalisée et validée, l'annonceur ou la plateforme d'affiliation peut verser une commission à l'éditeur, sans surcoût pour l'utilisateur. HAISSEL ne verse aucune commission à ses membres. Détails : page <a href="transparence.html">Transparence</a>. Toute personne qui partage un lien affilié doit l'indiquer clairement (par exemple « lien affilié » ou « #publicité »), conformément à l'article L. 121-1 du Code de la consommation et à la loi n° 2023-451 du 9 juin 2023.</p>
+      <h2 id="hebergement">Hébergement</h2>
+<p>Le site et ses fonctions serveur sont hébergés par <strong>Vercel Inc.</strong>, 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis (<a href="https://vercel.com" rel="noopener noreferrer">vercel.com</a>).</p>
+      <p>La base de données est fournie par <strong>Neon</strong> (Neon, Inc.), via l'intégration de Vercel. La liste complète des prestataires figure dans la <a href="confidentialite.html#prestataires">politique de confidentialité</a>.</p>
 
-      <h2>Contenus pédagogiques</h2>
-      <p>Les guides, tutoriels et fiches d'opportunités sont fournis à titre d'information. Ils ne constituent ni un conseil financier ni une promesse de gains. Les conditions officielles de chaque annonceur et de chaque plateforme font foi.</p>
+      <h2 id="contact">Contact</h2>
+<p>Pour toute question sur le site : <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse e-mail de contact]</span>. Si tu as un compte, tu peux aussi écrire à l'équipe depuis l'onglet <strong>Messages</strong> de l'application.</p>
 
-      <h2>Propriété intellectuelle</h2>
-      <p>Les textes, le logo et l'interface du site sont protégés. Toute reproduction sans autorisation est interdite. Les marques des partenaires appartiennent à leurs titulaires respectifs.</p>
+      <h2 id="signaler">Signaler un contenu</h2>
+<p>Dans l'application, chaque fiche peut être signalée avec un motif (contenu trompeur, spam, danger, mineurs, droits, échange d'inscriptions…). Une fiche signalée par trois membres est masquée jusqu'à vérification par l'équipe.</p>
+      <p>Tu peux aussi signaler un contenu illicite à <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse e-mail de contact]</span>, en précisant l'adresse de la page et le motif.</p>
 
-      <h2>Signaler un contenu</h2>
-      <p>Pour signaler un contenu illicite, écrivez à <a href="mailto:antoineberthelot511@gmail.com">antoineberthelot511@gmail.com</a> en précisant l'adresse de la page et le motif.</p>
+      <h2 id="affiliation">Liens d’affiliation</h2>
+<p>Les liens marqués « Publicité » et le lien de parrainage MyLead sont des <strong>liens commerciaux</strong> publiés par l'équipe : lorsqu'une action prévue par l'annonceur est réalisée et validée, l'annonceur ou la plateforme d'affiliation peut verser une commission à l'éditeur, sans surcoût pour toi. HAISSEL ne verse aucune commission à ses membres. Détails : page <a href="transparence.html">Transparence</a>.</p>
 
-      <h2>Données personnelles</h2>
-      <p>Voir la <a href="confidentialite.html">politique de confidentialité</a>.</p>
+      <h2 id="contenus">Contenus pédagogiques</h2>
+<p>Les guides, tutoriels et fiches d'opportunités sont fournis à titre d'information. Ils ne constituent ni un conseil financier ni une promesse de gains. Les conditions officielles de chaque annonceur et de chaque plateforme font foi.</p>
+
+      <h2 id="propriete">Propriété intellectuelle</h2>
+<p>Les textes, le logo et l'interface du site sont protégés. Toute reproduction sans autorisation est interdite. Les marques des partenaires appartiennent à leurs titulaires respectifs.</p>
+
+      <h2 id="donnees">Données personnelles</h2>
+<p>Voir la <a href="confidentialite.html">politique de confidentialité</a>.</p>
     </main>
+
+    <nav class="legal-links" aria-label="Pages légales">
+      <a href="mentions-legales.html" aria-current="page">Mentions légales</a>
+      <a href="transparence.html">Transparence</a>
+      <a href="confidentialite.html">Confidentialité</a>
+      <a href="cgu.html">CGU</a>
+    </nav>
+    <script src="/legal.js"></script>
   </body>
 </html>

@@ -2,68 +2,109 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Politique de confidentialité — HAISSEL</title>
+    <meta name="theme-color" content="#f7f8fc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1117" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
-    <link rel="stylesheet" href="styles.css" />
-    <!-- Après styles.css : son --brand (vert) est remplacé par le bleu du logo. -->
     <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="legal.css" />
   </head>
   <body>
+    <header class="legal-head">
+      <a class="legal-back" href="/app" data-legal-back>‹ Retour</a>
+      <a class="legal-brand" href="/app"><img src="/logo.svg" alt="" width="28" height="28" /><span>HAISSEL</span></a>
+    </header>
+
     <main class="legal-page">
-      <nav><a href="/">← Retour au site</a><a href="mentions-legales.html">Mentions légales</a><a href="cgu.html">CGU</a></nav>
       <h1>Politique de confidentialité</h1>
-      <p class="updated">Dernière mise à jour : 15 octobre 2026</p>
+      <p class="updated">Dernière mise à jour : 27 octobre 2026</p>
 
-      <h2>Responsable du traitement</h2>
-      <p>Antoine Berthelot, joignable à <a href="mailto:antoineberthelot511@gmail.com">antoineberthelot511@gmail.com</a> (voir les <a href="mentions-legales.html">mentions légales</a>).</p>
+      <nav class="toc" aria-labelledby="toc-title">
+        <h2 id="toc-title" class="toc-title">Sommaire</h2>
+        <ol>
+          <li><a href="#responsable">Responsable du traitement</a></li>
+          <li><a href="#durees">Données, finalités et durées de conservation</a></li>
+          <li><a href="#prestataires">Prestataires</a></li>
+          <li><a href="#notifications">Notifications sur ton appareil</a></li>
+          <li><a href="#membres">Ce que voient les autres membres</a></li>
+          <li><a href="#destinataires">Destinataires</a></li>
+          <li><a href="#droits">Tes droits et comment les exercer</a></li>
+          <li><a href="#mineurs">Mineurs</a></li>
+          <li><a href="#securite">Sécurité</a></li>
+        </ol>
+      </nav>
 
-      <h2>Données collectées, finalités et durées</h2>
+      <h2 id="responsable">Responsable du traitement</h2>
+<p><span class="todo">[À COMPLÉTER PAR ANTOINE : nom du responsable du traitement]</span>, joignable à <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse e-mail de contact]</span> (voir les <a href="mentions-legales.html">mentions légales</a>).</p>
+
+      <h2 id="durees">Données, finalités et durées de conservation</h2>
+<p>Les durées ci-dessous sont appliquées automatiquement par le serveur, chaque jour.</p>
       <table>
-        <thead><tr><th>Données</th><th>Pourquoi</th><th>Base légale (RGPD art. 6)</th><th>Conservation</th></tr></thead>
+        <thead><tr><th>Données</th><th>Pourquoi</th><th>Base légale (RGPD art. 6)</th><th>Durée de conservation</th></tr></thead>
         <tbody>
-          <tr><td>Prénom, nom, pseudo, e-mail, mot de passe (haché, jamais lisible)</td><td>Créer et gérer votre compte</td><td>Exécution du contrat (CGU)</td><td>Jusqu'à la suppression du compte</td></tr>
-          <tr><td>Codes d'affiliation, conversions, gains</td><td>Calculer et afficher vos commissions</td><td>Exécution du contrat</td><td>Jusqu'à la suppression du compte</td></tr>
-          <tr><td>Clics sur les liens : adresse IP, navigateur, page d'origine</td><td>Compter les clics et détecter la fraude</td><td>Intérêt légitime</td><td>IP et navigateur effacés après 6 mois (seule une empreinte anonymisée reste pour les statistiques)</td></tr>
-          <tr><td>Journal de sécurité : connexions, échecs, changements de mot de passe, avec IP et navigateur</td><td>Protéger les comptes contre le piratage</td><td>Intérêt légitime</td><td>12 mois</td></tr>
-          <tr><td>Offres que vous publiez (titre, lien, description, pays, catégorie, conditions) et décisions de modération</td><td>Afficher vos offres aux autres membres, les vérifier et les modérer</td><td>Exécution du contrat (CGU)</td><td>Jusqu'au retrait de l'offre ou à la suppression du compte</td></tr>
-          <tr><td>Offres que vous enregistrez, signalements que vous envoyez (motif, détail)</td><td>Retrouver vos offres favorites ; modérer les contenus signalés et lutter contre les abus</td><td>Exécution du contrat ; intérêt légitime (modération)</td><td>Jusqu'à la suppression du compte (le signalement reste rattaché à l'offre, sans votre identité, après suppression)</td></tr>
-          <tr><td>Messages échangés avec l'équipe HAISSEL (onglet Messages), en texte brut</td><td>Répondre à vos questions et signalements</td><td>Exécution du contrat (CGU)</td><td>12 mois après le dernier message échangé, puis suppression automatique (ou à la suppression du compte)</td></tr>
-          <tr><td>Abonnement aux notifications d'un appareil (si vous les activez) : adresse technique du service de notification de votre navigateur, clés de chiffrement, type de navigateur, dates d'envoi et nombre d'échecs. Aucun contenu de message.</td><td>Vous prévenir sur cet appareil (réponse de l'équipe, fiche validée ou refusée)</td><td>Consentement (activation de l'interrupteur)</td><td>Jusqu'à la désactivation, l'expiration de l'abonnement ou la suppression du compte</td></tr>
-          <tr><td>Cookie de session</td><td>Vous garder connecté</td><td>Strictement nécessaire (exempté de consentement, art. 82 loi Informatique et Libertés)</td><td>Jusqu'à la déconnexion ou l'expiration de la session</td></tr>
+          <tr><td>Compte : prénom, nom, pseudo, e-mail, mot de passe (haché, jamais lisible), double authentification si tu l’actives</td><td data-label="Pourquoi">Créer et gérer ton compte, te connecter</td><td data-label="Base légale (RGPD art. 6)">Exécution du contrat (CGU)</td><td data-label="Durée de conservation">Jusqu’à la suppression du compte</td></tr>
+          <tr><td>Déclaration de majorité : réponse « 18 ans ou plus » ou « moins de 18 ans » et sa date (aucune date de naissance)</td><td data-label="Pourquoi">Réserver aux majeurs les liens affiliés, le parcours MyLead et la publication de fiches</td><td data-label="Base légale (RGPD art. 6)">Obligation légale et intérêt légitime (protection des mineurs, conditions de MyLead)</td><td data-label="Durée de conservation">Jusqu’à la suppression du compte</td></tr>
+          <tr><td>Fiches campagne et stories que tu publies (titre, lien officiel, description, pays, catégorie, conditions), décisions de modération</td><td data-label="Pourquoi">Les afficher aux autres membres (24 h comme une story), les vérifier et les modérer</td><td data-label="Base légale (RGPD art. 6)">Exécution du contrat (CGU)</td><td data-label="Durée de conservation">Jusqu’à leur retrait ou la suppression du compte</td></tr>
+          <tr><td>Fiches enregistrées, signalements envoyés (motif, détail)</td><td data-label="Pourquoi">Retrouver tes fiches favorites ; modérer et lutter contre les abus</td><td data-label="Base légale (RGPD art. 6)">Exécution du contrat ; intérêt légitime (modération)</td><td data-label="Durée de conservation">Jusqu’à la suppression du compte</td></tr>
+          <tr><td>Messages avec l’équipe HAISSEL (onglet Messages), en texte brut</td><td data-label="Pourquoi">Répondre à tes questions et signalements</td><td data-label="Base légale (RGPD art. 6)">Exécution du contrat (CGU)</td><td data-label="Durée de conservation">12 mois après le dernier message échangé, puis suppression automatique (ou avec le compte)</td></tr>
+          <tr><td>Abonnement aux notifications d’un appareil, si tu les actives : adresse technique du service de notification, clés de chiffrement, type de navigateur, dates d’envoi, nombre d’échecs. Aucun contenu de message</td><td data-label="Pourquoi">Te prévenir sur cet appareil (réponse de l’équipe, fiche validée ou refusée)</td><td data-label="Base légale (RGPD art. 6)">Consentement (activation de l’interrupteur)</td><td data-label="Durée de conservation">Jusqu’à la désactivation, l’expiration de l’abonnement, 5 échecs d’envoi ou la suppression du compte ; 10 appareils au plus par compte</td></tr>
+          <tr><td>Tuto d’installation : date à laquelle tu as fermé la feuille d’installation</td><td data-label="Pourquoi">Ne pas te la remontrer à chaque connexion</td><td data-label="Base légale (RGPD art. 6)">Intérêt légitime</td><td data-label="Durée de conservation">Jusqu’à la suppression du compte</td></tr>
+          <tr><td>Clics sur les liens affiliés de l’équipe : adresse IP, navigateur, page d’origine, empreinte technique</td><td data-label="Pourquoi">Compter les clics et détecter la fraude</td><td data-label="Base légale (RGPD art. 6)">Intérêt légitime</td><td data-label="Durée de conservation">IP, navigateur et page d’origine effacés après 6 mois ; seule une empreinte non réversible reste pour les statistiques</td></tr>
+          <tr><td>Journal de sécurité : connexions, échecs, changements de mot de passe ou de double authentification, avec IP et navigateur</td><td data-label="Pourquoi">Protéger les comptes contre le piratage</td><td data-label="Base légale (RGPD art. 6)">Intérêt légitime</td><td data-label="Durée de conservation">12 mois</td></tr>
+          <tr><td>Limitation des tentatives de connexion (compteurs d’échecs)</td><td data-label="Pourquoi">Bloquer les attaques par essais successifs</td><td data-label="Base légale (RGPD art. 6)">Intérêt légitime</td><td data-label="Durée de conservation">1 jour après le dernier échec</td></tr>
+          <tr><td>Cookie de session et jetons de connexion</td><td data-label="Pourquoi">Te garder connecté</td><td data-label="Base légale (RGPD art. 6)">Strictement nécessaire (exempté de consentement, art. 82 loi Informatique et Libertés)</td><td data-label="Durée de conservation">7 jours au plus, 24 h sans activité ; supprimés le lendemain de leur expiration ou de la déconnexion</td></tr>
+          <tr><td>Anciens codes d’affiliation des membres (fonction désactivée)</td><td data-label="Pourquoi">Faire fonctionner les liens déjà partagés</td><td data-label="Base légale (RGPD art. 6)">Intérêt légitime</td><td data-label="Durée de conservation">Jusqu’à la suppression du compte</td></tr>
         </tbody>
       </table>
-      <p>HAISSEL n'utilise <strong>aucun cookie publicitaire ni outil de mesure d'audience</strong>, ne charge aucune ressource depuis un service tiers (polices hébergées sur le serveur) et ne vend aucune donnée. Aucune donnée n'est transférée hors de l'Union européenne, sauf l'acheminement des notifications si vous les activez (voir ci-dessous).</p>
+      <p>Sur ton appareil, l'application garde aussi quelques préférences dans le stockage local du navigateur (stories déjà vues, bannière d'installation fermée, progression du parcours MyLead). Elles ne sont pas envoyées au serveur et tu peux les effacer avec les données du site.</p>
+      <p>HAISSEL n'utilise <strong>aucun cookie publicitaire ni outil de mesure d'audience</strong>, charge ses polices depuis son propre serveur et ne vend aucune donnée.</p>
 
-      <h2>Notifications sur votre appareil</h2>
-      <p>Les notifications sont <strong>désactivées par défaut</strong>. Si vous les activez dans Profil › Réglages, votre navigateur fournit à HAISSEL une adresse technique et des clés de chiffrement propres à cet appareil. Le serveur ne garde que ces éléments, sans contenu de message. Les notifications passent par le service de notification de l'éditeur de votre navigateur (Apple, Google, Mozilla ou Microsoft, qui peut être situé hors de l'Union européenne). Leur contenu est chiffré de bout en bout et reste volontairement discret, par exemple « Nouveau message de l'équipe HAISSEL », sans le texte du message.</p>
-      <p><strong>Se désinscrire :</strong> coupez l'interrupteur dans Profil › Réglages, ou retirez l'autorisation dans les réglages de votre téléphone ou de votre navigateur. L'abonnement est supprimé automatiquement lorsque vous le désactivez, lorsque le service de notification le déclare expiré ou après plusieurs échecs d'envoi, et avec votre compte. Chaque compte peut abonner au plus 10 appareils ; au-delà, le plus ancien est retiré.</p>
-
-      <h2>Rubrique « Apprendre »</h2>
-      <p>La consultation des guides, tutoriels, opportunités et de la page de parrainage ne donne lieu à <strong>aucune collecte supplémentaire</strong>. Le filtre par âge et par pays des opportunités fonctionne uniquement dans votre navigateur : ces informations ne sont ni envoyées au serveur ni enregistrées. Les clics vers les offres et vers le lien de parrainage MyLead ne sont pas enregistrés par HAISSEL. En suivant un de ces liens, vous arrivez sur le site de l'annonceur ou de MyLead, qui applique sa propre politique de confidentialité. HAISSEL ne collecte aucune coordonnée pour la transmettre à un annonceur.</p>
-
-      <h2>Offres publiées par les membres</h2>
-      <p>Les autres membres connectés voient votre <strong>pseudo</strong>, votre date d'inscription et vos offres publiées. Ils ne voient jamais votre nom, votre e-mail ni vos autres données. HAISSEL ne demande et ne stocke aucun identifiant, mot de passe ou cookie de votre compte MyLead ou d'une autre plateforme. La progression du parcours MyLead est enregistrée uniquement dans votre navigateur (stockage local) et n'est pas envoyée au serveur.</p>
-
-      <h2>Destinataires</h2>
-      <p>Seuls l'éditeur et les administrateurs du site ont accès aux données. Les partenaires d'affiliation ne reçoivent, dans l'adresse du lien, que l'identifiant technique du clic et le code d'affiliation (pseudonymes) nécessaires pour confirmer une conversion, jamais votre nom ni votre e-mail. Lorsque vous suivez un lien, vous arrivez sur le site du partenaire, qui applique sa propre politique de confidentialité.</p>
-
-      <h2>Vos droits</h2>
-      <p>Vous disposez des droits d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité (RGPD art. 15 à 21). Depuis votre espace, rubrique « Sécurité du compte » :</p>
+      <h2 id="prestataires">Prestataires</h2>
+<p>HAISSEL fait appel aux prestataires suivants, qui traitent des données pour son compte ou pour faire fonctionner un service que tu utilises :</p>
       <ul>
-        <li><strong>Télécharger mes données</strong> : export complet au format JSON (accès et portabilité) ;</li>
-        <li><strong>Supprimer mon compte</strong> : effacement immédiat et définitif.</li>
+        <li><strong>Vercel Inc.</strong> (États-Unis) : hébergement du site et des fonctions serveur ; reçoit les requêtes de ton navigateur, dont ton adresse IP.</li>
+        <li><strong>Neon, Inc.</strong> (États-Unis) : base de données où sont enregistrées les données décrites ci-dessus.</li>
+        <li><strong>Cloudflare, Inc.</strong>, service Turnstile (États-Unis) : protection anti-robot à l'inscription, à la connexion, au mot de passe oublié et à la publication d'une fiche ; reçoit ton adresse IP et des données techniques du navigateur.</li>
+        <li><strong>Services de notification des navigateurs</strong> (Apple, Google, Mozilla, Microsoft), seulement si tu actives les notifications : ils reçoivent l'adresse technique de l'abonnement et la notification chiffrée, sans le texte de tes messages (par exemple « Nouveau message de l'équipe HAISSEL »).</li>
       </ul>
-      <p>Pour toute autre demande, écrivez à <a href="mailto:antoineberthelot511@gmail.com">antoineberthelot511@gmail.com</a> ; réponse sous un mois. Si vous estimez que vos droits ne sont pas respectés, vous pouvez saisir la CNIL (<a href="https://www.cnil.fr/fr/plaintes" rel="noopener noreferrer">cnil.fr/plaintes</a>).</p>
+      <p>Ces sociétés peuvent traiter des données hors de l'Union européenne ; les transferts s'appuient sur les garanties prévues par le RGPD (clauses contractuelles types ou cadre de protection des données UE–États-Unis). Région d'hébergement des serveurs : <span class="todo">[À VALIDER PAR ANTOINE : région des serveurs Vercel et Neon (par exemple Francfort)]</span>.</p>
 
-      <h2>Mineurs</h2>
-      <p>En France, un mineur de moins de 15 ans ne peut consentir seul au traitement de ses données (art. 45 loi Informatique et Libertés). L'inscription est réservée aux personnes de 15 ans et plus ; en dessous, l'accord d'un titulaire de l'autorité parentale est nécessaire.</p>
+      <h2 id="notifications">Notifications sur ton appareil</h2>
+<p>Les notifications sont <strong>désactivées par défaut</strong> et facultatives. Si tu les actives (Profil › Réglages, ou la proposition affichée après l'installation), ton navigateur fournit à HAISSEL une adresse technique et des clés de chiffrement propres à cet appareil. Le contenu des notifications est chiffré et volontairement discret.</p>
+      <p><strong>Te désinscrire :</strong> coupe l'interrupteur dans Profil › Réglages, ou retire l'autorisation dans les réglages de ton téléphone ou de ton navigateur.</p>
 
-      <h2>Sécurité</h2>
-      <p>Connexion chiffrée (HTTPS), mots de passe hachés, double authentification disponible, limitation des tentatives de connexion, journal de sécurité. En cas de violation de données présentant un risque, la CNIL et les personnes concernées sont prévenues dans les délais légaux (RGPD art. 33 et 34).</p>
+      <h2 id="membres">Ce que voient les autres membres</h2>
+<p>Les autres membres connectés voient ton <strong>pseudo</strong> et tes fiches publiées. Ils ne voient jamais ton nom, ton e-mail ni tes autres données. La messagerie relie seulement chaque membre à l'équipe HAISSEL : les membres ne peuvent pas s'écrire entre eux. HAISSEL ne demande et ne stocke aucun identifiant, mot de passe ou cookie de ton compte MyLead ou d'une autre plateforme.</p>
+
+      <h2 id="destinataires">Destinataires</h2>
+<p>Seuls l'éditeur et les administrateurs du site ont accès aux données, avec les prestataires listés plus haut. Les partenaires d'affiliation ne reçoivent, dans l'adresse du lien, que l'identifiant technique du clic (pseudonyme), jamais ton nom ni ton e-mail. En suivant un lien, tu arrives sur le site du partenaire, qui applique sa propre politique de confidentialité.</p>
+
+      <h2 id="droits">Tes droits et comment les exercer</h2>
+<p>Tu disposes des droits d'<strong>accès</strong>, de <strong>rectification</strong>, de <strong>suppression</strong> (effacement), d'<strong>opposition</strong>, de limitation et de portabilité (RGPD art. 15 à 21). Pour les notifications, qui reposent sur ton consentement, tu peux le retirer à tout moment.</p>
+      <ul>
+        <li><strong>Accès et portabilité</strong> : Profil › Modifier le profil › Mes données personnelles › « Télécharger mes données » (export complet au format JSON).</li>
+        <li><strong>Suppression</strong> : Profil › Modifier le profil › Mes données personnelles › « Supprimer mon compte » (effacement immédiat et définitif).</li>
+        <li><strong>Rectification, opposition et autres demandes</strong> : écris à l'équipe depuis l'onglet Messages ou à <span class="todo">[À COMPLÉTER PAR ANTOINE : adresse e-mail de contact]</span>. Réponse sous un mois.</li>
+      </ul>
+      <p>Si tu estimes que tes droits ne sont pas respectés, tu peux adresser une réclamation à la <strong>CNIL</strong> (<a href="https://www.cnil.fr/fr/plaintes" rel="noopener noreferrer">cnil.fr/plaintes</a>).</p>
+
+      <h2 id="mineurs">Mineurs</h2>
+<p>En France, un mineur de moins de 15 ans ne peut consentir seul au traitement de ses données (art. 45 loi Informatique et Libertés). L'inscription est réservée aux personnes de 15 ans et plus ; en dessous, l'accord d'un titulaire de l'autorité parentale est nécessaire. <span class="todo">[À VALIDER PAR ANTOINE : 15 ans minimum ?]</span></p>
+      <p>Les membres qui déclarent avoir moins de 18 ans n'ont pas accès aux liens affiliés, au parcours MyLead ni à la publication de fiches.</p>
+
+      <h2 id="securite">Sécurité</h2>
+<p>Connexion chiffrée (HTTPS), mots de passe hachés, double authentification disponible, limitation des tentatives de connexion, protection anti-robot, journal de sécurité. En cas de violation de données présentant un risque, la CNIL et les personnes concernées sont prévenues dans les délais légaux (RGPD art. 33 et 34).</p>
     </main>
+
+    <nav class="legal-links" aria-label="Pages légales">
+      <a href="mentions-legales.html">Mentions légales</a>
+      <a href="transparence.html">Transparence</a>
+      <a href="confidentialite.html" aria-current="page">Confidentialité</a>
+      <a href="cgu.html">CGU</a>
+    </nav>
+    <script src="/legal.js"></script>
   </body>
 </html>

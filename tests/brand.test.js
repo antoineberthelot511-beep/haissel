@@ -36,10 +36,11 @@ describe('palette de marque', () => {
       const first = html.indexOf('<link rel="stylesheet"');
       expect([page, first]).toEqual([page, at(html, '/brand.css')]);
     }
-    // Pages légales : après styles.css, qui définit aussi --brand (vert).
+    // Pages légales : autonomes (sans styles.css, qui redéfinissait --brand en vert), brand.css puis legal.css.
     for (const page of ['cgu.html', 'confidentialite.html', 'mentions-legales.html', 'transparence.html']) {
       const html = read(page);
-      expect([page, at(html, '/brand.css') > at(html, 'styles.css')]).toEqual([page, true]);
+      expect([page, at(html, 'styles.css')]).toEqual([page, -1]);
+      expect([page, at(html, '/brand.css') > -1 && at(html, '/brand.css') < at(html, 'legal.css')]).toEqual([page, true]);
     }
   });
 
