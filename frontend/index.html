@@ -641,15 +641,16 @@
                 </header>
                 <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
                 <div id="chat-error" class="auth-error hidden" role="alert"></div>
-                <form id="chat-form" class="chat-form" novalidate>
+                <!-- Pas de formulaire : iOS n'y propose pas sa barre clé / carte / position au-dessus du clavier. -->
+                <div id="chat-form" class="chat-form">
                   <div class="chat-field">
-                    <label class="visually-hidden" for="chat-input">Ton message</label>
-                    <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" required></textarea>
-                    <button id="chat-send" class="chat-send" type="submit" aria-label="Envoyer" hidden>
+                    <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" aria-label="Message"
+                      autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
+                    <button id="chat-send" class="chat-send" type="button" aria-label="Envoyer" disabled>
                       <svg class="icon" aria-hidden="true"><use href="#i-arrow-up" /></svg>
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
             </section>
 

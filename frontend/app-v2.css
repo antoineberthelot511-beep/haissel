@@ -1396,18 +1396,20 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
 #messages-view { transform: none !important; animation: none !important; }
 body.chat-open { overflow: hidden; }
 body.chat-open .site-footer { display: none; }
+body.chat-open .topbar-nav { display: none; }
+/* En-tête compact : une ligne de 52 px, retour + avatar + nom alignés à gauche. */
 .chat-head {
-  position: relative; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
-  padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));
+  position: relative; flex: none; display: flex; align-items: center; gap: 2px; box-sizing: content-box; height: 52px;
+  padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 0 max(4px, env(safe-area-inset-left, 0px));
   background: var(--ios-bar); border-bottom: .5px solid var(--ios-separator);
   -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
 }
 .chat-back { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--ios-blue); cursor: pointer; }
 .chat-back .icon { width: 28px; height: 28px; stroke-width: 2.4; }
-.chat-who { grid-column: 2; display: grid; justify-items: center; gap: 2px; padding-top: 4px; }
-.chat-who strong { font-size: 12px; font-weight: 500; }
+.chat-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chat-who strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-messages {
-  flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   display: flex; flex-direction: column; padding: 8px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
 }
 .chat-empty { margin: auto; color: var(--ios-secondary); text-align: center; }
@@ -1430,25 +1432,27 @@ body.chat-open .site-footer { display: none; }
 .bubble.from-team.tail::after { left: -10px; width: 10px; background: var(--ios-bg); border-bottom-right-radius: 10px; }
 .chat .auth-error { margin: 0 12px 6px; }
 .chat-form {
-  padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+  flex: none; padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
   background: var(--ios-bar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
 }
 .chat.keyboard-open .chat-form { padding-bottom: 6px; }
-.chat-field { position: relative; display: flex; align-items: flex-end; border: 1px solid var(--ios-separator-strong); border-radius: 20px; background: var(--ios-bg); }
+/* Bordure fine et neutre ; un bleu léger seulement au focus. */
+.chat-field { position: relative; display: flex; align-items: flex-end; border: 1px solid var(--chat-border, #d1d1d6); border-radius: 22px; background: var(--ios-bg); transition: border-color .15s, box-shadow .15s; }
 .chat-field textarea {
-  flex: 1; min-width: 0; resize: none; min-height: 38px; padding: 8px 14px; border: 0; border-radius: 20px;
+  flex: 1; min-width: 0; resize: none; min-height: 42px; padding: 10px 4px 10px 14px; box-sizing: border-box; border: 0; border-radius: 20px;
   background: transparent; color: inherit; font: inherit; font-size: 17px; line-height: 20px; overflow-y: auto;
 }
 .chat-field textarea::placeholder { color: var(--ios-secondary); }
 .chat-field textarea:focus { outline: none; }
-.chat-field:focus-within { border-color: var(--ios-blue); }
-/* Bouton rond bleu : zone tactile de 44 px autour d'un disque de 30 px. */
+.chat-field:focus-within { border-color: rgba(10, 132, 255, .45); box-shadow: 0 0 0 3px rgba(10, 132, 255, .12); }
+/* Bouton rond toujours visible : gris et désactivé sans texte, bleu sinon. Zone tactile de 44 px. */
 .chat-send {
-  flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -4px -4px -4px -8px; padding: 0;
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -1px -1px -1px 0; padding: 0;
   border: 0; background: none; cursor: pointer;
 }
-.chat-send .icon { width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: #0A84FF; color: #fff; stroke-width: 2.6; }
-.chat-send[hidden] { display: none; }
+.chat-send .icon { width: 32px; height: 32px; padding: 7px; border-radius: 50%; background: #0A84FF; color: #fff; stroke-width: 2.6; transition: background-color .15s; }
+.chat-send:disabled { cursor: default; }
+.chat-send:disabled .icon { background: var(--chat-send-off, #c7c7cc); }
 
 /* Couleurs façon iOS, clair et sombre (recherche, feuille, messages). */
 :root {
@@ -1540,9 +1544,9 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
  */
 :root { --loader-color: #2563eb; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .chat, :root:not([data-theme="light"]) .sheet { --loader-color: #93c5fd; }
+  :root:not([data-theme="light"]) .chat, :root:not([data-theme="light"]) .sheet { --loader-color: #93c5fd; --chat-border: #3a3a3c; --chat-send-off: #48484a; }
 }
-:root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet { --loader-color: #93c5fd; }
+:root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet { --loader-color: #93c5fd; --chat-border: #3a3a3c; --chat-send-off: #48484a; }
 
 .loader {
   width: 45px;
@@ -1570,9 +1574,6 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
   transition: opacity 200ms ease;
 }
 .boot-screen.is-leaving { opacity: 0; pointer-events: none; }
-/* Le loader n'apparaît qu'après 300 ms : rien ne clignote si tout va vite. */
-.boot-screen .loader { opacity: 0; animation: boot-show 0s 300ms forwards, l19 1s infinite alternate; }
-@keyframes boot-show { to { opacity: 1; } }
 .boot-slow { display: grid; justify-items: center; gap: 16px; padding: 0 16px; text-align: center; }
 .boot-slow-text { margin: 0; font-size: 16px; font-weight: 700; color: var(--v2-on-surface); }
 .boot-retry { min-width: 160px; padding: 0 24px; }
@@ -1580,5 +1581,4 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 @media (prefers-reduced-motion: reduce) {
   /* Les deux carrés restent immobiles. */
   .loader { animation: none; background-position: 0 0, calc(100%/3) 0; }
-  .boot-screen .loader { animation: boot-show 0s 300ms forwards; }
 }

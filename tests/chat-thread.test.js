@@ -16,6 +16,38 @@ function load() {
 }
 
 const Chat = load();
+
+describe('touche Entrée du champ de message', () => {
+  test('ordinateur : Entrée envoie, Maj+Entrée fait un saut de ligne', () => {
+    expect(Chat.enterSends({ key: 'Enter' }, false)).toBe(true);
+    expect(Chat.enterSends({ key: 'Enter', shiftKey: true }, false)).toBe(false);
+    expect(Chat.enterSends({ key: 'Enter', isComposing: true }, false)).toBe(false);
+    expect(Chat.enterSends({ key: 'a' }, false)).toBe(false);
+  });
+
+  test('mobile : Entrée fait toujours un saut de ligne', () => {
+    expect(Chat.enterSends({ key: 'Enter' }, true)).toBe(false);
+  });
+});
+
+describe('barre de saisie de la conversation (index.html)', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
+  const thread = html.slice(html.indexOf('id="team-thread"'), html.indexOf('id="notifications-view"'));
+
+  test('un textarea hors de tout <form>, avec les bons attributs', () => {
+    expect(thread).not.toMatch(/<form/);
+    const textarea = thread.match(/<textarea[^>]*>/)[0];
+    for (const attr of ['rows="1"', 'autocomplete="off"', 'autocorrect="on"', 'autocapitalize="sentences"', 'enterkeyhint="send"', 'aria-label="Message"']) {
+      expect(textarea).toContain(attr);
+    }
+  });
+
+  test('bouton d’envoi toujours présent, désactivé au départ', () => {
+    const button = thread.match(/<button id="chat-send"[^>]*>/)[0];
+    expect(button).toContain('disabled');
+    expect(button).not.toContain('hidden');
+  });
+});
 const at = (minutes) => new Date(Date.UTC(2026, 9, 25, 12, 0) + minutes * 60000).toISOString();
 const msg = (id, minutes, fromTeam) => ({ id, content: `m${id}`, from_team: fromTeam, created_at: at(minutes) });
 const bubbles = (rows) => rows.filter((row) => row.type === 'bubble');

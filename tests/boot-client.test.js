@@ -37,7 +37,7 @@ function setup() {
   const sandbox = { window: {} };
   vm.runInNewContext(SOURCE, sandbox);
   const reload = jest.fn();
-  const boot = sandbox.window.HaisselBoot.create({ doc, timers: { setTimeout, clearTimeout }, reload });
+  const boot = sandbox.window.HaisselBoot.create({ doc, timers: { setTimeout, clearTimeout }, now: () => Date.now(), reload });
   return { boot, body, screen, doc, reload };
 }
 
@@ -46,9 +46,12 @@ const findText = (node, text) => node.textContent === text || node.children.some
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-test('#boot-screen est retiré après le premier rendu (fondu de 200 ms)', () => {
+test('#boot-screen reste au moins 600 ms, puis fondu de 200 ms et retrait', () => {
   const { boot, doc, screen } = setup();
-  boot.ready();
+  boot.ready(); // tout est prêt tout de suite
+  jest.advanceTimersByTime(599);
+  expect(screen.classList.contains('is-leaving')).toBe(false);
+  jest.advanceTimersByTime(1);
   expect(screen.classList.contains('is-leaving')).toBe(true);
   expect(doc.getElementById('boot-screen')).toBe(screen);
   jest.advanceTimersByTime(200);
@@ -56,6 +59,22 @@ test('#boot-screen est retiré après le premier rendu (fondu de 200 ms)', () =>
   // Plus de « Connexion lente » une fois prêt.
   jest.advanceTimersByTime(10000);
   expect(findText(screen, 'Réessayer')).toBe(false);
+});
+
+test('premier rendu après 600 ms : fondu immédiat, sans attente supplémentaire', () => {
+  const { boot, doc, screen } = setup();
+  jest.advanceTimersByTime(900);
+  boot.ready();
+  jest.advanceTimersByTime(0);
+  expect(screen.classList.contains('is-leaving')).toBe(true);
+  jest.advanceTimersByTime(200);
+  expect(doc.getElementById('boot-screen')).toBeNull();
+});
+
+test('le loader est visible immédiatement (plus de délai de 300 ms)', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../frontend/app-v2.css'), 'utf8');
+  expect(css).not.toMatch(/boot-show/);
+  expect(css).not.toMatch(/\.boot-screen \.loader\s*\{[^}]*opacity:\s*0/);
 });
 
 test('après 10 s sans signal : « Connexion lente… » et « Réessayer » qui recharge', () => {

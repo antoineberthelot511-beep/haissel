@@ -12,9 +12,12 @@
 (() => {
   const FADE_MS = 200;
   const SLOW_MS = 10000;
+  // Durée minimale d'affichage, au premier chargement de la page seulement.
+  const MIN_MS = 600;
 
-  function create({ doc, timers = { setTimeout, clearTimeout }, reload }) {
+  function create({ doc, timers = { setTimeout, clearTimeout }, now = Date.now, reload }) {
     const screen = doc.getElementById('boot-screen');
+    const startedAt = now();
     let done = false;
 
     const slowTimer = timers.setTimeout(() => {
@@ -39,8 +42,11 @@
       done = true;
       timers.clearTimeout(slowTimer);
       if (!screen) return;
-      screen.classList.add('is-leaving');
-      timers.setTimeout(() => screen.remove(), FADE_MS);
+      const wait = Math.max(0, MIN_MS - (now() - startedAt));
+      timers.setTimeout(() => {
+        screen.classList.add('is-leaving');
+        timers.setTimeout(() => screen.remove(), FADE_MS);
+      }, wait);
     }
 
     return { ready };

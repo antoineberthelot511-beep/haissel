@@ -224,6 +224,7 @@ function setActiveView(viewName) {
   });
   // Découvrir : barre du bas en version sombre (liquid-glass.css).
   document.body.dataset.view = viewName;
+  rememberView(viewName);
   // Quitter Messages arrête l'interrogation de la conversation.
   if (viewName !== 'messages') closeChat();
   refreshUnread();
@@ -237,6 +238,20 @@ function setActiveView(viewName) {
     loadSavedOffers();
   }
   window.scrollTo({ top: 0 });
+}
+
+/*
+ * L'onglet ouvert est gardé dans l'adresse (« /app#recherche ») : un
+ * rechargement rouvre la même page. replaceState ne déclenche pas
+ * « hashchange » et n'ajoute rien à l'historique.
+ */
+function rememberView(viewName) {
+  if (!state.user) return;
+  const hash = window.HaisselPush.hashForView(viewName);
+  if (!hash || window.location.hash === hash) return;
+  try {
+    history.replaceState(history.state, '', window.location.pathname + window.location.search + hash);
+  } catch (error) { /* adresse non modifiable : rien à mémoriser */ }
 }
 
 function showLoggedOut() {
@@ -404,8 +419,14 @@ function showLoggedIn(user) {
   renderMfaState();
   // Comptes anterieurs a la declaration : la question passe avant tout.
   if (needsAgeAnswer()) openAgeGate();
-  setActiveView('home');
-  openViewFromHash();
+  /*
+   * Vue de départ lue dans l'adresse AVANT tout rendu : l'Accueil n'est pas
+   * affiché puis remplacé par la page demandée.
+   */
+  const startView = initialView();
+  setActiveView(startView);
+  // Sans liste d'offres à charger, rien d'autre n'attend l'écran de démarrage.
+  if (!['home', 'links', 'discover'].includes(startView)) bootReady();
   loadLinks();
   if (notificationCenter) notificationCenter.start();
   startUnreadPolling();
@@ -1517,11 +1538,18 @@ async function syncPush() {
   if (config.enabled) window.HaisselPush.sync(pushDeps());
 }
 
-/* Lien d'une notification (« /app#messages ») : ouvre la bonne vue, puis retire le fragment. */
+/** Vue demandée par l'adresse (rechargement, lien de notification), sinon l'Accueil. */
+function initialView() {
+  const view = window.HaisselPush.viewFromHash(window.location.hash);
+  if (!view || (view === 'publish' && !canPublish())) return 'home';
+  return view;
+}
+
+/* Fragment modifié à la main ou lien interne (« /app#messages ») : ouvre la bonne vue. */
 function openViewFromHash() {
   const view = window.HaisselPush.viewFromHash(window.location.hash);
   if (!view || !state.user) return;
-  history.replaceState(null, '', window.location.pathname);
+  if (!document.getElementById(`${view}-view`).classList.contains('hidden')) return;
   setActiveView(view);
 }
 
@@ -2047,7 +2075,7 @@ const CHAT_POLL_MS = 15000;
 const UNREAD_POLL_MS = 60000;
 // Champ de saisie : 5 lignes au plus, puis il défile.
 const CHAT_MAX_LINES = 5;
-const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null };
+const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null, sending: false, fullHeight: 0 };
 
 function paintUnread(count) {
   ui.navMessagesBadge.hidden = !count;
@@ -2140,9 +2168,18 @@ function fitChatToViewport() {
   if (!vv || ui.teamThread.hidden) return;
   ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop}px`);
   ui.teamThread.style.setProperty('--chat-height', `${vv.height}px`);
-  // Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
-  ui.teamThread.classList.toggle('keyboard-open', window.innerHeight - vv.height > 120);
-  scrollChatToEnd();
+  /*
+   * Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
+   * Le seuil compare à la plus grande hauteur vue : depuis l'écran d'accueil
+   * et dans Chrome iOS, innerHeight peut rétrécir avec le clavier.
+   */
+  chat.fullHeight = Math.max(chat.fullHeight || 0, window.innerHeight, vv.height);
+  const open = chat.fullHeight - vv.height > 120;
+  const opened = open && !ui.teamThread.classList.contains('keyboard-open');
+  ui.teamThread.classList.toggle('keyboard-open', open);
+  const list = ui.chatMessages;
+  // À l'ouverture du clavier : dernier message. Sinon, on reste en bas si on y était.
+  if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < 80) scrollChatToEnd();
 }
 
 function watchViewport(on) {
@@ -2160,7 +2197,7 @@ function watchViewport(on) {
   }
 }
 
-/** Hauteur du champ : suit le texte jusqu'à 5 lignes ; bouton d'envoi seulement s'il y a du texte. */
+/** Hauteur du champ : suit le texte jusqu'à 5 lignes ; bouton d'envoi actif seulement s'il y a du texte. */
 function fitChatInput() {
   const input = ui.chatInput;
   const style = window.getComputedStyle(input);
@@ -2168,7 +2205,7 @@ function fitChatInput() {
   const extra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
   input.style.height = '';
   input.style.height = `${Math.min(input.scrollHeight + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth), line * CHAT_MAX_LINES + extra)}px`;
-  ui.chatSend.hidden = !input.value.trim();
+  if (!chat.sending) ui.chatSend.disabled = !input.value.trim();
 }
 
 function openChat() {
@@ -2195,12 +2232,13 @@ function closeChat() {
   document.body.classList.remove('chat-open');
 }
 
-async function handleChatSubmit(event) {
-  event.preventDefault();
+async function sendChat() {
   const content = ui.chatInput.value.trim();
-  if (!content) return;
+  if (!content || chat.sending) return;
   ui.chatError.classList.add('hidden');
-  setBusy(ui.chatForm, true);
+  chat.sending = true;
+  ui.chatSend.disabled = true;
+  ui.chatSend.setAttribute('aria-busy', 'true');
   try {
     await api('/api/messages/team', { method: 'POST', body: { content } });
     ui.chatInput.value = '';
@@ -2211,7 +2249,9 @@ async function handleChatSubmit(event) {
     ui.chatError.textContent = error.message;
     ui.chatError.classList.remove('hidden');
   } finally {
-    setBusy(ui.chatForm, false);
+    chat.sending = false;
+    ui.chatSend.setAttribute('aria-busy', 'false');
+    fitChatInput();
     ui.chatInput.focus({ preventScroll: true });
   }
 }
@@ -3391,7 +3431,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
@@ -3518,10 +3558,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Messages
   document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
   document.getElementById('chat-back').addEventListener('click', closeChat);
-  ui.chatForm.addEventListener('submit', handleChatSubmit);
+  ui.chatSend.addEventListener('click', sendChat);
   ui.chatInput.addEventListener('input', fitChatInput);
+  // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
+  const touchInput = window.matchMedia('(hover: none) and (pointer: coarse)');
   ui.chatInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ui.chatForm.requestSubmit(); }
+    if (window.HaisselChat.enterSends(event, touchInput.matches)) { event.preventDefault(); sendChat(); }
   });
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));

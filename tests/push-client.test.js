@@ -46,6 +46,17 @@ test('lien de notification → vue', () => {
   expect(P.viewFromHash('')).toBeNull();
 });
 
+test('onglet mémorisé dans l’adresse et restauré', () => {
+  expect(P.hashForView('links')).toBe('#recherche');
+  expect(P.hashForView('messages')).toBe('#messages');
+  expect(P.hashForView('offer')).toBeNull();
+  for (const view of ['home', 'discover', 'messages', 'links', 'profile', 'notifications', 'learn', 'publish']) {
+    expect(P.viewFromHash(P.hashForView(view))).toBe(view);
+  }
+  expect(P.viewFromHash('#recherche')).toBe('links');
+  expect(P.viewFromHash('#toString')).toBeNull();
+});
+
 test('enable : permission demandée, abonnement, POST', async () => {
   const { nav, calls } = fakeNavigator();
   const { api, calls: apiCalls } = fakeApi();

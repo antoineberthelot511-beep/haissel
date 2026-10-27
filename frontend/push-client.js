@@ -17,9 +17,26 @@
   }
 
   /** Lien d'une notification (« /app#messages ») → vue de l'application. */
+  /*
+   * Onglet <-> fragment d'adresse (« /app#recherche »). Les noms anglais restent
+   * acceptés : les notifications déjà envoyées pointent vers « #messages »,
+   * « #profile »…
+   */
+  const VIEW_HASHES = {
+    home: 'accueil', discover: 'decouvrir', messages: 'messages', links: 'recherche', profile: 'profil',
+    notifications: 'activite', learn: 'apprendre', publish: 'publier',
+  };
+  const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+
   function viewFromHash(hash) {
     const name = String(hash || '').replace(/^#/, '');
-    return ['messages', 'profile', 'notifications', 'home', 'discover'].includes(name) ? name : null;
+    if (own(VIEW_HASHES, name)) return name;
+    return Object.keys(VIEW_HASHES).find((view) => VIEW_HASHES[view] === name) || null;
+  }
+
+  /** Fragment à mémoriser pour une vue ; null pour une vue transitoire (détail d'offre). */
+  function hashForView(view) {
+    return own(VIEW_HASHES, view) ? `#${VIEW_HASHES[view]}` : null;
   }
 
   function subscriptionBody(subscription) {
@@ -89,5 +106,5 @@
     }
   }
 
-  root.HaisselPush = { urlBase64ToUint8Array, viewFromHash, subscriptionBody, canPush, enable, disable, current, sync };
+  root.HaisselPush = { urlBase64ToUint8Array, viewFromHash, hashForView, subscriptionBody, canPush, enable, disable, current, sync };
 }(typeof window !== 'undefined' ? window : globalThis));
