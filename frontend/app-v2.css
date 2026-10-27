@@ -175,9 +175,8 @@ body:has(#auth-screen:not(.hidden)) .topbar-nav { display: none; }
 .topbar-nav .topbar-nav-inner {
   pointer-events: auto; max-width: 448px; margin: 0 auto; padding: var(--v2-xs) var(--v2-md);
   display: flex; align-items: center; justify-content: space-between; gap: 0;
-  background: rgba(255, 255, 255, .95);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  border: 1px solid var(--v2-outline); border-radius: var(--v2-r-full); box-shadow: var(--v2-shadow-dock);
+  /* Verre : .lg-glass .lg-pill (liquid-glass.css). */
+  border-radius: var(--v2-r-full);
 }
 .topbar-nav .nav-button {
   flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -208,11 +207,17 @@ body:has(#auth-screen:not(.hidden)) .topbar-nav { display: none; }
 }
 #main .content-panel { min-width: 0; }
 
-.site-footer { background: none; border-top: 1px solid var(--v2-outline); }
-.site-footer .footer-meta { max-width: 720px; padding: var(--v2-md) var(--v2-margin); font-size: 12px; color: var(--v2-secondary); gap: 0 var(--v2-md); }
-.site-footer .footer-meta { display: flex; flex-wrap: wrap; align-items: center; }
-.site-footer .footer-meta > span { flex-basis: 100%; }
-.site-footer .footer-meta a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; color: var(--v2-secondary); }
+/* Pages publiques : une ligne compacte de liens légaux, séparés par « · ». */
+.site-footer { background: none; border-top: 0; }
+.site-footer .footer-meta {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+  max-width: 720px; margin: 0 auto; padding: var(--v2-sm) var(--v2-margin) calc(var(--v2-sm) + env(safe-area-inset-bottom, 0px));
+  font-size: 13px; color: var(--v2-secondary); text-align: center;
+}
+.site-footer .footer-meta a { display: inline-flex; align-items: center; min-height: 32px; color: var(--v2-secondary); white-space: nowrap; }
+.site-footer .footer-meta a + a::before { content: "·"; margin: 0 .5em; color: var(--v2-secondary); }
+/* Espace membre : pas de pied de page (liens dans Profil → Réglages → À propos). */
+body:has(#app-screen:not(.hidden)) .site-footer { display: none; }
 
 @media (min-width: 961px) {
   .topbar .status-pill { display: inline-flex; background: none; padding: 0 var(--v2-sm); font-size: 12px; color: var(--v2-verified); }
@@ -1398,11 +1403,10 @@ body.chat-open { overflow: hidden; }
 body.chat-open .site-footer { display: none; }
 body.chat-open .topbar-nav { display: none; }
 /* En-tête compact : une ligne de 52 px, retour + avatar + nom alignés à gauche. */
+/* En-tête et barre de saisie en verre, superposés : les messages défilent dessous. */
 .chat-head {
-  position: relative; flex: none; display: flex; align-items: center; gap: 2px; box-sizing: content-box; height: 52px;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 2px; box-sizing: content-box; height: 52px;
   padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 0 max(4px, env(safe-area-inset-left, 0px));
-  background: var(--ios-bar); border-bottom: .5px solid var(--ios-separator);
-  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
 }
 .chat-back { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--ios-blue); cursor: pointer; }
 .chat-back .icon { width: 28px; height: 28px; stroke-width: 2.4; }
@@ -1410,7 +1414,9 @@ body.chat-open .topbar-nav { display: none; }
 .chat-who strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-messages {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column; padding: 8px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column;
+  padding: calc(52px + env(safe-area-inset-top, 0px) + 8px) max(12px, env(safe-area-inset-right, 0px))
+    calc(var(--chat-form-h, 60px) + 8px) max(12px, env(safe-area-inset-left, 0px));
 }
 .chat-empty { margin: auto; color: var(--ios-secondary); text-align: center; }
 .chat-stamp { margin: 14px 0 6px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
@@ -1430,10 +1436,9 @@ body.chat-open .topbar-nav { display: none; }
 .bubble.from-me.tail::after { right: -10px; width: 10px; background: var(--ios-bg); border-bottom-left-radius: 10px; }
 .bubble.from-team.tail::before { left: -7px; width: 20px; background: var(--ios-incoming); border-bottom-right-radius: 16px 14px; }
 .bubble.from-team.tail::after { left: -10px; width: 10px; background: var(--ios-bg); border-bottom-right-radius: 10px; }
-.chat .auth-error { margin: 0 12px 6px; }
+.chat .auth-error { position: absolute; left: 12px; right: 12px; bottom: calc(var(--chat-form-h, 60px) + 6px); z-index: 2; margin: 0; }
 .chat-form {
-  flex: none; padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
-  background: var(--ios-bar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 6px max(10px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
 }
 .chat.keyboard-open .chat-form { padding-bottom: 6px; }
 /* Bordure fine et neutre ; un bleu léger seulement au focus. */
@@ -1584,4 +1589,51 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 @media (prefers-reduced-motion: reduce) {
   /* Les deux carrés restent immobiles. */
   .loader { animation: none; background-position: 0 0, calc(100%/3) 0; }
+}
+
+/* ---------- Réglages : À propos (lignes façon iOS) ---------- */
+.about-box { margin-top: 24px; }
+.about-title { margin: 0 0 6px 16px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--ios-secondary); }
+.about-list { list-style: none; margin: 0; padding: 0; border-radius: 12px; overflow: hidden; background: var(--v2-surface); border: 1px solid var(--v2-outline); }
+.about-list li + li .about-row { border-top: .5px solid var(--ios-separator); }
+.about-row {
+  display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 12px 0 16px;
+  color: var(--v2-on-surface); font-size: 16px; text-decoration: none;
+}
+.about-row:hover, .about-row:active { background: var(--v2-surface-low); }
+.about-row .icon { width: 18px; height: 18px; color: var(--ios-secondary); flex: none; }
+.about-meta { margin: 12px 0 0; text-align: center; font-size: 12px; color: var(--ios-secondary); }
+
+/* Logo HAISSEL (logo.svg) à la place du carré « H » : mêmes tailles. */
+img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
+  display: block; flex: none; object-fit: contain; background: none; box-shadow: none; border-radius: 0;
+}
+
+/* ---------- Installer l'application ---------- */
+.install-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; margin: 4px 0 8px; padding: 0;
+  border: 0; border-bottom: .5px solid var(--ios-separator); background: none; color: var(--v2-on-surface);
+  font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.install-row[hidden] { display: none; }
+.install-row-icon { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+.install-row-label { flex: 1; min-width: 0; }
+.install-row .icon { width: 18px; height: 18px; color: var(--ios-secondary); flex: none; }
+#install-help { margin: 4px 0 12px; }
+
+/* Bannière en verre, au-dessus de la barre de navigation, sur l'Accueil seulement. */
+.install-banner {
+  position: fixed; left: var(--v2-margin); right: var(--v2-margin); bottom: calc(var(--v2-dock-space) + 8px); z-index: 50;
+  display: flex; align-items: center; gap: 8px; max-width: 448px; margin: 0 auto; padding: 6px 6px 6px 18px;
+  color: var(--v2-on-surface);
+}
+.install-banner[hidden], body:not([data-view="home"]) .install-banner, body:has(#auth-screen:not(.hidden)) .install-banner { display: none; }
+.install-banner-text { flex: 1; min-width: 0; margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; }
+.install-banner-action {
+  flex: none; min-height: 40px; padding: 0 16px; border: 0; border-radius: 9999px;
+  background: var(--v2-primary-container); color: var(--v2-on-primary); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.install-banner-close {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -2px 0; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--v2-secondary); font-size: 22px; line-height: 1; cursor: pointer;
 }

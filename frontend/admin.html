@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Haissel | Administration</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="stylesheet" href="/admin.css" />
     <link rel="stylesheet" href="/admin-theme.css" />
   </head>
@@ -12,7 +15,7 @@
     <main id="login-screen" class="login-screen" hidden>
       <form id="login-form" class="login-card" novalidate>
         <div class="brand-wrap">
-          <div class="brand-mark" aria-hidden="true">H</div>
+          <img class="brand-mark" src="/logo.svg" alt="" width="40" height="40" />
           <div>
             <div class="brand-name">HAISSEL</div>
             <div class="brand-tag">Console d'administration</div>
@@ -89,7 +92,7 @@
     <div id="admin-shell" class="admin-shell" hidden>
       <aside class="sidebar">
         <div class="brand-wrap">
-          <div class="brand-mark" aria-hidden="true">H</div>
+          <img class="brand-mark" src="/logo.svg" alt="" width="40" height="40" />
           <div>
             <div class="brand-name">HAISSEL</div>
             <div class="brand-tag">Admin</div>
@@ -290,6 +293,11 @@
             </div>
             <button class="btn ghost" type="button" data-refresh="inbox">Actualiser</button>
           </header>
+          <!-- Pas d'abonnement Web Push sur cet appareil : proposition d'activation (admin.js). -->
+          <div id="push-banner" class="panel push-banner" hidden>
+            <p id="push-banner-text">Active les notifications pour être prévenu des nouveaux messages</p>
+            <button id="push-banner-button" class="btn primary" type="button">Activer les notifications</button>
+          </div>
           <p class="muted">Une conversation par membre, non lues en premier. Vous répondez au nom de « Équipe Haissel ». Texte brut uniquement ; les conversations sont supprimées 12 mois après le dernier échange.</p>
           <div class="inbox">
             <ul id="inbox-list" class="panel inbox-list" aria-label="Conversations"></ul>
@@ -452,6 +460,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="/turnstile.js"></script>
+    <script src="/push-client.js"></script>
     <script src="/admin.js"></script>
   </body>
 </html>

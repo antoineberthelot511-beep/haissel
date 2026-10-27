@@ -149,7 +149,7 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     while (el.stack.children.length >= MAX_IN_APP) el.stack.firstElementChild.remove();
 
     const card = document.createElement('article');
-    card.className = 'notif-card';
+    card.className = 'notif-card lg-glass lg-pill';
     const title = document.createElement('strong');
     title.className = 'notif-card-title';
     title.textContent = notification.title;
@@ -197,6 +197,8 @@ window.createNotificationCenter = function createNotificationCenter(options) {
       body: notification.message,
       // Même tag dans tous les onglets : le système n'affiche qu'une fois.
       tag: `haissel-${notification.id}`,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
       data: { url: notification.url },
     };
 
@@ -270,6 +272,17 @@ window.createNotificationCenter = function createNotificationCenter(options) {
     seen.add(notification.id);
     // La page « Activité » et la pastille de la cloche se mettent à jour.
     if (typeof options.onNotification === 'function') options.onNotification(notification);
+
+    /*
+     * Abonnement Web Push actif sur cet appareil : la vraie notification
+     * arrive par le service worker. La page n'en affiche pas une seconde
+     * (ni système ni encadré) : pastille et Activité suffisent.
+     */
+    if (typeof options.hasPushSubscription === 'function') {
+      let subscribed = false;
+      try { subscribed = Boolean(await options.hasPushSubscription()); } catch (error) { subscribed = false; }
+      if (subscribed) return;
+    }
 
     if (!systemNotificationsAllowed()) {
       if (supportsSystemNotifications() && !window.isSecureContext) {

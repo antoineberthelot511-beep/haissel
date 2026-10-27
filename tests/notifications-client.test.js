@@ -41,6 +41,7 @@ function fakeElement(tag = 'div') {
 function setup({
   permission = 'default', secure = true, supported = true, visible = 'visible', focused = true,
   sessionValid = true, grantOnRequest = false, systemBehavior = 'show', serviceWorker = false,
+  pushSubscribed = undefined,
 } = {}) {
   // Seul élément de la page encore utilisé : la pile des messages dans la page.
   const ids = ['notif-stack'];
@@ -125,6 +126,7 @@ function setup({
     checkSession: async () => sessionValid,
     onSessionEnded,
     onNotification,
+    ...(pushSubscribed === undefined ? {} : { hasPushSubscription: async () => pushSubscribed }),
   });
   return { center, elements, sources, shown, swShown, registration, posts, Notification, context, onSessionEnded, onNotification };
 }
@@ -360,5 +362,31 @@ describe('notification système', () => {
     env.center.start();
     expect(Object.keys(env.elements)).toEqual(['notif-stack']);
     expect(SOURCE).not.toMatch(/Windows|ordinateur|getElementById\('(realtime|notif-(?!stack))/);
+  });
+});
+
+describe('abonnement Web Push actif sur l’appareil', () => {
+  test('aucune notification affichée par la page (ni système, ni encadré) ; Activité mise à jour', async () => {
+    const { center, sources, shown, swShown, registration, elements, onNotification, context } = setup({
+      permission: 'granted', visible: 'hidden', focused: false, systemBehavior: 'throw', serviceWorker: true, pushSubscribed: true,
+    });
+    center.start();
+    sources[0].emit('admin-notification', { id: ID, title: 'T', message: 'M', url: null });
+    await flush(context);
+    expect(registration.showNotification).not.toHaveBeenCalled();
+    expect(swShown).toHaveLength(0);
+    expect(shown).toHaveLength(0);
+    expect(elements['notif-stack'].children).toHaveLength(0);
+    expect(onNotification).toHaveBeenCalledTimes(1);
+  });
+
+  test('sans abonnement : la page affiche toujours la notification via le service worker', async () => {
+    const { center, sources, registration, context } = setup({
+      permission: 'granted', visible: 'hidden', focused: false, systemBehavior: 'throw', serviceWorker: true, pushSubscribed: false,
+    });
+    center.start();
+    sources[0].emit('admin-notification', { id: ID, title: 'T', message: 'M', url: null });
+    await flush(context);
+    expect(registration.showNotification).toHaveBeenCalledTimes(1);
   });
 });

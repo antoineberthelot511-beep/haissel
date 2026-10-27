@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
-    <meta name="theme-color" content="#f7f8fc" />
+    <meta name="theme-color" content="#0B57FF" />
     <!-- Ajout à l'écran d'accueil (Android : manifeste ; iPhone : balises Apple). -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -13,6 +13,9 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="HAISSEL" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="stylesheet" href="app-v2.css" />
     <link rel="stylesheet" href="liquid-glass.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
@@ -88,7 +91,7 @@
     <div id="mobile-splash" class="mobile-splash" hidden tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="splash-title">
       <div class="splash-card">
         <p class="splash-brand">
-          <span class="splash-logo" aria-hidden="true">H</span>
+          <img class="splash-logo" src="/logo.svg" alt="" width="36" height="36" />
           <span class="splash-name">HAISSEL</span>
         </p>
 
@@ -112,7 +115,7 @@
     <div id="age-gate" class="age-gate" hidden role="dialog" aria-modal="true" aria-labelledby="age-gate-title" tabindex="-1">
       <div class="age-gate-card">
         <p class="age-gate-brand">
-          <span class="splash-logo" aria-hidden="true">H</span>
+          <img class="splash-logo" src="/logo.svg" alt="" width="36" height="36" />
           <span class="splash-name">HAISSEL</span>
         </p>
         <h1 id="age-gate-title">As-tu 18 ans ou plus ?</h1>
@@ -129,15 +132,17 @@
     <div class="app-shell">
       <!-- ====================== EN-TÊTE ====================== -->
       <header class="topbar">
+        <!-- Verre de l'en-tête : allumé dès 8 px de défilement (liquid-glass.js). -->
+        <div class="topbar-glass lg-glass lg-bar is-flat" aria-hidden="true"></div>
         <div class="topbar-inner">
           <!-- En-tête façon Instagram : + (Publier, majeurs) | HAISSEL | cloche -->
           <div class="topbar-left">
-            <button class="topbar-icon topbar-publish member-only" type="button" data-view="publish" data-publish-only aria-label="Publier une fiche">
+            <button class="topbar-icon topbar-publish member-only lg-glass lg-pill lg-press" type="button" data-view="publish" data-publish-only aria-label="Publier une fiche">
               <svg class="icon lg" aria-hidden="true"><use href="#i-add" /></svg>
             </button>
           </div>
           <a class="wordmark" href="/" aria-label="HAISSEL — accueil">
-            <span class="wordmark-logo" aria-hidden="true">H</span>
+            <img class="wordmark-logo" src="/logo.svg" alt="" width="34" height="34" />
             <span class="wordmark-text">HAISSEL</span>
             <span class="wordmark-tag">Espace membre</span>
           </a>
@@ -149,7 +154,7 @@
               Déconnexion
             </button>
             <!-- Raccourcis de l'en-tête (espace membre) -->
-            <button id="bell-button" class="topbar-icon member-only" type="button" data-view="notifications" aria-label="Activité">
+            <button id="bell-button" class="topbar-icon member-only lg-glass lg-pill lg-press" type="button" data-view="notifications" aria-label="Activité">
               <svg class="icon lg" aria-hidden="true"><use href="#i-bell" /></svg>
               <span id="bell-badge" class="bell-badge" aria-hidden="true" hidden></span>
             </button>
@@ -162,7 +167,7 @@
         <!-- Navigation principale : barre flottante en bas d'écran, icônes
              seules (façon Instagram). Publier : le + de l'en-tête d'Accueil. -->
         <nav class="topbar-nav" aria-label="Navigation principale">
-          <div class="topbar-nav-inner">
+          <div class="topbar-nav-inner lg-glass lg-pill">
             <button class="nav-button active" type="button" data-view="home" aria-current="page" aria-label="Accueil">
               <svg class="icon lg" aria-hidden="true"><use href="#i-home" /></svg>
             </button>
@@ -210,7 +215,7 @@
           <div id="auth-screen" class="auth-layout">
             <div class="auth-card">
               <div class="auth-card-head">
-                <span class="wordmark-logo auth-logo" aria-hidden="true">H</span>
+                <img class="wordmark-logo auth-logo" src="/logo.svg" alt="" width="64" height="64" />
                 <h2 id="auth-title">HAISSEL</h2>
                 <p class="auth-tagline">Rejoins les bons plans de la communauté et découvre l'affiliation, en toute transparence.</p>
               </div>
@@ -425,7 +430,7 @@
               <h2 id="links-title" class="visually-hidden">Chercher une offre <span id="welcome-name" hidden>utilisateur</span></h2>
 
               <!-- Une barre de recherche + « Filtres » ; les filtres vivent dans la feuille #filters-sheet. -->
-              <form id="community-filters" class="search-bar" role="search" aria-label="Chercher une offre">
+              <form id="community-filters" class="search-bar lg-glass lg-bar is-flat" role="search" aria-label="Chercher une offre">
                 <label class="search-pill">
                   <span class="visually-hidden">Rechercher</span>
                   <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
@@ -434,7 +439,7 @@
                     <svg class="icon sm" aria-hidden="true"><use href="#i-close" /></svg>
                   </button>
                 </label>
-                <button id="filters-open" class="filters-button" type="button" aria-haspopup="dialog" aria-controls="filters-sheet">
+                <button id="filters-open" class="filters-button lg-glass lg-pill lg-press" type="button" aria-haspopup="dialog" aria-controls="filters-sheet">
                   <svg class="icon" aria-hidden="true"><use href="#i-sliders" /></svg>
                   <span>Filtres</span>
                   <span id="filters-count" class="filters-count" hidden></span>
@@ -443,7 +448,7 @@
 
               <!-- Feuille « Filtres » : <select> natifs (roue sur iPhone, menu système sur Android). -->
               <dialog id="filters-sheet" class="sheet" aria-labelledby="filters-title">
-                <div class="sheet-panel">
+                <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>
                   <h2 id="filters-title" class="sheet-title">Filtres</h2>
                   <label class="sheet-field" for="community-category">Catégorie</label>
@@ -606,7 +611,7 @@
                 <!-- Conversation épinglée : grand avatar rond, nom dessous. -->
                 <div class="msg-pinned">
                   <button class="msg-pin" type="button" data-open-thread aria-label="Équipe Haissel, conversation épinglée">
-                    <span class="msg-pin-avatar" aria-hidden="true">H</span>
+                    <img class="msg-pin-avatar" src="/logo.svg" alt="" width="80" height="80" />
                     <span class="msg-pin-name" aria-hidden="true">Équipe Haissel</span>
                   </button>
                 </div>
@@ -614,7 +619,7 @@
                   <li>
                     <button id="team-thread-open" class="msg-row" type="button" data-open-thread>
                       <span id="team-thread-dot" class="msg-unread" hidden><span class="visually-hidden">Non lu</span></span>
-                      <span class="msg-avatar" aria-hidden="true">H</span>
+                      <img class="msg-avatar" src="/logo.svg" alt="" width="44" height="44" />
                       <span class="msg-row-body">
                         <span class="msg-row-top">
                           <strong>Équipe Haissel</strong>
@@ -630,19 +635,19 @@
 
               <!-- Conversation : plein écran, collée au clavier (visualViewport, app.js). -->
               <div id="team-thread" class="chat" role="dialog" aria-labelledby="chat-title" hidden>
-                <header class="chat-head">
+                <header class="chat-head lg-glass lg-bar">
                   <button id="chat-back" class="chat-back" type="button" aria-label="Retour aux messages">
                     <svg class="icon" aria-hidden="true"><use href="#i-chevron-left" /></svg>
                   </button>
                   <div class="chat-who">
-                    <span class="msg-avatar sm" aria-hidden="true">H</span>
+                    <img class="msg-avatar sm" src="/logo.svg" alt="" width="32" height="32" />
                     <strong id="chat-title">Équipe Haissel</strong>
                   </div>
                 </header>
                 <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
                 <div id="chat-error" class="auth-error hidden" role="alert"></div>
                 <!-- Pas de formulaire : iOS n'y propose pas sa barre clé / carte / position au-dessus du clavier. -->
-                <div id="chat-form" class="chat-form">
+                <div id="chat-form" class="chat-form lg-glass lg-bar">
                   <div class="chat-field">
                     <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" aria-label="Message"
                       autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
@@ -903,6 +908,13 @@
               <div id="ppanel-settings" class="profile-panel profile-grid" role="tabpanel" aria-label="Réglages" hidden>
                 <div class="profile-card-box settings-box">
                   <h3 class="card-title">Réglages</h3>
+                  <!-- Installer l'application : Android (invite du navigateur) ou iPhone Safari (feuille « Comment faire ? »). -->
+                  <button id="install-row" class="install-row" type="button" hidden>
+                    <img class="install-row-icon" src="/icons/icon-192.png" alt="" width="32" height="32" />
+                    <span class="install-row-label">Installer l'application HAISSEL</span>
+                    <svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg>
+                  </button>
+                  <p id="install-help" class="setting-help" hidden>Ouvre HAISSEL dans Safari pour l'installer.</p>
                   <div class="setting-row">
                     <label class="setting-label" for="notif-switch">Notifications sur cet appareil</label>
                     <input id="notif-switch" class="ios-switch" type="checkbox" role="switch" aria-describedby="notif-help" />
@@ -910,11 +922,22 @@
                   <p id="notif-help" class="setting-help"></p>
                   <button id="notif-howto" class="setting-link" type="button" aria-haspopup="dialog" hidden>Comment faire ?</button>
                 </div>
+                <!-- À propos : les pages légales (plus de pied de page dans l'espace membre). -->
+                <section class="about-box" aria-labelledby="about-title">
+                  <h3 id="about-title" class="about-title">À propos</h3>
+                  <ul class="about-list">
+                    <li><a class="about-row" href="mentions-legales.html">Mentions légales<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="transparence.html">Transparence<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="confidentialite.html">Confidentialité<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                    <li><a class="about-row" href="cgu.html">Conditions d'utilisation<svg class="icon" aria-hidden="true"><use href="#i-chevron-right" /></svg></a></li>
+                  </ul>
+                  <p class="about-meta">HAISSEL · <span id="about-year">2026</span></p>
+                </section>
               </div>
 
               <!-- Ajouter à l'écran d'accueil (iPhone) : trois étapes. -->
               <dialog id="howto-sheet" class="sheet" aria-labelledby="howto-title">
-                <div class="sheet-panel">
+                <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>
                   <h2 id="howto-title" class="sheet-title">Ajouter HAISSEL à l'écran d'accueil</h2>
                   <ol class="howto-steps">
@@ -1056,9 +1079,9 @@
       </main>
 
       <!-- ====================== PIED DE PAGE ====================== -->
+      <!-- Pages publiques seulement : masqué dans l'espace membre (liens dans Profil → Réglages). -->
       <footer class="site-footer">
         <div class="footer-meta">
-          <span><strong>HAISSEL</strong> · espace membre</span>
           <a href="mentions-legales.html">Mentions légales</a>
           <a href="transparence.html">Transparence</a>
           <a href="confidentialite.html">Confidentialité</a>
@@ -1069,6 +1092,13 @@
 
     <!-- Notifications reçues pendant la visite (texte brut uniquement). -->
     <div id="notif-stack" class="notif-stack" role="status" aria-live="polite"></div>
+
+    <!-- Bannière de l'Accueil : installer l'app, ou activer les notifications une fois installée (app.js). -->
+    <div id="install-banner" class="install-banner lg-glass lg-pill" role="region" aria-label="Installer HAISSEL" hidden>
+      <p id="install-banner-text" class="install-banner-text">Installe HAISSEL pour recevoir les notifications</p>
+      <button id="install-banner-action" class="install-banner-action" type="button">Installer</button>
+      <button id="install-banner-close" class="install-banner-close" type="button" aria-label="Fermer">×</button>
+    </div>
 
     <!-- Avant d'ouvrir un lien publié par un membre -->
     <dialog id="leave-dialog" class="app-dialog" aria-labelledby="leave-title">
@@ -1132,6 +1162,7 @@
     <script src="stories.js"></script>
     <script src="chat-thread.js"></script>
     <script src="activity.js"></script>
+    <script src="install.js"></script>
     <script src="push-client.js"></script>
     <script src="app.js"></script>
     <script src="liquid-glass.js"></script>

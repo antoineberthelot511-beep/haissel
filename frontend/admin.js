@@ -111,7 +111,15 @@ async function sendPushTest() {
     const result = await api('/api/admin/push/test', { method: 'POST', body: '{}' });
     if (!result.devices) toast('Aucun appareil abonné : active les notifications dans Profil › Réglages avec ce compte.', 'error');
     else if (result.timeout) toast('Envoi trop long : réessaie dans un instant.', 'error');
-    else toast(`Notification envoyée à ${result.sent} appareil(s) sur ${result.devices}.`);
+    else {
+      const failures = (result.failures || []).map((code) => `HTTP ${code}`).join(', ');
+      const text = `Envoyée à ${result.sent} appareil(s) sur ${result.devices}.`;
+      if (result.sent < result.devices) {
+        toast(`${text} Échec : ${failures || 'pas de réponse du service'}.`, 'error');
+      } else {
+        toast(text);
+      }
+    }
   } catch (error) {
     toast(error.message, 'error');
   } finally {
@@ -380,8 +388,12 @@ async function handleLogout() {
 const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'inbox', 'categories',
   'content', 'opportunities', 'referral'];
 
+// « #messages » : lien des notifications Web Push de l'équipe (sw.js).
+const SECTION_ALIASES = { messages: 'inbox' };
+
 function sectionFromHash() {
-  const name = window.location.hash.replace('#', '');
+  const raw = window.location.hash.replace('#', '');
+  const name = SECTION_ALIASES[raw] || raw;
   return SECTIONS.includes(name) ? name : 'dashboard';
 }
 
@@ -1174,7 +1186,49 @@ async function loadCategories() {
  */
 state.inboxOpen = null;
 
+/*
+ * Bandeau de l'onglet Messages : proposé tant que cet appareil n'a pas
+ * d'abonnement Web Push. Même logique que l'espace membre (push-client.js),
+ * permission demandée seulement au clic.
+ */
+const pushApi = (url, { method = 'GET', body } = {}) => api(url, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+
+async function renderPushBanner() {
+  const banner = $('push-banner');
+  const Push = window.HaisselPush;
+  const supported = Push && 'Notification' in window && Push.canPush(navigator);
+  if (!supported) { banner.hidden = true; return; }
+  let config;
+  try { config = await api('/api/push/config'); } catch (error) { banner.hidden = true; return; }
+  if (!config.enabled || await Push.current(navigator)) { banner.hidden = true; return; }
+  const denied = window.Notification.permission === 'denied';
+  $('push-banner-text').textContent = denied
+    ? 'Notifications bloquées pour ce site : autorise-les dans les réglages du navigateur.'
+    : 'Active les notifications pour être prévenu des nouveaux messages';
+  $('push-banner-button').hidden = denied;
+  banner.hidden = false;
+}
+
+async function enablePushFromBanner() {
+  const button = $('push-banner-button');
+  button.disabled = true;
+  try {
+    const config = await api('/api/push/config');
+    const result = await window.HaisselPush.enable({
+      nav: navigator, Notif: window.Notification, api: pushApi, publicKey: config.public_key,
+    });
+    if (result === 'subscribed') toast('Notifications activées sur cet appareil.');
+    else if (result === 'error') toast('Activation impossible pour le moment.', 'error');
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+    await renderPushBanner();
+  }
+}
+
 async function loadInbox() {
+  renderPushBanner().catch(() => {});
   const data = await api('/api/admin/messages');
   const list = $('inbox-list');
   list.replaceChildren(...(data.items.length ? data.items.map((item) => h('li', null,
@@ -1248,6 +1302,7 @@ function bindEvents() {
   $('setup-logout').addEventListener('click', handleLogout);
   $('admin-logout').addEventListener('click', handleLogout);
   $('push-test').addEventListener('click', sendPushTest);
+  $('push-banner-button').addEventListener('click', enablePushFromBanner);
   $('link-form').addEventListener('submit', handleLinkSubmit);
   $('users-search-form').addEventListener('submit', handleUsersSearch);
   $('notif-form').addEventListener('submit', handleNotifSubmit);

@@ -18,6 +18,13 @@ const MAX_DEVICES_PER_USER = 10;
 const MAX_FAILURES = 5;
 const SEND_TIMEOUT_MS = 3000;
 const TTL_SECONDS = 24 * 3600;
+/*
+ * Urgence (en-tête Urgency, RFC 8030). Apple traduit « normal » en priorité
+ * basse : livraison différée quand le téléphone est en veille. « high » pour
+ * ce qui concerne directement le membre (réponse de l'équipe, décision sur
+ * une fiche, test de l'admin) ; « normal » par défaut pour le reste.
+ */
+const URGENCIES = ['very-low', 'low', 'normal', 'high'];
 
 const ALLOWED_HOSTS = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com'];
 const ALLOWED_HOST_SUFFIXES = ['.notify.windows.com'];
@@ -44,8 +51,8 @@ function isValidKeys(keys) {
   return Boolean(p256dh && p256dh.length === 65 && p256dh[0] === 0x04 && auth && auth.length === 16);
 }
 
-// Même liste blanche que sw.js et les annonces : liens internes uniquement.
-const ALLOWED_URL = /^\/(?:app|mes-affilies|go\/\d{1,10})?(?:#[A-Za-z0-9_-]{1,40})?$/;
+// Même liste blanche que sw.js : liens internes uniquement (« /admin » pour les notifications de l'équipe).
+const ALLOWED_URL = /^\/(?:app|admin|mes-affilies|go\/\d{1,10})?(?:#[A-Za-z0-9_-]{1,40})?$/;
 
 /** Chemin relatif interne uniquement (« /app#messages ») ; sinon /app. */
 function safeUrl(value) {
@@ -110,14 +117,14 @@ async function removeSubscription(userId, endpoint) {
   return result.rowCount;
 }
 
-async function sendOne(row, payload, vapid) {
+async function sendOne(row, payload, vapid, urgency, failures) {
   try {
     await sender(
       { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
       payload,
       {
         TTL: TTL_SECONDS,
-        urgency: 'normal',
+        urgency,
         timeout: SEND_TIMEOUT_MS,
         vapidDetails: { subject: vapid.subject, publicKey: vapid.publicKey, privateKey: vapid.privateKey },
       }
@@ -126,6 +133,8 @@ async function sendOne(row, payload, vapid) {
     return 'sent';
   } catch (error) {
     const status = error && error.statusCode;
+    // Code HTTP du service seulement (jamais l'endpoint) : affiché à l'admin.
+    if (status) failures.push(status);
     if (status === 404 || status === 410) {
       await pool.query('DELETE FROM push_subscriptions WHERE id = $1', [row.id]);
       return 'expired';
@@ -143,22 +152,24 @@ async function sendOne(row, payload, vapid) {
  * doit pas faire échouer l'action qui l'a déclenché. Attendu par l'appelant,
  * plafonné à 3 s au total.
  */
-async function sendToUser(userId, message) {
+async function sendToUser(userId, message, { urgency = 'normal' } = {}) {
   const vapid = getVapidConfig();
+  const level = URGENCIES.includes(urgency) ? urgency : 'normal';
+  const failures = [];
   if (!vapid.enabled) return { skipped: true, results: [] };
   let timer;
   try {
     const { rows } = await pool.query('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1', [userId]);
     if (!rows.length) return { skipped: false, results: [] };
     const payload = buildPayload(message);
-    const all = Promise.all(rows.map((row) => sendOne(row, payload, vapid).catch(() => 'failed')));
+    const all = Promise.all(rows.map((row) => sendOne(row, payload, vapid, level, failures).catch(() => 'failed')));
     const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve('timeout'), SEND_TIMEOUT_MS); });
     const results = await Promise.race([all, timeout]);
     if (results === 'timeout') {
       logger.warn('Push timeout', { userId, devices: rows.length });
-      return { skipped: false, results: [], timeout: true };
+      return { skipped: false, results: [], timeout: true, failures };
     }
-    return { skipped: false, results };
+    return { skipped: false, results, failures };
   } catch (error) {
     logger.warn('Push error', { userId, error: error.message });
     return { skipped: false, results: [], error: true };

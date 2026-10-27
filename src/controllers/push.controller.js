@@ -47,10 +47,15 @@ async function sendTest(req, res, next) {
     if (!push.isEnabled()) return sendError(res, 503, 'PUSH_DISABLED', 'Notifications Web Push non configurées (clés VAPID).');
     const outcome = await push.sendToUser(req.user.id, {
       title: 'HAISSEL', body: 'Notification de test : tout fonctionne.', url: '/app', tag: 'test',
-    });
+    }, { urgency: 'high' });
     const sent = outcome.results.filter((r) => r === 'sent').length;
+    // Codes HTTP renvoyés par le service (403, 410, 413…) ; jamais l'endpoint.
+    const failures = [...new Set(outcome.failures || [])];
     logger.info('Admin action', { adminId: req.user.id, action: 'push.test', sent });
-    return res.status(200).json({ success: true, data: { devices: outcome.results.length, sent, timeout: Boolean(outcome.timeout) } });
+    return res.status(200).json({
+      success: true,
+      data: { devices: outcome.results.length, sent, timeout: Boolean(outcome.timeout), failures },
+    });
   } catch (error) {
     return next(error);
   }

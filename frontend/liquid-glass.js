@@ -137,6 +137,54 @@
     }, true);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  /*
+   * Défilement : l'en-tête est transparent tout en haut et devient en verre
+   * au-delà de 8 px ; les boutons + et cloche font l'inverse (pilules en
+   * verre seulement sur l'en-tête transparent). La barre de recherche n'est
+   * en verre que collée sous l'en-tête. Une lecture par image au plus.
+   */
+  const SCROLL_THRESHOLD = 8;
+
+  function initScrollGlass() {
+    const topbar = document.querySelector('.topbar');
+    const layer = document.querySelector('.topbar-glass');
+    if (!topbar || !layer) return;
+    const pills = [...topbar.querySelectorAll('.topbar-icon.lg-glass')];
+    const search = document.getElementById('community-filters');
+    let pending = false;
+
+    function update() {
+      pending = false;
+      const scrolled = window.scrollY > SCROLL_THRESHOLD;
+      layer.classList.toggle('is-flat', !scrolled);
+      pills.forEach((pill) => pill.classList.toggle('is-flat', scrolled));
+      if (search) {
+        const visible = search.offsetParent !== null;
+        const top = parseFloat(window.getComputedStyle(search).top) || 0;
+        const stuck = visible && scrolled && search.getBoundingClientRect().top <= top + 0.5;
+        search.classList.toggle('is-flat', !stuck);
+      }
+    }
+
+    function schedule() {
+      if (pending) return;
+      pending = true;
+      window.requestAnimationFrame(update);
+    }
+
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    // Changement d'onglet (app.js remet le défilement en haut, data-view change).
+    new MutationObserver(schedule).observe(document.body, { attributes: true, attributeFilter: ['data-view'] });
+    update();
+    document.documentElement.classList.add('lg-ready');
+  }
+
+  function start() {
+    init();
+    initScrollGlass();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 }());

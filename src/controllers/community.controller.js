@@ -971,7 +971,7 @@ async function adminModerateOffer(req, res, next) {
         body: status === 'published' ? `Ta fiche a été validée : ${title}` : `Ta fiche n’a pas été validée : ${title}`,
         url: '/app#profile',
         tag: `offer-${offer.id}`,
-      });
+      }, { urgency: 'high' });
     }
     return res.status(200).json({ success: true, data: { id: offer.id, status } });
   } catch (error) {

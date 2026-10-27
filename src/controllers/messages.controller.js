@@ -92,6 +92,39 @@ async function getUnreadCount(req, res, next) {
 }
 
 /** POST /api/messages/team : écrire à l'équipe. Aucun destinataire n'est lu dans la requête. */
+/*
+ * Web Push vers l'équipe : tous les ADMIN actifs, en parallèle, 3 s au plus
+ * au total. Jamais le texte du message (écran verrouillé), jamais l'auteur
+ * lui-même. Ne lève jamais : le message est déjà enregistré.
+ */
+const TEAM_PUSH_COOLDOWN_S = 5 * 60;
+const TEAM_PUSH_TIMEOUT_MS = 3000;
+
+async function notifyTeam(author, conversationId) {
+  let timer;
+  try {
+    const admins = await pool.query(
+      `SELECT a.user_id FROM admins a INNER JOIN users u ON u.id = a.user_id
+       WHERE a.role = 'ADMIN' AND u.is_active AND NOT u.is_banned AND a.user_id <> $1`,
+      [author.id]
+    );
+    if (!admins.rows.length) return;
+    const message = {
+      title: 'HAISSEL Admin',
+      body: `Nouveau message de @${author.username}`,
+      url: '/admin#messages',
+      tag: `member-message-${conversationId}`,
+    };
+    const all = Promise.all(admins.rows.map((row) => push.sendToUser(row.user_id, message, { urgency: 'high' }).catch(() => null)));
+    const timeout = new Promise((resolve) => { timer = setTimeout(resolve, TEAM_PUSH_TIMEOUT_MS); });
+    await Promise.race([all, timeout]);
+  } catch (error) {
+    logger.warn('Team push error', { conversationId, error: error.message });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendToTeam(req, res, next) {
   try {
     const { content, error } = readContent(req.body);
@@ -113,17 +146,26 @@ async function sendToTeam(req, res, next) {
          RETURNING id`,
         [req.user.id]
       );
+      const conversationId = conversation.rows[0].id;
+      // Anti-spam des notifications : message précédent du membre il y a moins de 5 min ?
+      const previous = await client.query(
+        `SELECT 1 FROM messages
+         WHERE conversation_id = $1 AND NOT from_team AND created_at > NOW() - make_interval(secs => $2)
+         LIMIT 1`,
+        [conversationId, TEAM_PUSH_COOLDOWN_S]
+      );
       const inserted = await client.query(
         `INSERT INTO messages (conversation_id, sender_id, content, from_team)
          VALUES ($1, $2, $3, false) RETURNING id, content, from_team, is_read, created_at`,
-        [conversation.rows[0].id, req.user.id, content]
+        [conversationId, req.user.id, content]
       );
-      return { message: formatMessage(inserted.rows[0]) };
+      return { message: formatMessage(inserted.rows[0]), conversationId, notify: !previous.rows.length };
     });
     if (outcome.limited) {
       return sendError(res, 429, 'RATE_LIMITED',
         `Tu as envoyé ${MEMBER_MESSAGES_PER_HOUR} messages dans l’heure. Réessaie un peu plus tard.`);
     }
+    if (outcome.notify) await notifyTeam(req.user, outcome.conversationId);
     return res.status(201).json({ success: true, data: { message: outcome.message } });
   } catch (error) {
     return next(error);
@@ -207,7 +249,7 @@ async function adminReply(req, res, next) {
     if (member.rows[0]) {
       await push.sendToUser(member.rows[0].member_id, {
         title: 'HAISSEL', body: 'Nouveau message de l’équipe HAISSEL', url: '/app#messages', tag: 'team-message',
-      });
+      }, { urgency: 'high' });
     }
     return res.status(201).json({ success: true, data: { message } });
   } catch (error) {

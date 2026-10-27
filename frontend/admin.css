@@ -283,3 +283,11 @@ tbody tr:hover { background: #fafbff; }
 .inbox-bubble.member { align-self: flex-start; }
 .inbox-reply { display: grid; gap: .5rem; }
 .inbox-reply textarea { width: 100%; font: inherit; padding: .6rem; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; }
+
+/* Logo HAISSEL (logo.svg) à la place du carré « H ». */
+img.brand-mark { display: block; object-fit: contain; background: none !important; border-radius: 0; }
+
+/* Onglet Messages : proposition d'activer les notifications Web Push. */
+.push-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.push-banner[hidden] { display: none; }
+.push-banner p { margin: 0; font-weight: 600; }

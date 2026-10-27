@@ -9,7 +9,7 @@
  */
 
 // Même liste blanche que le serveur : liens internes uniquement.
-const ALLOWED_URL = /^\/(?:app|mes-affilies|go\/\d{1,10})?(?:#[A-Za-z0-9_-]{1,40})?$/;
+const ALLOWED_URL = /^\/(?:app|admin|mes-affilies|go\/\d{1,10})?(?:#[A-Za-z0-9_-]{1,40})?$/;
 
 function internalUrl(raw) {
   return typeof raw === 'string' && ALLOWED_URL.test(raw) ? raw : '/app';
@@ -26,7 +26,7 @@ self.addEventListener('push', (event) => {
     body: typeof data.body === 'string' ? data.body.slice(0, 120) : '',
     tag: typeof data.tag === 'string' ? data.tag.slice(0, 40) : 'haissel',
     icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    badge: '/icons/badge-96.png',
     data: { url: internalUrl(data.url) },
   }));
 });
