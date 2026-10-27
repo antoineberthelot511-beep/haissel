@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#f7f8fc" />
     <!-- Ajout à l'écran d'accueil (Android : manifeste ; iPhone : balises Apple). -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -18,6 +18,9 @@
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
+    <!-- Écran de démarrage : retiré au premier rendu (boot.js). -->
+    <div id="boot-screen" class="boot-screen"><div class="loader" role="status" aria-label="Chargement"></div></div>
+    <script src="boot.js"></script>
     <a class="skip-link" href="#main">Aller au contenu</a>
 
     <!-- Icônes (référencées par <use>), décoratives. -->

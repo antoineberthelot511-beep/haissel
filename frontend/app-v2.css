@@ -1531,3 +1531,54 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .howto-steps li { display: flex; align-items: flex-start; gap: 12px; font-size: 16px; line-height: 1.4; }
 .howto-steps .icon { vertical-align: -2px; color: var(--ios-blue); }
 .howto-num { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ios-blue); color: #fff; font-weight: 800; font-size: 14px; }
+
+/* ---------- Loader (loader inspiré de css-loaders.com) ---------- */
+/*
+ * Bleu HAISSEL sur fond clair. Le reste de l'interface n'a pas de thème
+ * sombre (l'Accueil et l'écran de démarrage restent clairs) : la couleur
+ * claire ne s'applique que sur les surfaces sombres (conversation, feuille).
+ */
+:root { --loader-color: #2563eb; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .chat, :root:not([data-theme="light"]) .sheet { --loader-color: #93c5fd; }
+}
+:root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet { --loader-color: #93c5fd; }
+
+.loader {
+  width: 45px;
+  aspect-ratio: 1;
+  --c: conic-gradient(from -90deg, var(--loader-color) 90deg, #0000 0);
+  background: var(--c), var(--c);
+  background-size: 40% 40%;
+  animation: l19 1s infinite alternate;
+}
+.loader.is-small { width: 24px; }
+@keyframes l19 {
+  0%, 10%   { background-position: 0 0, 0 calc(100%/3) }
+  50%       { background-position: 0 0, calc(100%/3) calc(100%/3) }
+  90%, 100% { background-position: 0 0, calc(100%/3) 0 }
+}
+/* Chargement de la suite du fil et des résultats de Recherche. */
+.loader-row { display: flex; justify-content: center; padding: 24px 0; }
+
+/* ---------- Écran de démarrage (boot.js) ---------- */
+/* Même fond que l'Accueil : pas de flash blanc à l'ouverture. */
+.boot-screen {
+  position: fixed; inset: 0; z-index: 10000;
+  display: grid; place-items: center;
+  background: var(--v2-bg);
+  transition: opacity 200ms ease;
+}
+.boot-screen.is-leaving { opacity: 0; pointer-events: none; }
+/* Le loader n'apparaît qu'après 300 ms : rien ne clignote si tout va vite. */
+.boot-screen .loader { opacity: 0; animation: boot-show 0s 300ms forwards, l19 1s infinite alternate; }
+@keyframes boot-show { to { opacity: 1; } }
+.boot-slow { display: grid; justify-items: center; gap: 16px; padding: 0 16px; text-align: center; }
+.boot-slow-text { margin: 0; font-size: 16px; font-weight: 700; color: var(--v2-on-surface); }
+.boot-retry { min-width: 160px; padding: 0 24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Les deux carrés restent immobiles. */
+  .loader { animation: none; background-position: 0 0, calc(100%/3) 0; }
+  .boot-screen .loader { animation: boot-show 0s 300ms forwards; }
+}

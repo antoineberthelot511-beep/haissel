@@ -1114,9 +1114,20 @@ function readFiltersFromUrl() {
   state.community.pendingCategory = category || '';
 }
 
+/** Petit loader centré (suite du fil, résultats de Recherche). */
+function loaderRow() {
+  return h('div', { className: 'loader-row' }, h('div', { className: 'loader is-small', role: 'status', 'aria-label': 'Chargement' }));
+}
+
+/** Retire l'écran de démarrage (boot.js) ; sans effet après la première fois. */
+function bootReady() {
+  if (window.HaisselBoot && window.HaisselBoot.ready) window.HaisselBoot.ready();
+}
+
 async function loadCommunity() {
   ui.communityList.setAttribute('aria-busy', 'true');
-  if (!ui.communityList.childElementCount) ui.communityList.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement des offres…'));
+  if (!ui.communityList.childElementCount) ui.communityList.replaceChildren(loaderRow());
+  if (ui.homeOffers && !ui.homeOffers.childElementCount) ui.homeOffers.replaceChildren(loaderRow());
   try {
     const query = communityQuery();
     const data = await api(`/api/community/offers${query ? `?${query}` : ''}`);
@@ -1173,6 +1184,9 @@ async function loadCommunity() {
       ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
         'Offres indisponibles pour le moment.'));
     }
+  } finally {
+    // Premier rendu de l'Accueil (stories et fil, état vide ou erreur).
+    bootReady();
   }
 }
 
@@ -3335,17 +3349,23 @@ async function init() {
 
   showLoggedOut();
   showAuthForm('login-form');
-  if (await handleEmailLinks()) return;
+  if (await handleEmailLinks()) {
+    bootReady();
+    return;
+  }
 
   try {
     const data = await api('/api/auth/me');
     if (data.mfa_pending) {
       showAuthForm('mfa-form');
+      bootReady();
       return;
     }
+    // Connecté : l'écran part à la fin de loadCommunity().
     showLoggedIn(data.user);
   } catch (error) {
     if (error.status !== 401) setMessage('error', error.message);
+    bootReady();
   }
 }
 
