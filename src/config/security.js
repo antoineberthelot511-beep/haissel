@@ -117,6 +117,22 @@ function areTurnstileTestKeysAllowed() {
   return !isProduction();
 }
 
+/*
+ * Notifications Web Push (VAPID). Les trois variables vont ensemble ; si l'une
+ * manque, la fonctionnalité est désactivée — JAMAIS une erreur bloquante : le
+ * site doit répondre normalement sans push.
+ */
+const VAPID_VARS = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'];
+
+function getVapidConfig() {
+  const [publicKey, privateKey, subject] = VAPID_VARS.map((name) => String(process.env[name] || '').trim());
+  const defined = [publicKey, privateKey, subject].filter(Boolean).length;
+  if (defined === 0) return { enabled: false, reason: 'absent' };
+  if (defined < 3) return { enabled: false, reason: 'partial' };
+  if (!/^mailto:[^\s@]+@[^\s@]+$/.test(subject)) return { enabled: false, reason: 'subject' };
+  return { enabled: true, publicKey, privateKey, subject };
+}
+
 /**
  * Validation au démarrage : échoue de façon sûre si un secret critique
  * manque ou garde une valeur d'exemple en production. Ne révèle aucune valeur.
@@ -165,6 +181,15 @@ function validateSecurityConfig() {
     warnings.push('Site servi sans HTTPS imposé : le cookie de session circule en clair sur le réseau. Activez HTTPS (voir README).');
   }
 
+  const vapid = getVapidConfig();
+  if (vapid.reason === 'absent') {
+    warnings.push('Notifications Web Push non configurées (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT) : fonctionnalité désactivée.');
+  } else if (vapid.reason === 'partial') {
+    warnings.push('Notifications Web Push : VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY et VAPID_SUBJECT doivent être définies ensemble. Fonctionnalité désactivée.');
+  } else if (vapid.reason === 'subject') {
+    warnings.push('Notifications Web Push : VAPID_SUBJECT doit être au format mailto:adresse. Fonctionnalité désactivée.');
+  }
+
   return { errors, warnings };
 }
 
@@ -186,4 +211,5 @@ module.exports = {
   SESSION_COOKIE_PLAIN,
   SESSION_POLICY,
   validateSecurityConfig,
+  getVapidConfig,
 };

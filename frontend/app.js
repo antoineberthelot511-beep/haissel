@@ -224,6 +224,7 @@ function setActiveView(viewName) {
   });
   // Découvrir : barre du bas en version sombre (liquid-glass.css).
   document.body.dataset.view = viewName;
+  rememberView(viewName);
   // Quitter Messages arrête l'interrogation de la conversation.
   if (viewName !== 'messages') closeChat();
   refreshUnread();
@@ -237,6 +238,20 @@ function setActiveView(viewName) {
     loadSavedOffers();
   }
   window.scrollTo({ top: 0 });
+}
+
+/*
+ * L'onglet ouvert est gardé dans l'adresse (« /app#recherche ») : un
+ * rechargement rouvre la même page. replaceState ne déclenche pas
+ * « hashchange » et n'ajoute rien à l'historique.
+ */
+function rememberView(viewName) {
+  if (!state.user) return;
+  const hash = window.HaisselPush.hashForView(viewName);
+  if (!hash || window.location.hash === hash) return;
+  try {
+    history.replaceState(history.state, '', window.location.pathname + window.location.search + hash);
+  } catch (error) { /* adresse non modifiable : rien à mémoriser */ }
 }
 
 function showLoggedOut() {
@@ -404,10 +419,18 @@ function showLoggedIn(user) {
   renderMfaState();
   // Comptes anterieurs a la declaration : la question passe avant tout.
   if (needsAgeAnswer()) openAgeGate();
-  setActiveView('home');
+  /*
+   * Vue de départ lue dans l'adresse AVANT tout rendu : l'Accueil n'est pas
+   * affiché puis remplacé par la page demandée.
+   */
+  const startView = initialView();
+  setActiveView(startView);
+  // Sans liste d'offres à charger, rien d'autre n'attend l'écran de démarrage.
+  if (!['home', 'links', 'discover'].includes(startView)) bootReady();
   loadLinks();
   if (notificationCenter) notificationCenter.start();
   startUnreadPolling();
+  syncPush();
 }
 
 // ---------------------------------------------------------------------------
@@ -1112,9 +1135,25 @@ function readFiltersFromUrl() {
   state.community.pendingCategory = category || '';
 }
 
+/** Petit loader centré (suite du fil, résultats de Recherche). */
+function loaderRow() {
+  return h('div', { className: 'loader-row' }, h('div', { className: 'loader is-small', role: 'status', 'aria-label': 'Chargement' }));
+}
+
+/** Retire l'écran de démarrage (boot.js) ; sans effet après la première fois. */
+function bootReady() {
+  // Ne doit jamais interrompre l'app : au pire, les filets de secours retirent l'écran.
+  try {
+    if (window.HaisselBoot && window.HaisselBoot.ready) window.HaisselBoot.ready();
+  } catch (error) {
+    document.getElementById('boot-screen')?.remove();
+  }
+}
+
 async function loadCommunity() {
   ui.communityList.setAttribute('aria-busy', 'true');
-  if (!ui.communityList.childElementCount) ui.communityList.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement des offres…'));
+  if (!ui.communityList.childElementCount) ui.communityList.replaceChildren(loaderRow());
+  if (ui.homeOffers && !ui.homeOffers.childElementCount) ui.homeOffers.replaceChildren(loaderRow());
   try {
     const query = communityQuery();
     const data = await api(`/api/community/offers${query ? `?${query}` : ''}`);
@@ -1171,6 +1210,9 @@ async function loadCommunity() {
       ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
         'Offres indisponibles pour le moment.'));
     }
+  } finally {
+    // Premier rendu de l'Accueil (stories et fil, état vide ou erreur).
+    bootReady();
   }
 }
 
@@ -1432,40 +1474,88 @@ function deviceEnv() {
   };
 }
 
-/* Profil › Réglages : une ligne, un interrupteur, un texte d'aide selon l'appareil. */
-function renderNotifSetting() {
-  const support = window.HaisselActivity.deviceSupport(deviceEnv());
-  const permission = notificationCenter ? notificationCenter.permission() : 'unsupported';
-  ui.notifHowto.hidden = support !== 'ios-install';
-  if (support === 'available' && permission !== 'unsupported') {
-    ui.notifSwitch.disabled = permission === 'denied';
-    ui.notifSwitch.checked = permission === 'granted';
-    ui.notifHelp.textContent = {
-      granted: 'Activées : HAISSEL te prévient des nouveautés, même en arrière-plan.',
-      denied: 'Refusées dans les réglages du téléphone ou du navigateur. Autorise HAISSEL là-bas pour les réactiver.',
-      default: 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.',
-    }[permission];
-    return;
+/*
+ * Profil › Réglages : une ligne, un interrupteur, un texte d'aide selon
+ * l'appareil. Web Push (push-client.js) : notifications même app fermée.
+ */
+const pushState = { config: null, subscribed: false };
+
+async function loadPushConfig() {
+  if (pushState.config) return pushState.config;
+  try {
+    pushState.config = await api('/api/push/config');
+  } catch (error) {
+    return { enabled: false };
   }
+  return pushState.config;
+}
+
+function pushDeps() {
+  return { nav: navigator, Notif: 'Notification' in window ? window.Notification : null, api, publicKey: pushState.config?.public_key };
+}
+
+async function renderNotifSetting() {
+  const support = window.HaisselActivity.deviceSupport(deviceEnv());
+  const config = await loadPushConfig();
+  ui.notifHowto.hidden = support !== 'ios-install';
+  ui.notifSwitch.hidden = !config.enabled;
   ui.notifSwitch.disabled = true;
   ui.notifSwitch.checked = false;
-  ui.notifHelp.textContent = support === 'ios-install'
-    ? 'Sur iPhone, ajoute HAISSEL à ton écran d’accueil pour recevoir les notifications.'
-    : 'Ton navigateur ne permet pas les notifications. Les nouveautés restent visibles dans Activité.';
+  if (!config.enabled) {
+    ui.notifHelp.textContent = 'Les nouveautés s’affichent dans Activité (la cloche).';
+    return;
+  }
+  if (support === 'ios-install') {
+    ui.notifHelp.textContent = 'Sur iPhone, ajoute HAISSEL à ton écran d’accueil pour recevoir les notifications.';
+    return;
+  }
+  if (support !== 'available' || !window.HaisselPush.canPush(navigator)) {
+    ui.notifHelp.textContent = 'Ton navigateur ne permet pas les notifications. Les nouveautés restent visibles dans Activité.';
+    return;
+  }
+  const permission = window.Notification.permission;
+  if (permission === 'denied') {
+    ui.notifHelp.textContent = 'Autorise HAISSEL dans Réglages > Notifications de ton téléphone.';
+    return;
+  }
+  pushState.subscribed = permission === 'granted' && Boolean(await window.HaisselPush.current(navigator));
+  ui.notifSwitch.disabled = false;
+  ui.notifSwitch.checked = pushState.subscribed;
+  ui.notifHelp.textContent = pushState.subscribed
+    ? 'Activées : HAISSEL te prévient, même application fermée.'
+    : 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.';
 }
 
 async function handleNotifSwitch() {
   // La permission n'est demandée qu'ici, au toucher de l'interrupteur.
-  if (ui.notifSwitch.checked && notificationCenter) {
-    ui.notifSwitch.disabled = true;
-    await notificationCenter.enableSystemNotifications();
-  } else if (!ui.notifSwitch.checked && notificationCenter?.permission() === 'granted') {
-    // Une page web ne peut pas retirer une autorisation : on l'explique.
-    ui.notifHelp.textContent = 'Pour les couper, va dans les réglages du téléphone ou du navigateur (Notifications › HAISSEL).';
-    ui.notifSwitch.checked = true;
-    return;
-  }
-  renderNotifSetting();
+  const wanted = ui.notifSwitch.checked;
+  ui.notifSwitch.disabled = true;
+  const result = wanted
+    ? await window.HaisselPush.enable(pushDeps())
+    : await window.HaisselPush.disable(pushDeps());
+  await renderNotifSetting();
+  if (result === 'error') ui.notifHelp.textContent = 'Activation impossible pour le moment. Réessaie dans un instant.';
+}
+
+/* Au chargement : l'abonnement déjà présent sur l'appareil est renvoyé au serveur (sans rien demander). */
+async function syncPush() {
+  const config = await loadPushConfig();
+  if (config.enabled) window.HaisselPush.sync(pushDeps());
+}
+
+/** Vue demandée par l'adresse (rechargement, lien de notification), sinon l'Accueil. */
+function initialView() {
+  const view = window.HaisselPush.viewFromHash(window.location.hash);
+  if (!view || (view === 'publish' && !canPublish())) return 'home';
+  return view;
+}
+
+/* Fragment modifié à la main ou lien interne (« /app#messages ») : ouvre la bonne vue. */
+function openViewFromHash() {
+  const view = window.HaisselPush.viewFromHash(window.location.hash);
+  if (!view || !state.user) return;
+  if (!document.getElementById(`${view}-view`).classList.contains('hidden')) return;
+  setActiveView(view);
 }
 
 // ---------------------------------------------------------------------------
@@ -1990,7 +2080,7 @@ const CHAT_POLL_MS = 15000;
 const UNREAD_POLL_MS = 60000;
 // Champ de saisie : 5 lignes au plus, puis il défile.
 const CHAT_MAX_LINES = 5;
-const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null };
+const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null, sending: false, fullHeight: 0 };
 
 function paintUnread(count) {
   ui.navMessagesBadge.hidden = !count;
@@ -2083,9 +2173,18 @@ function fitChatToViewport() {
   if (!vv || ui.teamThread.hidden) return;
   ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop}px`);
   ui.teamThread.style.setProperty('--chat-height', `${vv.height}px`);
-  // Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
-  ui.teamThread.classList.toggle('keyboard-open', window.innerHeight - vv.height > 120);
-  scrollChatToEnd();
+  /*
+   * Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
+   * Le seuil compare à la plus grande hauteur vue : depuis l'écran d'accueil
+   * et dans Chrome iOS, innerHeight peut rétrécir avec le clavier.
+   */
+  chat.fullHeight = Math.max(chat.fullHeight || 0, window.innerHeight, vv.height);
+  const open = chat.fullHeight - vv.height > 120;
+  const opened = open && !ui.teamThread.classList.contains('keyboard-open');
+  ui.teamThread.classList.toggle('keyboard-open', open);
+  const list = ui.chatMessages;
+  // À l'ouverture du clavier : dernier message. Sinon, on reste en bas si on y était.
+  if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < 80) scrollChatToEnd();
 }
 
 function watchViewport(on) {
@@ -2103,7 +2202,7 @@ function watchViewport(on) {
   }
 }
 
-/** Hauteur du champ : suit le texte jusqu'à 5 lignes ; bouton d'envoi seulement s'il y a du texte. */
+/** Hauteur du champ : suit le texte jusqu'à 5 lignes ; bouton d'envoi actif seulement s'il y a du texte. */
 function fitChatInput() {
   const input = ui.chatInput;
   const style = window.getComputedStyle(input);
@@ -2111,7 +2210,7 @@ function fitChatInput() {
   const extra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
   input.style.height = '';
   input.style.height = `${Math.min(input.scrollHeight + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth), line * CHAT_MAX_LINES + extra)}px`;
-  ui.chatSend.hidden = !input.value.trim();
+  if (!chat.sending) ui.chatSend.disabled = !input.value.trim();
 }
 
 function openChat() {
@@ -2138,12 +2237,13 @@ function closeChat() {
   document.body.classList.remove('chat-open');
 }
 
-async function handleChatSubmit(event) {
-  event.preventDefault();
+async function sendChat() {
   const content = ui.chatInput.value.trim();
-  if (!content) return;
+  if (!content || chat.sending) return;
   ui.chatError.classList.add('hidden');
-  setBusy(ui.chatForm, true);
+  chat.sending = true;
+  ui.chatSend.disabled = true;
+  ui.chatSend.setAttribute('aria-busy', 'true');
   try {
     await api('/api/messages/team', { method: 'POST', body: { content } });
     ui.chatInput.value = '';
@@ -2154,7 +2254,9 @@ async function handleChatSubmit(event) {
     ui.chatError.textContent = error.message;
     ui.chatError.classList.remove('hidden');
   } finally {
-    setBusy(ui.chatForm, false);
+    chat.sending = false;
+    ui.chatSend.setAttribute('aria-busy', 'false');
+    fitChatInput();
     ui.chatInput.focus({ preventScroll: true });
   }
 }
@@ -3292,17 +3394,23 @@ async function init() {
 
   showLoggedOut();
   showAuthForm('login-form');
-  if (await handleEmailLinks()) return;
+  if (await handleEmailLinks()) {
+    bootReady();
+    return;
+  }
 
   try {
     const data = await api('/api/auth/me');
     if (data.mfa_pending) {
       showAuthForm('mfa-form');
+      bootReady();
       return;
     }
+    // Connecté : l'écran part à la fin de loadCommunity().
     showLoggedIn(data.user);
   } catch (error) {
     if (error.status !== 401) setMessage('error', error.message);
+    bootReady();
   }
 }
 
@@ -3328,7 +3436,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
@@ -3446,6 +3554,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
   ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
   ui.notifSwitch.addEventListener('change', handleNotifSwitch);
+  window.addEventListener('hashchange', openViewFromHash);
   // Retour sur l'application (réglages du téléphone modifiés entre-temps).
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.user) renderNotifSetting(); });
   // Filtres présents dans l'adresse (lien partagé, favori, retour arrière).
@@ -3454,10 +3563,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Messages
   document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
   document.getElementById('chat-back').addEventListener('click', closeChat);
-  ui.chatForm.addEventListener('submit', handleChatSubmit);
+  ui.chatSend.addEventListener('click', sendChat);
   ui.chatInput.addEventListener('input', fitChatInput);
+  // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
+  const touchInput = window.matchMedia('(hover: none) and (pointer: coarse)');
   ui.chatInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ui.chatForm.requestSubmit(); }
+    if (window.HaisselChat.enterSends(event, touchInput.matches)) { event.preventDefault(); sendChat(); }
   });
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));

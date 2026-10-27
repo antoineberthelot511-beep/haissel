@@ -4,7 +4,8 @@ const broadcast = require('../controllers/broadcast.controller');
 const learn = require('../controllers/learn.controller');
 const community = require('../controllers/community.controller');
 const messages = require('../controllers/messages.controller');
-const { broadcastBurstLimiter, broadcastHourlyLimiter } = require('../middleware/rate-limit.middleware');
+const push = require('../controllers/push.controller');
+const { broadcastBurstLimiter, broadcastHourlyLimiter, pushRateLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
   authenticateToken,
@@ -57,6 +58,8 @@ router.get('/actions', admin.listAdminActions);
 router.get('/notifications', broadcast.listBroadcasts);
 router.get('/notifications/presence', broadcast.getPresence);
 router.post('/notifications', broadcastBurstLimiter, broadcastHourlyLimiter, broadcast.sendBroadcast);
+// « M'envoyer une notification de test » : appareils de l'admin connecté uniquement.
+router.post('/push/test', pushRateLimiter, push.sendTest);
 
 // Espace pédagogique : contenus, opportunités, réglages du parrainage.
 for (const [path, handlers] of [['content', learn.content], ['opportunities', learn.opportunity]]) {

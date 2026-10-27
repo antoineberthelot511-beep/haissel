@@ -74,5 +74,14 @@
     return (category ? 1 : 0) + (kind ? 1 : 0) + (saved ? 1 : 0);
   }
 
-  root.HaisselChat = { STAMP_GAP_MS, layoutThread, stampLabel, listTimeLabel, countActiveFilters };
+  /*
+   * Entrée dans le champ de message : sur ordinateur, Entrée envoie et
+   * Maj+Entrée fait un saut de ligne ; sur mobile (pointeur tactile), Entrée
+   * fait toujours un saut de ligne et l'envoi passe par le bouton.
+   */
+  function enterSends({ key, shiftKey = false, isComposing = false } = {}, touch = false) {
+    return key === 'Enter' && !shiftKey && !isComposing && !touch;
+  }
+
+  root.HaisselChat = { STAMP_GAP_MS, layoutThread, stampLabel, listTimeLabel, countActiveFilters, enterSends };
 }(typeof window !== 'undefined' ? window : globalThis));

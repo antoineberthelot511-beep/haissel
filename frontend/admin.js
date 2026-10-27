@@ -100,6 +100,25 @@ async function api(url, options = {}) {
 }
 
 let toastTimer;
+/*
+ * Notification Web Push de test vers les appareils de l'admin connecté
+ * (abonnés depuis Profil › Réglages de l'espace membre, avec ce compte).
+ */
+async function sendPushTest() {
+  const button = $('push-test');
+  button.disabled = true;
+  try {
+    const result = await api('/api/admin/push/test', { method: 'POST', body: '{}' });
+    if (!result.devices) toast('Aucun appareil abonné : active les notifications dans Profil › Réglages avec ce compte.', 'error');
+    else if (result.timeout) toast('Envoi trop long : réessaie dans un instant.', 'error');
+    else toast(`Notification envoyée à ${result.sent} appareil(s) sur ${result.devices}.`);
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function toast(message, kind = 'success') {
   const node = $('toast');
   node.textContent = message;
@@ -1228,6 +1247,7 @@ function bindEvents() {
   $('setup-continue').addEventListener('click', () => routeAfterAuth().catch((error) => showLogin(error.message)));
   $('setup-logout').addEventListener('click', handleLogout);
   $('admin-logout').addEventListener('click', handleLogout);
+  $('push-test').addEventListener('click', sendPushTest);
   $('link-form').addEventListener('submit', handleLinkSubmit);
   $('users-search-form').addEventListener('submit', handleUsersSearch);
   $('notif-form').addEventListener('submit', handleNotifSubmit);

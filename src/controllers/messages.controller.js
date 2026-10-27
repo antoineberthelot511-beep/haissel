@@ -13,6 +13,7 @@
 const { pool, withTransaction } = require('../config/database');
 const { sendError, parseId } = require('../utils/http');
 const { logger } = require('../utils/logger');
+const push = require('../services/push.service');
 
 const MAX_LENGTH = 2000;
 const MEMBER_MESSAGES_PER_HOUR = 20;
@@ -201,6 +202,13 @@ async function adminReply(req, res, next) {
     });
     if (!message) return sendError(res, 404, 'NOT_FOUND', 'Conversation introuvable.');
     logger.info('Admin action', { adminId: req.user.id, action: 'team_message.reply', targetId: id });
+    // Web Push, attendu (3 s max) : jamais le texte du message sur l'écran verrouillé.
+    const member = await pool.query('SELECT member_id FROM conversations WHERE id = $1', [id]);
+    if (member.rows[0]) {
+      await push.sendToUser(member.rows[0].member_id, {
+        title: 'HAISSEL', body: 'Nouveau message de l’équipe HAISSEL', url: '/app#messages', tag: 'team-message',
+      });
+    }
     return res.status(201).json({ success: true, data: { message } });
   } catch (error) {
     return next(error);

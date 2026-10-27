@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HAISSEL — Espace membre</title>
     <meta name="description" content="HAISSEL : crée ton compte et retrouve les bons plans partagés par la communauté." />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#f7f8fc" />
     <!-- Ajout à l'écran d'accueil (Android : manifeste ; iPhone : balises Apple). -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -18,6 +18,9 @@
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
+    <!-- Écran de démarrage : retiré au premier rendu (boot.js). -->
+    <div id="boot-screen" class="boot-screen"><div class="loader" role="status" aria-label="Chargement"></div></div>
+    <script src="boot.js"></script>
     <a class="skip-link" href="#main">Aller au contenu</a>
 
     <!-- Icônes (référencées par <use>), décoratives. -->
@@ -638,15 +641,16 @@
                 </header>
                 <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
                 <div id="chat-error" class="auth-error hidden" role="alert"></div>
-                <form id="chat-form" class="chat-form" novalidate>
+                <!-- Pas de formulaire : iOS n'y propose pas sa barre clé / carte / position au-dessus du clavier. -->
+                <div id="chat-form" class="chat-form">
                   <div class="chat-field">
-                    <label class="visually-hidden" for="chat-input">Ton message</label>
-                    <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" required></textarea>
-                    <button id="chat-send" class="chat-send" type="submit" aria-label="Envoyer" hidden>
+                    <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Message" aria-label="Message"
+                      autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send"></textarea>
+                    <button id="chat-send" class="chat-send" type="button" aria-label="Envoyer" disabled>
                       <svg class="icon" aria-hidden="true"><use href="#i-arrow-up" /></svg>
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
             </section>
 
@@ -1128,8 +1132,10 @@
     <script src="stories.js"></script>
     <script src="chat-thread.js"></script>
     <script src="activity.js"></script>
+    <script src="push-client.js"></script>
     <script src="app.js"></script>
     <script src="liquid-glass.js"></script>
     <script src="mobile-splash.js"></script>
+    <script src="boot-failsafe.js"></script>
   </body>
 </html>
