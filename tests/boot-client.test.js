@@ -95,3 +95,78 @@ test('le premier rendu après le message de lenteur retire quand même l’écra
   jest.advanceTimersByTime(200);
   expect(doc.getElementById('boot-screen')).toBeNull();
 });
+
+/*
+ * Non-régression « Illegal invocation » : dans un navigateur, window.setTimeout
+ * refuse d'être appelé avec un autre « this » que window (ou undefined).
+ * Node l'accepte : ces faux timers reproduisent la règle du navigateur.
+ */
+describe('timers par défaut, comme dans un navigateur', () => {
+  function browserLike() {
+    const body = fakeElement('body');
+    const screen = fakeElement('div');
+    body.append(screen);
+    const sandbox = vm.createContext({});
+    // Global vu depuis le code chargé (le « window » du navigateur simulé).
+    const inner = vm.runInContext('this', sandbox);
+    sandbox.window = inner;
+    const strict = (native) => function guarded(...args) {
+      if (this !== undefined && this !== inner && this !== sandbox) throw new TypeError('Illegal invocation');
+      return native(...args);
+    };
+    sandbox.setTimeout = strict((fn, ms) => setTimeout(fn, ms));
+    sandbox.clearTimeout = strict((id) => clearTimeout(id));
+    sandbox.document = {
+      getElementById: (id) => (id === 'boot-screen' && body.children.includes(screen) ? screen : null),
+      createElement: fakeElement,
+    };
+    sandbox.location = { reload: jest.fn() };
+    return { sandbox, screen, strict };
+  }
+
+  test('les faux timers refusent un autre « this » (comme le navigateur)', () => {
+    const { sandbox } = browserLike();
+    const detached = { setTimeout: sandbox.setTimeout };
+    expect(() => detached.setTimeout(() => {}, 0)).toThrow('Illegal invocation');
+  });
+
+  test('boot.js se charge, définit HaisselBoot et retire l’écran avec ses timers par défaut', () => {
+    const { sandbox, screen } = browserLike();
+    expect(() => vm.runInContext(SOURCE, sandbox)).not.toThrow();
+    expect(typeof sandbox.HaisselBoot.ready).toBe('function');
+    expect(() => sandbox.HaisselBoot.ready()).not.toThrow();
+    jest.advanceTimersByTime(800);
+    expect(sandbox.document.getElementById('boot-screen')).toBeNull();
+    expect(screen.classList.contains('is-leaving')).toBe(true);
+  });
+
+  test('create() sans timers fournis, puis « Réessayer » au bout de 10 s', () => {
+    const { sandbox } = browserLike();
+    vm.runInContext(SOURCE, sandbox);
+    const body = fakeElement('body');
+    const screen = fakeElement('div');
+    body.append(screen);
+    const doc = { getElementById: () => screen, createElement: fakeElement };
+    expect(() => sandbox.HaisselBoot.create({ doc, reload: jest.fn() })).not.toThrow();
+    jest.advanceTimersByTime(10000);
+    expect(findText(screen, 'Réessayer')).toBe(true);
+  });
+});
+
+describe('filets de sécurité', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../frontend/app-v2.css'), 'utf8');
+
+  test('.boot-screen a une animation de secours à 12 s (sans JavaScript)', () => {
+    const rule = css.match(/\.boot-screen\s*\{[^}]*\}/)[0];
+    expect(rule).toMatch(/animation:\s*boot-failsafe\s+0s\s+12s\s+forwards/);
+    const keyframes = css.match(/@keyframes boot-failsafe\s*\{[^}]*\}/)[0];
+    expect(keyframes).toMatch(/opacity:\s*0/);
+    expect(keyframes).toMatch(/visibility:\s*hidden/);
+    expect(keyframes).toMatch(/pointer-events:\s*none/);
+  });
+
+  test('boot-failsafe.js est chargé avant </body>', () => {
+    const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
+    expect(html).toMatch(/<script src="boot-failsafe\.js"><\/script>\s*<\/body>/);
+  });
+});

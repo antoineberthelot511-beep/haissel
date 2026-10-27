@@ -15,7 +15,17 @@
   // Durée minimale d'affichage, au premier chargement de la page seulement.
   const MIN_MS = 600;
 
-  function create({ doc, timers = { setTimeout, clearTimeout }, now = Date.now, reload }) {
+  /*
+   * Fonctions natives enveloppées : appelées comme méthodes d'un autre objet
+   * (timers.setTimeout), les navigateurs lèvent « Illegal invocation ».
+   * Node l'accepte, d'où le test dédié (tests/boot-client.test.js).
+   */
+  const windowTimers = {
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id),
+  };
+
+  function create({ doc, timers = windowTimers, now = () => Date.now(), reload }) {
     const screen = doc.getElementById('boot-screen');
     const startedAt = now();
     let done = false;

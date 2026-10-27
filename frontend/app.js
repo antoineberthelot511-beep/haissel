@@ -1142,7 +1142,12 @@ function loaderRow() {
 
 /** Retire l'écran de démarrage (boot.js) ; sans effet après la première fois. */
 function bootReady() {
-  if (window.HaisselBoot && window.HaisselBoot.ready) window.HaisselBoot.ready();
+  // Ne doit jamais interrompre l'app : au pire, les filets de secours retirent l'écran.
+  try {
+    if (window.HaisselBoot && window.HaisselBoot.ready) window.HaisselBoot.ready();
+  } catch (error) {
+    document.getElementById('boot-screen')?.remove();
+  }
 }
 
 async function loadCommunity() {

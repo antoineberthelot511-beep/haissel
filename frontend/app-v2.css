@@ -1572,7 +1572,10 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
   display: grid; place-items: center;
   background: var(--v2-bg);
   transition: opacity 200ms ease;
+  /* Secours sans JavaScript : l'écran ne peut jamais bloquer l'app plus de 12 s. */
+  animation: boot-failsafe 0s 12s forwards;
 }
+@keyframes boot-failsafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 .boot-screen.is-leaving { opacity: 0; pointer-events: none; }
 .boot-slow { display: grid; justify-items: center; gap: 16px; padding: 0 16px; text-align: center; }
 .boot-slow-text { margin: 0; font-size: 16px; font-weight: 700; color: var(--v2-on-surface); }
