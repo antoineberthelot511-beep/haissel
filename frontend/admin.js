@@ -1273,7 +1273,10 @@ async function openInboxThread(id, { refreshList = true } = {}) {
   });
   const messages = h('div', { className: 'inbox-messages' }, ...data.messages.map((message) => h('div', {
     className: `inbox-bubble ${message.from_team ? 'team' : 'member'}`,
-  }, h('p', null, message.content), h('small', { className: 'muted' }, `${message.from_team ? 'Équipe' : `@${data.username}`} · ${date(message.created_at)}`))));
+  }, h('p', null, message.content), h('small', { className: 'muted' },
+    // Côté équipe : l'avatar de l'équipe (l'ours), comme dans l'application.
+    message.from_team ? h('img', { className: 'team-avatar', src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe Haissel', width: 20, height: 20 }) : null,
+    `${message.from_team ? 'Équipe' : `@${data.username}`} · ${date(message.created_at)}`))));
   $('inbox-thread').replaceChildren(h('h2', null, `@${data.username}`), messages, form);
   messages.scrollTop = messages.scrollHeight;
   if (refreshList) await loadInbox();

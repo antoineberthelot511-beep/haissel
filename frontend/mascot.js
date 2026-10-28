@@ -18,7 +18,7 @@
   const POSES = [
     'bienvenue', 'bravo', 'vide-dodo', 'aucun-resultat', 'oups-erreur', 'patience', 'tuto-telephone', 'notifications',
     'messages', 'message-recu', 'fiche-validee', 'fiche-refusee', 'story-selfie', 'securite', 'hors-ligne',
-    'admin-support', 'admin-moderation', 'guides', 'reglages', 'au-revoir',
+    'admin-support', 'admin-moderation', 'guides', 'reglages', 'au-revoir', 'aucun-message',
   ];
   const MIN_SIZE = 72;
   const MAX_SIZE = 160;

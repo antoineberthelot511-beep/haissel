@@ -47,8 +47,8 @@ function loadDom() {
 const M = loadPure();
 
 describe('images', () => {
-  test('20 poses, .webp (et .png) dans design/mascotte, .webp copiés dans frontend/images/mascotte', () => {
-    expect(M.POSES).toHaveLength(20);
+  test('21 poses, .webp (et .png) dans design/mascotte, .webp copiés dans frontend/images/mascotte', () => {
+    expect(M.POSES).toHaveLength(21);
     for (const [i, name] of M.POSES.entries()) {
       const base = `ours-${String(i + 1).padStart(2, '0')}-${name}`;
       for (const file of [`design/mascotte/${base}.webp`, `design/mascotte/${base}.png`, `frontend/images/mascotte/${base}.webp`]) {
@@ -69,7 +69,8 @@ describe('images', () => {
 
   test('chaque pose est utilisée quelque part (application ou console)', () => {
     const all = [index, adminHtml, app, admin, read('boot.js')].join('\n');
-    for (const name of M.POSES) {
+    // 09 et 10 : remplacées par 21 « aucun-message » (liste vide, conversation sans réponse).
+    for (const name of M.POSES.filter((pose) => !['messages', 'message-recu'].includes(pose))) {
       expect([name, new RegExp(`(data-mascot="${name}"|bear\\('${name}'|mascot: '${name}'|mascot\\('${name}'|'${name}' :|: '${name}')`).test(all)])
         .toEqual([name, true]);
     }
@@ -152,7 +153,9 @@ describe('emplacements', () => {
     }
     expect(app).toMatch(/search-empty mascot-state' \}, bear\('aucun-resultat', 140\)/);
     expect(app).toMatch(/activity-empty mascot-state' \}, bear\('vide-dodo', 140\)/);
-    expect(app).toMatch(/chat-empty mascot-state' \}, bear\('message-recu', 120\)/);
+    expect(app).toMatch(/chat-empty mascot-state' \}, bear\('aucun-message', 120\)/);
+    expect(app).toMatch(/chat-hint mascot-state' \}, bear\('aucun-message', 120\)/);
+    expect(app).toContain("const NO_MESSAGE_TEXT = 'Pas encore de message. Pose ta question, l’équipe te répond ici.';");
     expect(admin).toContain("bear('admin-moderation', 140), h('p', null, 'Tout est traité.')");
   });
 
@@ -207,5 +210,22 @@ describe('focus des menus, feuilles et fenêtres', () => {
     expect(read('styles.css')).toContain('--focus: var(--brand);');
     // L'ambre reste pour les statuts « en attente », plus pour le focus.
     expect(css).not.toMatch(/focus[^;{}]*#f59e0b/i);
+  });
+});
+
+describe('avatar de l’équipe', () => {
+  test('ours rond, 128 px jusqu’à 64 px affichés, 256 px au-delà, alt « Équipe Haissel »', async () => {
+    for (const size of [128, 256]) {
+      const meta = await sharp(path.join(FRONTEND, `images/mascotte/avatar-equipe-${size}.webp`)).metadata();
+      expect([meta.width, meta.height]).toEqual([size, size]);
+    }
+    expect(app).toMatch(/const file = size <= 64 \? 'avatar-equipe-128\.webp' : 'avatar-equipe-256\.webp';/);
+    expect(app).toContain("alt: 'Équipe Haissel'");
+    expect(read('app-v2.css')).toMatch(/img\.team-avatar \{ border-radius: 50%;/);
+    // Aperçu de l'appui long et Activité : même avatar ; le logo H reste celui de l'app.
+    expect(app).toContain("teamAvatar(32, 'msg-avatar sm')");
+    expect(app).toContain("h('span', { className: 'activity-icon is-team' }, teamAvatar(40))");
+    expect(admin).toContain("src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe Haissel'");
+    expect(index).toContain('<img class="wordmark-logo" src="/logo.svg"');
   });
 });

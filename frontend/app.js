@@ -737,6 +737,15 @@ const OFFER_STATUS_LABELS = {
   rejected: ['Refusée', 'rejected'],
 };
 
+/*
+ * Avatar de l'équipe (l'ours) : toujours rond, 128 px jusqu'à 64 px affichés,
+ * 256 px au-delà. Le logo « H » reste celui de l'application.
+ */
+function teamAvatar(size, className = '') {
+  const file = size <= 64 ? 'avatar-equipe-128.webp' : 'avatar-equipe-256.webp';
+  return h('img', { className: `team-avatar ${className}`.trim(), src: `/images/mascotte/${file}`, alt: 'Équipe Haissel', width: size, height: size, decoding: 'async' });
+}
+
 /* Ours de la mascotte (mascot.js) ; rien si le script manque. */
 function bear(name, size) {
   return window.HaisselMascot ? window.HaisselMascot.mascot(name, { size }) : null;
@@ -1462,7 +1471,9 @@ function activityRow(item, seenAt) {
   return h('li', null, h(opens ? 'button' : 'div', {
     className: `activity-row${unread ? ' is-unread' : ''}`, ...(opens ? { type: 'button', onclick: () => openActivityItem(item) } : {}),
   },
-  h('span', { className: `activity-icon tone-${info.tone}`, 'aria-hidden': 'true' }, icon(info.icon)),
+  item.type === 'team_message'
+    ? h('span', { className: 'activity-icon is-team' }, teamAvatar(40))
+    : h('span', { className: `activity-icon tone-${info.tone}`, 'aria-hidden': 'true' }, icon(info.icon)),
   h('span', { className: 'activity-text' },
     h('span', { className: 'activity-phrase' }, info.text),
     h('time', { className: 'activity-time', datetime: item.at }, window.HaisselActivity.relativeTime(item.at))),
@@ -2344,6 +2355,7 @@ const LONG_PRESS_MS = 450;
 const CHAT_STICK_PX = 80;
 const chat = { pollTimer: 0, viewport: null, fullHeight: 0, open: false, listReady: false, unread: 0, query: '', last: null };
 const chatCache = new Map();
+const NO_MESSAGE_TEXT = 'Pas encore de message. Pose ta question, l’équipe te répond ici.';
 
 /** Conversation en mémoire : messages (serveur + envois optimistes) et lignes affichées, par clé. */
 function teamThread() {
@@ -2412,8 +2424,8 @@ function renderInbox() {
   // Vide seulement s'il n'y a rien du tout à montrer : tout épinglé n'est pas « vide ».
   const empty = chat.listReady && !rows && !pinnedVisible;
   ui.msgEmpty.hidden = !empty;
-  ui.msgEmptyText.textContent = searching ? `Aucun résultat pour « ${chat.query.trim()} ».` : 'Aucune conversation.';
-  const pose = searching ? 'aucun-resultat' : 'messages';
+  ui.msgEmptyText.textContent = searching ? `Aucun résultat pour « ${chat.query.trim()} ».` : NO_MESSAGE_TEXT;
+  const pose = searching ? 'aucun-resultat' : 'aucun-message';
   const holder = document.getElementById('msg-empty-mascot');
   if (empty && holder && holder.dataset.pose !== pose) {
     holder.dataset.pose = pose;
@@ -2543,7 +2555,7 @@ function renderChat() {
   const empty = list.querySelector('.chat-empty');
   if (!messages.length) {
     if (entry.loaded && !empty) {
-      list.replaceChildren(h('div', { className: 'chat-empty mascot-state' }, bear('message-recu', 120), h('p', null, 'Pose ta question : l’équipe te répond ici.')));
+      list.replaceChildren(h('div', { className: 'chat-empty mascot-state' }, bear('aucun-message', 120), h('p', null, NO_MESSAGE_TEXT)));
     }
     return { created: [], atBottom: true };
   }
@@ -2557,8 +2569,18 @@ function renderChat() {
   for (const [key, node] of entry.nodes) {
     if (!keep.has(key)) { node.remove(); entry.nodes.delete(key); }
   }
+  // L'équipe n'a encore rien répondu : l'ours « aucun message » en tête du fil.
+  const waiting = !messages.some((m) => m.from_team);
+  let hint = list.querySelector('.chat-hint');
+  if (waiting && !hint) {
+    hint = h('div', { className: 'chat-hint mascot-state' }, bear('aucun-message', 120), h('p', null, NO_MESSAGE_TEXT));
+    list.prepend(hint);
+  } else if (!waiting && hint) {
+    hint.remove();
+    hint = null;
+  }
   const created = [];
-  let previous = null;
+  let previous = hint;
   rows.forEach((row) => {
     let node = entry.nodes.get(row.key);
     if (node) updateChatRow(node, row);
@@ -2856,7 +2878,7 @@ function openPeek(source, point) {
     ? recent.map((m) => h('div', { className: `bubble ${m.from_team ? 'from-team' : 'from-me'}` }, h('p', null, m.content)))
     : [h('p', { className: 'msg-peek-preview' }, ui.teamThreadPreview.textContent)];
   const card = h('button', { className: 'msg-peek-card', type: 'button', 'aria-label': 'Ouvrir la conversation', onclick: () => { closePeek(); openChat(); } },
-    h('span', { className: 'msg-peek-head' }, h('img', { className: 'msg-avatar sm', src: '/logo.svg', alt: '', width: 32, height: 32 }), h('strong', null, 'Équipe Haissel')),
+    h('span', { className: 'msg-peek-head' }, teamAvatar(32, 'msg-avatar sm'), h('strong', null, 'Équipe Haissel')),
     h('span', { className: 'msg-peek-thread' }, thread));
   const menu = h('div', { className: 'msg-peek-menu lg-glass', role: 'menu', 'aria-label': 'Actions' },
     menuItem('Marquer comme lu', 'i-check', () => { closePeek(); markThreadRead(); }),

@@ -211,8 +211,8 @@ describe('liste des conversations', () => {
     const inbox = html.slice(html.indexOf('id="messages-inbox"'), html.indexOf('id="team-thread"'));
     expect(inbox).toContain('<h2 id="messages-title" class="msg-title">Messages</h2>');
     expect(inbox).toMatch(/<input id="msg-search" type="search" placeholder="Rechercher"/);
-    expect(inbox).toMatch(/<img class="msg-pin-avatar" src="\/logo.svg" alt="" width="64" height="64" \/>/);
-    expect(inbox).toMatch(/<img class="msg-avatar" src="\/logo.svg" alt="" width="52" height="52" \/>/);
+    expect(inbox).toMatch(/<img class="msg-pin-avatar team-avatar" src="\/images\/mascotte\/avatar-equipe-128.webp" alt="Équipe Haissel" width="64" height="64" \/>/);
+    expect(inbox).toMatch(/<img class="msg-avatar team-avatar" src="\/images\/mascotte\/avatar-equipe-128.webp" alt="Équipe Haissel" width="52" height="52" \/>/);
     expect(inbox).toContain('msg-chevron');
     expect(inbox).toContain('id="msg-skeleton"');
     expect(inbox).toMatch(/<div id="msg-empty" class="msg-empty" hidden>\s*<span id="msg-empty-mascot"><\/span>/);
