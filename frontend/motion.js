@@ -1,13 +1,17 @@
 /*
  * Système de mouvement (voir motion.css) : apparition à l'écran, cascade du
- * premier écran, compteurs, pastilles, images, toast de confirmation, tirer
- * pour rafraîchir. Aucune librairie ; tout respecte prefers-reduced-motion.
+ * premier écran, compteurs, pastilles, images, toast de confirmation (balayé
+ * vers le haut pour le fermer), tirer pour rafraîchir, menus ouverts depuis
+ * le point touché, secousse des champs en erreur. Aucune librairie ; tout
+ * respecte prefers-reduced-motion.
  *
  * La logique testable (cascadeTargets, countFrames) est sans DOM.
  */
 (function attach(root) {
   const CASCADE_MAX = 8;
   const CASCADE_STEP_MS = 30;
+  const MENU_STEP_MS = 20;
+  const MENU_CLOSE_MS = 120;
   const COUNT_MS = 600;
   const PTR_THRESHOLD = 70;
   const PTR_MAX = 110;
@@ -28,6 +32,21 @@
     return picked;
   }
 
+  /**
+   * Point d'origine d'un menu (transform-origin), en px dans le menu : le
+   * point touché, ramené dans le rectangle du menu ; sans point, le centre.
+   */
+  function menuOrigin(rect, point) {
+    if (!point) return { x: rect.width / 2, y: rect.height / 2 };
+    const clamp = (v, max) => Math.round(Math.min(max, Math.max(0, v)));
+    return { x: clamp(point.x - rect.left, rect.width), y: clamp(point.y - rect.top, rect.height) };
+  }
+
+  /** Toast lâché : fermé s'il a été tiré de 30 px vers le haut ou lancé vite. */
+  function toastDismissed(dy, vy) {
+    return dy < -30 || vy < -0.3;
+  }
+
   /** Valeur affichée par le compteur à l'instant t (0 → valeur en 600 ms, ralenti à la fin). */
   function countAt(value, elapsed, duration = COUNT_MS) {
     if (elapsed >= duration) return value;
@@ -39,7 +58,7 @@
   // DOM
   // -------------------------------------------------------------------------
   if (typeof root.document === 'undefined') {
-    root.HaisselMotion = { CASCADE_MAX, CASCADE_STEP_MS, COUNT_MS, cascadeTargets, countAt };
+    root.HaisselMotion = { CASCADE_MAX, CASCADE_STEP_MS, MENU_STEP_MS, MENU_CLOSE_MS, COUNT_MS, cascadeTargets, countAt, menuOrigin, toastDismissed };
     return;
   }
   const doc = root.document;
@@ -166,11 +185,96 @@
     inner.append(text);
     el.append(inner);
     doc.body.append(el);
-    root.setTimeout(() => {
+    const leave = () => {
+      if (el.classList.contains('is-leaving')) return;
       el.classList.add('is-leaving');
       root.setTimeout(() => el.remove(), 240);
-    }, duration);
+    };
+    const timer = root.setTimeout(leave, duration);
+    // Balayé vers le haut : suit le doigt, puis se ferme (ou revient en place).
+    let drag = null;
+    el.addEventListener('pointerdown', (event) => {
+      drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
+      try { el.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
+    });
+    el.addEventListener('pointermove', (event) => {
+      if (!drag || drag.id !== event.pointerId) return;
+      const dy = Math.min(0, event.clientY - drag.y);
+      drag.vy = (dy - drag.dy) / Math.max(1, event.timeStamp - drag.t);
+      drag.dy = dy;
+      drag.t = event.timeStamp;
+      el.style.transform = `translateX(-50%) translateY(${dy}px)`;
+    });
+    const release = (event) => {
+      if (!drag || drag.id !== event.pointerId) return;
+      const { dy, vy } = drag;
+      drag = null;
+      if (toastDismissed(dy, vy)) {
+        root.clearTimeout(timer);
+        el.classList.add('is-swiped');
+        el.style.transform = 'translateX(-50%) translateY(-120%)';
+        leave();
+        return;
+      }
+      el.classList.add('is-settling');
+      el.style.transform = '';
+      root.setTimeout(() => el.classList.remove('is-settling'), 360);
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
     return el;
+  }
+
+  /*
+   * Menus (déroulants, contextuels, « … » des stories) : ouverture depuis le
+   * point touché, scale .85 → 1 et fondu avec ressort, éléments en cascade
+   * (20 ms) ; fermeture en 120 ms. L'appelant affiche le menu avant
+   * openMenu et le cache (ou le retire) dans done() de closeMenu.
+   */
+  function openMenu(menu, point) {
+    if (!menu) return;
+    menu.classList.remove('m-menu-out');
+    const origin = menuOrigin(menu.getBoundingClientRect(), point);
+    menu.style.transformOrigin = `${origin.x}px ${origin.y}px`;
+    [...menu.children].forEach((item, index) => item.style.setProperty('--m-i', String(index)));
+    menu.classList.remove('m-menu-in');
+    void menu.offsetWidth;
+    menu.classList.add('m-menu-in');
+  }
+
+  function closeMenu(menu, done = () => {}) {
+    if (!menu) { done(); return; }
+    menu.classList.remove('m-menu-in');
+    if (reduced() || !menu.isConnected || !menu.getClientRects().length) { done(); return; }
+    menu.classList.add('m-menu-out');
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      menu.classList.remove('m-menu-out');
+      done();
+    };
+    menu.addEventListener('animationend', finish, { once: true });
+    root.setTimeout(finish, MENU_CLOSE_MS + 40);
+  }
+
+  /* Secousse légère d'un champ (ou d'un message) en erreur. */
+  function shake(element) {
+    if (!element || reduced()) return;
+    element.classList.remove('m-shake');
+    void element.offsetWidth;
+    element.classList.add('m-shake');
+    element.addEventListener('animationend', () => element.classList.remove('m-shake'), { once: true });
+  }
+
+  /* Champ marqué aria-invalid="true" : son libellé et son contour secouent. */
+  function watchInvalid() {
+    const observer = new root.MutationObserver((mutations) => {
+      for (const { target } of mutations) {
+        if (target.getAttribute('aria-invalid') === 'true') shake(target.closest('.field') || target);
+      }
+    });
+    observer.observe(doc.body, { subtree: true, attributes: true, attributeFilter: ['aria-invalid'] });
   }
 
   /*
@@ -260,6 +364,7 @@
   function start() {
     watchPops();
     watchNav();
+    watchInvalid();
     doc.querySelectorAll('[data-reveal]').forEach(reveal);
   }
 
@@ -267,7 +372,7 @@
   else start();
 
   root.HaisselMotion = {
-    CASCADE_MAX, CASCADE_STEP_MS, COUNT_MS, cascadeTargets, countAt,
-    reduced, reveal, cascade, setCount, fadeImage, toast, pullToRefresh, navigate, noteView,
+    CASCADE_MAX, CASCADE_STEP_MS, MENU_STEP_MS, MENU_CLOSE_MS, COUNT_MS, cascadeTargets, countAt, menuOrigin, toastDismissed,
+    reduced, reveal, cascade, setCount, fadeImage, toast, pullToRefresh, navigate, noteView, openMenu, closeMenu, shake,
   };
 }(typeof window !== 'undefined' ? window : globalThis));

@@ -85,7 +85,7 @@ describe('contenu', () => {
     expect(page).toMatch(/20 heures/);
     expect(fs.readFileSync(path.join(__dirname, '../src/services/adult.service.js'), 'utf8')).toContain('const ADULT_UPGRADE_DELAY_DAYS = 30;');
     expect(page).toMatch(/30 jours/);
-    for (const rule of ['Auto-clics', 'Faux comptes', 'Échanges d\'inscriptions', 'équipe HAISSEL uniquement', 'facultatifs', 'suspendre']) {
+    for (const rule of ['Auto-clics', 'Faux comptes', 'Échanges d\'inscriptions', "messagerie te permet d'écrire", 'facultatifs', 'suspendre']) {
       expect([rule, page.includes(rule)]).toEqual([rule, true]);
     }
     expect(page).toMatch(/liens affiliés sont réservés à l'équipe HAISSEL/);

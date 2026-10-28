@@ -61,11 +61,19 @@ describe('layoutThread', () => {
     expect(b.map((row) => row.mine)).toEqual([true, true, false, false, true]);
   });
 
-  test('horodatage au début et quand plus de 15 minutes séparent deux messages', () => {
+  test('séparateur de date au début, heure quand plus de 15 minutes séparent deux messages', () => {
     const rows = Chat.layoutThread([msg(1, 0, false), msg(2, 15, false), msg(3, 31, false)]);
-    expect(rows.map((row) => row.type)).toEqual(['stamp', 'bubble', 'bubble', 'stamp', 'bubble']);
-    // L'horodatage coupe le groupe : la bulle d'avant reçoit sa queue.
+    expect(rows.map((row) => row.type)).toEqual(['day', 'bubble', 'bubble', 'stamp', 'bubble']);
+    // Le séparateur coupe le groupe : la bulle d'avant reçoit sa queue.
     expect(bubbles(rows).map((row) => row.tail)).toEqual([false, true, true]);
+  });
+
+  test('nouveau jour : nouveau séparateur de date ; clés stables et uniques', () => {
+    const rows = Chat.layoutThread([msg(1, 0, false), msg(2, 24 * 60, true)]);
+    expect(rows.map((row) => row.type)).toEqual(['day', 'bubble', 'day', 'bubble']);
+    const keys = rows.map((row) => row.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(Chat.layoutThread([msg(1, 0, false), msg(2, 24 * 60, true)]).map((row) => row.key)).toEqual(keys);
   });
 
   test('« Envoyé » sous mon dernier message seulement, jamais d’accusé de lecture', () => {
@@ -85,6 +93,10 @@ describe('libellés de date', () => {
     expect(Chat.stampLabel('pas une date', now)).toBe('');
     expect(Chat.listTimeLabel(new Date(2026, 9, 25, 14, 5), now)).toBe('14:05');
     expect(Chat.listTimeLabel(new Date(2026, 9, 24, 9, 12), now)).toBe('Hier');
+    expect(Chat.dayLabel(new Date(2026, 9, 25, 9, 0), now)).toBe('Aujourd’hui');
+    expect(Chat.dayLabel(new Date(2026, 9, 24, 9, 0), now)).toBe('Hier');
+    expect(Chat.dayLabel(new Date(2026, 9, 20, 9, 0), now)).toMatch(/^mardi 20 octobre$/);
+    expect(Chat.hourLabel(new Date(2026, 9, 25, 14, 5))).toBe('14:05');
   });
 });
 

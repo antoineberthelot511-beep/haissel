@@ -150,6 +150,7 @@ function setMessage(kind, message) {
   const info = kind === 'info' ? message : '';
   ui.authError.textContent = error;
   ui.authError.classList.toggle('hidden', !error);
+  if (error) window.HaisselMotion?.shake(ui.authError);
   ui.authInfo.textContent = info;
   ui.authInfo.classList.toggle('hidden', !info);
 }
@@ -227,8 +228,8 @@ function setActiveView(viewName) {
   // Sens du glissement (motion.js) : ordre des onglets de la barre du bas.
   window.HaisselMotion?.noteView(viewName);
   rememberView(viewName);
-  // Quitter Messages arrête l'interrogation de la conversation.
-  if (viewName !== 'messages') closeChat();
+  // Quitter Messages ferme la conversation (interrogation au rythme normal).
+  if (viewName !== 'messages') closeChat({ animate: false });
   refreshUnread();
   if (viewName === 'notifications' && state.user) showActivity();
   if (viewName === 'home' && state.user) renderHomeLearnCard();
@@ -240,6 +241,7 @@ function setActiveView(viewName) {
     loadSavedOffers();
   }
   window.scrollTo({ top: 0 });
+  if (viewName === 'messages') chat.updateTitle?.();
 }
 
 /*
@@ -258,8 +260,7 @@ function rememberView(viewName) {
 
 function showLoggedOut() {
   if (notificationCenter) notificationCenter.stop();
-  clearInterval(chat.unreadTimer);
-  closeChat();
+  resetChat();
   state.user = null;
   state.links = [];
   state.learn = { loaded: false, opportunities: [] };
@@ -1872,18 +1873,29 @@ function storyCard(offer) {
       h('p', null, offer.tips)) : null);
 }
 
+/* Menu « … » : ouvert depuis le point touché, fermé en 120 ms (motion.js). */
 function storyMenu(offer) {
+  const motion = window.HaisselMotion;
+  const hide = () => {
+    toggle.setAttribute('aria-expanded', 'false');
+    if (motion) motion.closeMenu(menu, () => menu.classList.add('hidden'));
+    else menu.classList.add('hidden');
+  };
   const menu = h('div', { className: 'sv-menu lg-glass hidden', role: 'menu' },
     h('button', {
       type: 'button', role: 'menuitem',
       // Le lecteur reste en pause tant qu'une fenêtre est ouverte (voir tickStory).
-      onclick: () => { menu.classList.add('hidden'); pauseStory(false); openReport(offer); },
+      onclick: () => { hide(); pauseStory(false); openReport(offer); },
     }, icon('i-flag', 'icon sm'), 'Signaler'));
   const toggle = h('button', {
     className: 'sv-round', type: 'button', 'aria-label': 'Plus d’actions', 'aria-haspopup': 'menu',
-    onclick: () => {
-      const open = menu.classList.toggle('hidden') === false;
-      toggle.setAttribute('aria-expanded', String(open));
+    onclick: (event) => {
+      const open = menu.classList.contains('hidden');
+      if (open) {
+        menu.classList.remove('hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+        motion?.openMenu(menu, { x: event.clientX, y: event.clientY });
+      } else hide();
       pauseStory(open);
     },
   }, '…');
@@ -2270,25 +2282,97 @@ function closeStoryViewer() {
 }
 
 // ---------------------------------------------------------------------------
-// Messages : conversation avec l'équipe
+// Messages : liste des conversations et conversation avec l'équipe
 // ---------------------------------------------------------------------------
 
 /*
- * Une seule conversation, avec l'équipe. Texte brut affiché par textContent
- * (h() crée des nœuds texte) : rien n'est interprété, aucun lien cliquable.
- * Pas de flux temps réel sur Vercel : interrogation toutes les 15 s tant
- * que la conversation est ouverte ; pastille vérifiée à chaque changement de
- * vue et toutes les 60 s quand la page est visible.
+ * Conversation avec l'équipe. Texte brut affiché par textContent (h() crée
+ * des nœuds texte) : rien n'est interprété, aucun lien cliquable.
+ *
+ * Pas de flux temps réel sur Vercel : interrogation toutes les 4 s quand la
+ * conversation est ouverte et visible, toutes les 60 s sinon (pastille),
+ * arrêtée quand l'onglet est caché (HaisselChat.pollDelay).
+ *
+ * La conversation n'est jamais redessinée en entier : chaque ligne a une clé
+ * stable (layoutThread) ; on crée seulement les nouvelles et on met à jour
+ * les autres sur place. Les conversations déjà ouvertes restent en mémoire
+ * (chatCache) : réouverture instantanée, puis rafraîchissement.
  */
-const CHAT_POLL_MS = 15000;
-const UNREAD_POLL_MS = 60000;
 // Champ de saisie : 5 lignes au plus, puis il défile.
 const CHAT_MAX_LINES = 5;
-const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null, sending: false, fullHeight: 0 };
+const CHAT_PINS_KEY = 'haissel.messages.pinned';
+const LONG_PRESS_MS = 450;
+// Distance au bas de la liste sous laquelle on suit les nouveaux messages.
+const CHAT_STICK_PX = 80;
+const chat = { pollTimer: 0, viewport: null, fullHeight: 0, open: false, listReady: false, unread: 0, query: '', last: null };
+const chatCache = new Map();
+
+/** Conversation en mémoire : messages (serveur + envois optimistes) et lignes affichées, par clé. */
+function teamThread() {
+  let entry = chatCache.get('team');
+  if (!entry) {
+    entry = {
+      loaded: false,
+      nodes: new Map(),
+      store: window.HaisselChat.createThreadStore({
+        send: async (content) => (await api('/api/messages/team', { method: 'POST', body: { content } })).message,
+      }),
+    };
+    chatCache.set('team', entry);
+  }
+  return entry;
+}
+
+function resetChat() {
+  stopPolling();
+  closeChat({ animate: false });
+  chatCache.clear();
+  ui.chatMessages.replaceChildren();
+  chat.listReady = false;
+  chat.last = null;
+}
+
+// --- Liste des conversations -----------------------------------------------
+
+/* Épinglage : préférence de cet appareil (aucune donnée de compte). */
+function readPins() {
+  try {
+    const raw = safeStorage()?.getItem(CHAT_PINS_KEY);
+    const list = raw ? JSON.parse(raw) : ['team'];
+    return Array.isArray(list) ? list : ['team'];
+  } catch (error) { return ['team']; }
+}
+
+function writePins(list) {
+  try { safeStorage()?.setItem(CHAT_PINS_KEY, JSON.stringify(list)); } catch (error) { /* stockage indisponible : rien n'est gardé */ }
+}
+
+function conversations() {
+  return [{ id: 'team', name: 'Équipe Haissel', preview: ui.teamThreadPreview.textContent, unread: chat.unread }];
+}
+
+/** Épinglées en haut (cachées pendant une recherche), lignes filtrées, état vide. */
+function renderInbox() {
+  const pins = readPins();
+  const searching = Boolean(chat.query.trim());
+  const shown = new Set(window.HaisselChat.filterConversations(conversations(), chat.query).map((c) => c.id));
+  let pinnedVisible = 0;
+  ui.msgPinned.querySelectorAll('[data-conversation]').forEach((item) => {
+    item.hidden = searching || !pins.includes(item.dataset.conversation);
+    if (!item.hidden) pinnedVisible += 1;
+  });
+  ui.msgPinned.hidden = !pinnedVisible;
+  ui.msgList.querySelectorAll('[data-conversation]').forEach((item) => { item.hidden = !shown.has(item.dataset.conversation); });
+  ui.msgSkeleton.hidden = chat.listReady;
+  ui.msgList.hidden = !chat.listReady;
+  ui.msgEmpty.hidden = !chat.listReady || shown.size > 0;
+  ui.msgEmptyText.textContent = searching ? `Aucun résultat pour « ${chat.query.trim()} ».` : 'Aucune conversation.';
+}
 
 function paintUnread(count) {
+  chat.unread = count;
   ui.navMessagesBadge.hidden = !count;
-  ui.teamThreadDot.hidden = !count;
+  document.querySelectorAll('[data-unread-dot]').forEach((dot) => { dot.hidden = !count; });
   ui.teamThreadOpen.classList.toggle('is-unread', Boolean(count));
   ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
 }
@@ -2296,6 +2380,7 @@ function paintUnread(count) {
 /** Ligne de la liste : aperçu du dernier message (textContent) et heure. */
 function paintThreadPreview(last) {
   if (!last) return;
+  chat.last = last;
   ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content}`;
   ui.teamThreadTime.textContent = window.HaisselChat.listTimeLabel(last.created_at);
   ui.teamThreadTime.setAttribute('datetime', last.created_at);
@@ -2308,66 +2393,205 @@ async function refreshUnread() {
     paintUnread(data.unread);
     paintThreadPreview(data.last);
   } catch (error) { /* pastille seulement : on réessaiera */ }
+  if (!chat.listReady) {
+    chat.listReady = true;
+    renderInbox();
+  }
   // Même rythme pour la cloche (Activité).
   loadActivity();
 }
 
-function startUnreadPolling() {
-  clearInterval(chat.unreadTimer);
-  refreshUnread();
-  chat.unreadTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshUnread(); }, UNREAD_POLL_MS);
+// --- Interrogation ----------------------------------------------------------
+
+function stopPolling() {
+  clearTimeout(chat.pollTimer);
+  chat.pollTimer = 0;
 }
 
-/* Lignes de la conversation (chat-thread.js) : texte toujours via h(), donc textContent. */
-function chatRow(row) {
-  if (row.type === 'stamp') {
-    return h('p', { className: 'chat-stamp' }, h('time', { datetime: row.at }, window.HaisselChat.stampLabel(row.at)));
+function schedulePoll() {
+  stopPolling();
+  if (!state.user) return;
+  const delay = window.HaisselChat.pollDelay({ open: chat.open, visible: document.visibilityState === 'visible' });
+  if (delay !== null) chat.pollTimer = setTimeout(pollTick, delay);
+}
+
+async function pollTick() {
+  stopPolling();
+  if (chat.open) await loadChat();
+  else await refreshUnread();
+  schedulePoll();
+}
+
+function startUnreadPolling() {
+  refreshUnread();
+  schedulePoll();
+}
+
+// --- Conversation : lignes à clé, mises à jour sur place --------------------
+
+function chatRowNode(row) {
+  if (row.type === 'day' || row.type === 'stamp') {
+    const label = row.type === 'day' ? window.HaisselChat.dayLabel(row.at) : window.HaisselChat.hourLabel(row.at);
+    return h('p', { className: row.type === 'day' ? 'chat-day' : 'chat-stamp' }, h('time', { datetime: row.at }, label));
   }
-  const classes = ['bubble', row.mine ? 'from-me' : 'from-team'];
-  if (row.groupStart) classes.push('group-start');
-  if (row.tail) classes.push('tail');
-  const bubble = h('div', { className: classes.join(' '), title: new Date(row.message.created_at).toLocaleString('fr-FR') },
+  return chatRow(row);
+}
+
+/* Une bulle (texte toujours via h(), donc textContent) et, pour mes messages, son état d'envoi. */
+function chatRow(row) {
+  const bubble = h('div', { className: `bubble ${row.mine ? 'from-me' : 'from-team'}` },
     h('span', { className: 'visually-hidden' }, row.mine ? 'Toi : ' : 'Équipe Haissel : '),
     h('p', null, row.message.content));
-  if (!row.sent) return bubble;
-  return h('div', { className: 'bubble-wrap from-me' }, bubble, h('span', { className: 'chat-receipt' }, 'Envoyé'));
+  const node = h('div', { className: `bubble-row ${row.mine ? 'from-me' : 'from-team'}` }, bubble);
+  node.dataset.key = row.key;
+  if (row.mine) node.append(h('span', { className: 'chat-receipt', 'aria-live': 'polite' }));
+  updateChatRow(node, row);
+  return node;
 }
 
-function scrollChatToEnd() {
-  ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
-}
+const RECEIPTS = { sending: 'Envoi…', failed: 'Toucher pour réessayer' };
 
-function renderChat(messages) {
-  if (!messages.length) {
-    chat.signature = '';
-    ui.chatMessages.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
-    return;
+function updateChatRow(node, row) {
+  if (row.type !== 'bubble') return;
+  const bubble = node.firstChild;
+  bubble.classList.toggle('group-start', row.groupStart);
+  bubble.classList.toggle('tail', row.tail);
+  bubble.title = new Date(row.message.created_at).toLocaleString('fr-FR');
+  if (!row.mine) return;
+  const status = row.status || (row.sent ? 'sent' : '');
+  if (node.dataset.status === status) return;
+  node.dataset.status = status;
+  node.classList.toggle('is-failed', status === 'failed');
+  node.classList.toggle('is-sending', status === 'sending');
+  const receipt = node.querySelector('.chat-receipt');
+  receipt.textContent = status === 'sent' ? 'Envoyé' : RECEIPTS[status] || '';
+  receipt.hidden = !status;
+  node.querySelector('.bubble-alert')?.remove();
+  if (status === 'failed') {
+    // Point d'exclamation rouge collé à la bulle : toute la ligne réessaie l'envoi.
+    bubble.append(h('button', { className: 'bubble-alert', type: 'button', 'aria-label': 'Message non envoyé. Réessayer' }, '!'));
   }
-  // Rien de neuf : on ne touche pas au DOM (pas de saut de défilement).
-  const last = messages[messages.length - 1];
-  const signature = `${messages.length}:${last.id}`;
-  if (signature === chat.signature) return;
-  const atBottom = ui.chatMessages.scrollHeight - ui.chatMessages.scrollTop - ui.chatMessages.clientHeight < 60;
-  const grew = chat.signature !== '';
-  chat.signature = signature;
-  ui.chatMessages.replaceChildren(...window.HaisselChat.layoutThread(messages).map(chatRow));
-  // Nouveau message : la dernière bulle apparaît depuis son coin (motion.css).
-  if (grew) [...ui.chatMessages.querySelectorAll('.bubble')].pop()?.classList.add('m-new');
-  if (atBottom || !grew || !last.from_team) scrollChatToEnd();
-  paintThreadPreview(last);
+}
+
+/** Premier élément visible : repère pour que rien ne saute quand des lignes s'ajoutent au-dessus. */
+function firstVisibleRow(list) {
+  const top = list.getBoundingClientRect().top;
+  return [...list.children].find((node) => node.getBoundingClientRect().bottom > top) || null;
+}
+
+/*
+ * Rapproche le DOM de la liste calculée : lignes disparues retirées, nouvelles
+ * créées et insérées à leur place, existantes seulement mises à jour.
+ * Renvoie les lignes créées et si l'on était en bas avant.
+ */
+function renderChat() {
+  const entry = teamThread();
+  const list = ui.chatMessages;
+  const messages = entry.store.messages();
+  const empty = list.querySelector('.chat-empty');
+  if (!messages.length) {
+    if (entry.loaded && !empty) list.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
+    return { created: [], atBottom: true };
+  }
+  empty?.remove();
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX;
+  const anchor = atBottom ? null : firstVisibleRow(list);
+  const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+
+  const rows = window.HaisselChat.layoutThread(messages);
+  const keep = new Set(rows.map((row) => row.key));
+  for (const [key, node] of entry.nodes) {
+    if (!keep.has(key)) { node.remove(); entry.nodes.delete(key); }
+  }
+  const created = [];
+  let previous = null;
+  rows.forEach((row) => {
+    let node = entry.nodes.get(row.key);
+    if (node) updateChatRow(node, row);
+    else {
+      node = chatRowNode(row);
+      entry.nodes.set(row.key, node);
+      created.push({ row, node });
+    }
+    const expected = previous ? previous.nextSibling : list.firstChild;
+    if (node !== expected) list.insertBefore(node, expected);
+    previous = node;
+  });
+  // Ancrage : le message qu'on lisait reste à la même hauteur.
+  if (anchor && anchor.isConnected) {
+    const delta = anchor.getBoundingClientRect().top - anchorTop;
+    if (Math.abs(delta) > 1) list.scrollTop += delta;
+  }
+  return { created, atBottom };
+}
+
+function scrollChatToEnd(smooth = false) {
+  const list = ui.chatMessages;
+  if (smooth && !reducedMotion()) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  else list.scrollTop = list.scrollHeight;
+  ui.chatNew.hidden = true;
+}
+
+function lastMessage() {
+  const messages = teamThread().store.messages();
+  return messages[messages.length - 1] || null;
 }
 
 async function loadChat() {
+  const entry = teamThread();
   try {
     const data = await api('/api/messages/team');
-    renderChat(data.messages || []);
+    const added = entry.store.applyServer(data.messages || []);
+    const first = !entry.loaded;
+    entry.loaded = true;
+    const { created, atBottom } = renderChat();
     paintUnread(0);
+    paintThreadPreview(lastMessage());
+    if (first) { scrollChatToEnd(); return; }
+    // Nouveaux messages : la bulle apparaît depuis son coin (motion.css).
+    created.forEach(({ row, node }) => { if (row.type === 'bubble') node.firstChild.classList.add('m-new'); });
+    if (atBottom) scrollChatToEnd(true);
+    else if (added.length) ui.chatNew.hidden = false;
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.chatError.textContent = error.message;
     ui.chatError.classList.remove('hidden');
   }
 }
+
+/*
+ * Envoi optimiste : la bulle apparaît tout de suite (« Envoi… »), le champ
+ * se vide, puis « Envoyé ». En cas d'échec : point d'exclamation rouge et
+ * « Toucher pour réessayer ». Les envois partent dans l'ordre (createThreadStore).
+ */
+function sendChat() {
+  const content = ui.chatInput.value.trim();
+  if (!content) return;
+  ui.chatError.classList.add('hidden');
+  ui.chatInput.value = '';
+  fitChatInput();
+  const { done } = teamThread().store.post(content);
+  showSent(done);
+  ui.chatInput.focus({ preventScroll: true });
+}
+
+function retryChat(key) {
+  const done = teamThread().store.retry(key);
+  if (done) showSent(done);
+}
+
+function showSent(done) {
+  const { created } = renderChat();
+  // Montée depuis la barre de saisie (motion.css, .m-send).
+  created.forEach(({ row, node }) => { if (row.type === 'bubble') node.firstChild.classList.add('m-send'); });
+  scrollChatToEnd(true);
+  done.then(() => {
+    renderChat();
+    paintThreadPreview(lastMessage());
+  });
+}
+
+// --- Ouverture, fermeture, gestes -------------------------------------------
 
 /*
  * Clavier iOS : la page ne rétrécit pas, seul visualViewport change. La
@@ -2390,7 +2614,7 @@ function fitChatToViewport() {
   ui.teamThread.classList.toggle('keyboard-open', open);
   const list = ui.chatMessages;
   // À l'ouverture du clavier : dernier message. Sinon, on reste en bas si on y était.
-  if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < 80) scrollChatToEnd();
+  if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX) scrollChatToEnd();
 }
 
 /* Hauteur de la barre de saisie (superposée) : marge du bas de la liste. */
@@ -2425,56 +2649,293 @@ function fitChatInput() {
   const extra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
   input.style.height = '';
   input.style.height = `${Math.min(input.scrollHeight + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth), line * CHAT_MAX_LINES + extra)}px`;
-  if (!chat.sending) ui.chatSend.disabled = !input.value.trim();
+  ui.chatSend.disabled = !input.value.trim();
 }
 
+const CHAT_SLIDE = { duration: 300, easing: 'cubic-bezier(.2, .8, .2, 1)' };
+
+/* La conversation glisse depuis la droite (300 ms) ; déjà en mémoire, elle s'affiche tout de suite. */
 function openChat() {
-  ui.messagesInbox.hidden = true;
+  if (chat.open) return;
+  closePeek();
+  chat.open = true;
   ui.teamThread.hidden = false;
   document.body.classList.add('chat-open');
   ui.chatError.classList.add('hidden');
-  chat.signature = '';
   fitChatInput();
   watchChatForm();
   watchViewport(true);
-  loadChat();
-  clearInterval(chat.timer);
-  chat.timer = setInterval(loadChat, CHAT_POLL_MS);
+  renderChat();
+  scrollChatToEnd();
+  const hideInbox = () => { if (chat.open) ui.messagesInbox.hidden = true; };
+  if (reducedMotion()) hideInbox();
+  else ui.teamThread.animate([{ transform: 'translateX(100%)' }, { transform: 'none' }], CHAT_SLIDE).finished.then(hideInbox, hideInbox);
+  pollTick();
   ui.chatInput.focus({ preventScroll: true });
 }
 
-function closeChat() {
-  clearInterval(chat.timer);
-  chat.timer = 0;
-  if (!ui.teamThread) return;
-  watchViewport(false);
-  ui.teamThread.hidden = true;
+/* Retour : la conversation repart vers la droite, depuis là où le doigt l'a laissée. */
+function closeChat({ animate = true } = {}) {
+  if (!chat.open) return;
+  chat.open = false;
+  closeBubbleMenu();
   ui.messagesInbox.hidden = false;
-  document.body.classList.remove('chat-open');
+  ui.chatNew.hidden = true;
+  const finish = () => {
+    if (chat.open) return;
+    watchViewport(false);
+    ui.teamThread.hidden = true;
+    ui.teamThread.style.transform = '';
+    document.body.classList.remove('chat-open');
+  };
+  if (!animate || reducedMotion()) finish();
+  else {
+    const from = ui.teamThread.style.transform || 'none';
+    ui.teamThread.animate([{ transform: from }, { transform: 'translateX(100%)' }], { ...CHAT_SLIDE, fill: 'forwards' })
+      .finished.then((animation) => { finish(); animation.cancel(); }, finish);
+  }
+  renderInbox();
+  schedulePoll();
 }
 
-async function sendChat() {
-  const content = ui.chatInput.value.trim();
-  if (!content || chat.sending) return;
-  ui.chatError.classList.add('hidden');
-  chat.sending = true;
-  ui.chatSend.disabled = true;
-  ui.chatSend.setAttribute('aria-busy', 'true');
+/* Balayage depuis le bord gauche (24 px) : la conversation suit le doigt, puis se ferme ou revient. */
+function bindChatEdgeSwipe() {
+  const el = ui.teamThread;
+  let drag = null;
+  el.addEventListener('pointerdown', (event) => {
+    if (!chat.open || event.pointerType === 'mouse' || event.clientX > 24) return;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, vx: 0, t: event.timeStamp, active: false };
+  });
+  el.addEventListener('pointermove', (event) => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const dx = Math.max(0, event.clientX - drag.x);
+    if (!drag.active) {
+      const dy = Math.abs(event.clientY - drag.y);
+      if (dy > 12 && dy > dx) { drag = null; return; }
+      if (dx < 8) return;
+      drag.active = true;
+      try { el.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
+    }
+    const dt = Math.max(1, event.timeStamp - drag.t);
+    drag.vx = (dx - drag.dx) / dt;
+    drag.dx = dx;
+    drag.t = event.timeStamp;
+    el.style.transform = `translateX(${dx}px)`;
+  });
+  const release = (event) => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const { active, dx, vx } = drag;
+    drag = null;
+    if (!active) return;
+    if (event.type !== 'pointercancel' && (dx > el.offsetWidth * 0.35 || vx > 0.5)) { closeChat(); return; }
+    const from = el.style.transform;
+    el.style.transform = '';
+    if (!reducedMotion()) el.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.34, 1.3, .64, 1)' });
+  };
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+}
+
+/*
+ * Appui long : timer de 450 ms annulé si le doigt bouge de plus de 10 px.
+ * onPress(point) ; le clic qui suit un appui long est ignoré. Le clic droit
+ * (ordinateur) fait la même chose.
+ */
+function onLongPress(target, selector, onPress) {
+  let press = null;
+  const cancel = () => {
+    if (!press) return;
+    clearTimeout(press.timer);
+    press.el.classList.remove('is-pressed');
+    press = null;
+  };
+  target.addEventListener('pointerdown', (event) => {
+    delete target.dataset.longPressed;
+    const el = event.target.closest(selector);
+    if (!el || event.button > 0) return;
+    cancel();
+    el.classList.add('is-pressed');
+    const point = { x: event.clientX, y: event.clientY };
+    press = { el, point, fired: false, timer: setTimeout(() => {
+      press.fired = true;
+      press.el.classList.remove('is-pressed');
+      target.dataset.longPressed = '1';
+      onPress(el, point);
+    }, LONG_PRESS_MS) };
+  });
+  target.addEventListener('pointermove', (event) => {
+    if (press && !press.fired && Math.hypot(event.clientX - press.point.x, event.clientY - press.point.y) > 10) cancel();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => target.addEventListener(type, () => {
+    if (press && !press.fired) cancel();
+    else if (press) press = null;
+  }));
+  target.addEventListener('click', (event) => {
+    if (!target.dataset.longPressed) return;
+    delete target.dataset.longPressed;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  target.addEventListener('contextmenu', (event) => {
+    const el = event.target.closest(selector);
+    if (!el) return;
+    event.preventDefault();
+    cancel();
+    onPress(el, { x: event.clientX, y: event.clientY });
+  });
+}
+
+// --- Aperçu flottant (appui long sur une conversation) ----------------------
+
+let peek = null;
+
+function menuItem(label, iconId, onSelect) {
+  return h('button', { type: 'button', role: 'menuitem', onclick: onSelect }, h('span', null, label), icon(iconId, 'icon sm'));
+}
+
+function openPeek(source, point) {
+  closePeek();
+  const id = source.closest('[data-conversation]')?.dataset.conversation || 'team';
+  const pinned = readPins().includes(id);
+  const recent = chatCache.has(id) ? teamThread().store.messages().slice(-4) : [];
+  const thread = recent.length
+    ? recent.map((m) => h('div', { className: `bubble ${m.from_team ? 'from-team' : 'from-me'}` }, h('p', null, m.content)))
+    : [h('p', { className: 'msg-peek-preview' }, ui.teamThreadPreview.textContent)];
+  const card = h('button', { className: 'msg-peek-card', type: 'button', 'aria-label': 'Ouvrir la conversation', onclick: () => { closePeek(); openChat(); } },
+    h('span', { className: 'msg-peek-head' }, h('img', { className: 'msg-avatar sm', src: '/logo.svg', alt: '', width: 32, height: 32 }), h('strong', null, 'Équipe Haissel')),
+    h('span', { className: 'msg-peek-thread' }, thread));
+  const menu = h('div', { className: 'msg-peek-menu lg-glass', role: 'menu', 'aria-label': 'Actions' },
+    menuItem('Marquer comme lu', 'i-check', () => { closePeek(); markThreadRead(); }),
+    menuItem(pinned ? 'Désépingler' : 'Épingler', pinned ? 'i-bookmark' : 'i-bookmark-fill', () => {
+      writePins(pinned ? readPins().filter((p) => p !== id) : [...readPins(), id]);
+      closePeek();
+      renderInbox();
+    }));
+  const overlay = h('div', { className: 'msg-peek', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Aperçu de la conversation' }, card, menu);
+  overlay.addEventListener('click', (event) => { if (event.target === overlay) closePeek(); });
+  overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePeek(); });
+  document.body.append(overlay);
+  peek = { overlay, menu, source };
+  window.HaisselMotion?.openMenu(menu, point);
+  menu.querySelector('button')?.focus({ preventScroll: true });
+}
+
+function closePeek() {
+  if (!peek) return;
+  const { overlay, menu, source } = peek;
+  peek = null;
+  overlay.classList.add('is-leaving');
+  const remove = () => overlay.remove();
+  if (window.HaisselMotion) window.HaisselMotion.closeMenu(menu, remove);
+  else remove();
+  if (document.activeElement && overlay.contains(document.activeElement)) source.focus({ preventScroll: true });
+}
+
+/* « Marquer comme lu » : la lecture de la conversation passe les réponses en « lues » (serveur). */
+async function markThreadRead() {
+  const entry = teamThread();
   try {
-    await api('/api/messages/team', { method: 'POST', body: { content } });
-    ui.chatInput.value = '';
-    fitChatInput();
-    await loadChat();
-    scrollChatToEnd();
-  } catch (error) {
-    ui.chatError.textContent = error.message;
-    ui.chatError.classList.remove('hidden');
-  } finally {
-    chat.sending = false;
-    ui.chatSend.setAttribute('aria-busy', 'false');
-    fitChatInput();
-    ui.chatInput.focus({ preventScroll: true });
-  }
+    const data = await api('/api/messages/team');
+    entry.store.applyServer(data.messages || []);
+    entry.loaded = true;
+    paintUnread(0);
+  } catch (error) { /* la pastille sera rafraîchie à la prochaine interrogation */ }
+}
+
+// --- Appui long sur une bulle : Copier --------------------------------------
+
+let bubbleMenu = null;
+
+function openBubbleMenu(bubble) {
+  closeBubbleMenu();
+  const row = bubble.closest('.bubble-row');
+  const text = bubble.querySelector('p')?.textContent || '';
+  const backdrop = h('div', { className: 'bubble-backdrop' });
+  const menu = h('div', { className: 'bubble-menu lg-glass', role: 'menu', 'aria-label': 'Actions du message' },
+    h('button', {
+      type: 'button', role: 'menuitem',
+      onclick: async () => {
+        closeBubbleMenu();
+        try {
+          await navigator.clipboard.writeText(text);
+          window.HaisselMotion?.toast('Message copié');
+        } catch (error) {
+          window.HaisselMotion?.toast('Copie impossible sur ce navigateur', { check: false });
+        }
+      },
+    }, 'Copier'));
+  backdrop.addEventListener('click', closeBubbleMenu);
+  ui.teamThread.append(backdrop, menu);
+  row.classList.add('is-focused');
+  bubble.classList.add('is-lifted');
+  // Sous la bulle, ou au-dessus s'il n'y a pas la place.
+  const rect = bubble.getBoundingClientRect();
+  const host = ui.teamThread.getBoundingClientRect();
+  const below = rect.bottom + 8 + 52 < host.bottom - ui.chatForm.offsetHeight;
+  menu.style.top = `${(below ? rect.bottom + 8 : rect.top - 8 - 52) - host.top}px`;
+  if (row.classList.contains('from-me')) menu.style.right = `${host.right - rect.right}px`;
+  else menu.style.left = `${rect.left - host.left}px`;
+  bubbleMenu = { backdrop, menu, row, bubble };
+  window.HaisselMotion?.openMenu(menu, { x: row.classList.contains('from-me') ? rect.right : rect.left, y: below ? rect.bottom : rect.top });
+  menu.querySelector('button').focus({ preventScroll: true });
+}
+
+function closeBubbleMenu() {
+  if (!bubbleMenu) return;
+  const { backdrop, menu, row, bubble } = bubbleMenu;
+  bubbleMenu = null;
+  bubble.classList.remove('is-lifted');
+  backdrop.classList.add('is-leaving');
+  const done = () => { backdrop.remove(); menu.remove(); row.classList.remove('is-focused'); };
+  if (window.HaisselMotion) window.HaisselMotion.closeMenu(menu, done);
+  else done();
+}
+
+/* Grand titre « Messages » → titre compact de l'en-tête, lié au défilement (0 → 1). */
+function watchInboxTitle() {
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    if (document.body.dataset.view !== 'messages') return;
+    const title = document.getElementById('messages-title');
+    const p = Math.min(1, Math.max(0, window.scrollY / Math.max(1, title.offsetHeight)));
+    document.documentElement.style.setProperty('--msg-collapse', p.toFixed(3));
+  };
+  window.addEventListener('scroll', () => { if (!frame) frame = window.requestAnimationFrame(update); }, { passive: true });
+  return update;
+}
+
+function bindMessages() {
+  document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
+  [ui.msgPinned, ui.msgList].forEach((list) => onLongPress(list, '[data-open-thread]', openPeek));
+  onLongPress(ui.chatMessages, '.bubble', openBubbleMenu);
+  ui.chatMessages.addEventListener('click', (event) => {
+    const row = event.target.closest('.bubble-row.is-failed');
+    if (row) retryChat(row.dataset.key);
+  });
+  ui.chatMessages.addEventListener('scroll', () => {
+    const list = ui.chatMessages;
+    if (!ui.chatNew.hidden && list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX) ui.chatNew.hidden = true;
+  }, { passive: true });
+  ui.chatNew.addEventListener('click', () => scrollChatToEnd(true));
+  ui.teamThread.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeBubbleMenu(); });
+  document.getElementById('chat-back').addEventListener('click', () => closeChat());
+  bindChatEdgeSwipe();
+  ui.msgSearch.addEventListener('input', () => { chat.query = ui.msgSearch.value; renderInbox(); });
+  ui.chatSend.addEventListener('click', sendChat);
+  ui.chatInput.addEventListener('input', fitChatInput);
+  // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
+  const touchInput = window.matchMedia('(hover: none) and (pointer: coarse)');
+  ui.chatInput.addEventListener('keydown', (event) => {
+    if (window.HaisselChat.enterSends(event, touchInput.matches)) { event.preventDefault(); sendChat(); }
+  });
+  // Onglet caché : plus d'interrogation ; au retour, tout de suite.
+  document.addEventListener('visibilitychange', () => {
+    if (!state.user) return;
+    if (document.visibilityState === 'visible') pollTick();
+    else stopPolling();
+  });
+  chat.updateTitle = watchInboxTitle();
 }
 
 let communityTimer;
@@ -3678,7 +4139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', chatNew: 'chat-new', msgPinned: 'msg-pinned', msgList: 'msg-list', msgSkeleton: 'msg-skeleton', msgEmpty: 'msg-empty', msgEmptyText: 'msg-empty-text', msgSearch: 'msg-search', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
@@ -3838,15 +4299,7 @@ document.addEventListener('DOMContentLoaded', () => {
   readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
   // Messages
-  document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
-  document.getElementById('chat-back').addEventListener('click', closeChat);
-  ui.chatSend.addEventListener('click', sendChat);
-  ui.chatInput.addEventListener('input', fitChatInput);
-  // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
-  const touchInput = window.matchMedia('(hover: none) and (pointer: coarse)');
-  ui.chatInput.addEventListener('keydown', (event) => {
-    if (window.HaisselChat.enterSends(event, touchInput.matches)) { event.preventDefault(); sendChat(); }
-  });
+  bindMessages();
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });

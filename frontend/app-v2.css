@@ -1360,42 +1360,141 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
 .grid-badge.status-expired { background: rgba(0, 0, 0, .6); }
 .grid-cell .grid-tile .grid-badge ~ .grid-tile-tag { display: none; }
 
-/* Messages : même ergonomie que les messageries de téléphone (liste, bulles, saisie). */
+/* Messages : liste façon messagerie de téléphone (grand titre, recherche, épinglées, lignes). */
 .msg-inbox { color: var(--ios-label); }
-.msg-title { margin: 4px 0 12px; font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
-.msg-pinned { display: flex; gap: 16px; padding: 4px 0 16px; }
-.msg-pin { display: grid; justify-items: center; gap: 6px; width: 96px; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+/* Grand titre de 34 px : rétrécit et s'efface au défilement, le titre compact de l'en-tête prend le relais. */
+.msg-title {
+  margin: 4px 0 10px; font-size: 34px; line-height: 41px; font-weight: 800; letter-spacing: -.02em;
+  transform-origin: 0 100%; transform: scale(calc(1 - var(--msg-collapse, 0) * .15)); opacity: calc(1 - var(--msg-collapse, 0));
+}
+.topbar-title {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 17px; font-weight: 700;
+  color: var(--v2-on-surface); opacity: 0; visibility: hidden; pointer-events: none;
+}
+body[data-view="messages"] .topbar-title { visibility: visible; opacity: var(--msg-collapse, 0); }
+body[data-view="messages"] .topbar .wordmark { opacity: calc(1 - var(--msg-collapse, 0)); }
+.msg-search {
+  display: flex; align-items: center; gap: 6px; height: 36px; margin: 0 0 14px; padding: 0 10px; border-radius: 10px;
+  background: var(--ios-fill); color: var(--ios-secondary); cursor: text;
+}
+.msg-search .icon { width: 18px; height: 18px; flex: none; }
+.msg-search input {
+  flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: var(--ios-label); font: inherit; font-size: 17px;
+}
+.msg-search input::placeholder { color: var(--ios-secondary); }
+.msg-search input:focus { outline: none; }
+.msg-search:focus-within { box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .18); }
+.msg-search input::-webkit-search-cancel-button { cursor: pointer; }
+.msg-pinned { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 4px 0 14px; }
+.msg-pinned[hidden], .msg-pin-item[hidden], .msg-list li[hidden] { display: none; }
+.msg-pin {
+  display: grid; justify-items: center; gap: 6px; width: 84px; min-height: 44px; padding: 6px 0; border: 0; border-radius: 14px;
+  background: none; color: inherit; font: inherit; cursor: pointer;
+}
+.msg-pin-ring { position: relative; display: block; }
+.msg-pin-dot {
+  position: absolute; left: -2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ios-blue);
+  box-shadow: 0 0 0 2px var(--ios-bg);
+}
 .msg-pin-avatar, .msg-avatar {
   display: grid; place-items: center; border-radius: 50%; flex: none;
   background: linear-gradient(135deg, var(--brand-light), var(--v2-primary-strong)); color: #fff; font-weight: 800;
 }
-.msg-pin-avatar { width: 80px; height: 80px; font-size: 32px; }
-.msg-pin-name { font-size: 13px; color: var(--ios-label); text-align: center; }
+.msg-pin-avatar { width: 64px; height: 64px; font-size: 26px; }
+.msg-pin-name { max-width: 84px; font-size: 12px; color: var(--ios-label); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-list { list-style: none; margin: 0 -16px; padding: 0; }
+.msg-list[hidden] { display: none; }
+/* Appui : surbrillance grise immédiate (.is-pressed posé au pointerdown, app.js). */
+.msg-row, .msg-pin { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .msg-row {
-  position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 76px; padding: 10px 16px 10px 24px;
+  position: relative; display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 76px; padding: 10px 16px 10px 24px;
   border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
-.msg-row:active { background: var(--ios-fill); }
+.msg-row:active, .msg-row.is-pressed, .msg-pin.is-pressed { background: var(--ios-fill); }
 .msg-unread { position: absolute; left: 8px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--ios-blue); }
-.msg-avatar { width: 44px; height: 44px; font-size: 18px; }
+.msg-avatar { width: 52px; height: 52px; font-size: 20px; }
 .msg-avatar.sm { width: 32px; height: 32px; font-size: 14px; }
-.msg-row-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.msg-row-body { flex: 1; min-width: 0; display: grid; gap: 2px; padding-top: 2px; }
 /* Séparateur fin, décalé après l'avatar. */
-.msg-list li:not(:last-child) .msg-row::after { content: ""; position: absolute; left: 80px; right: 0; bottom: 0; border-bottom: .5px solid var(--ios-separator); }
-.msg-row-top { display: flex; align-items: baseline; gap: 8px; }
+.msg-list li:not(:last-child) .msg-row::after { content: ""; position: absolute; left: 88px; right: 0; bottom: 0; border-bottom: .5px solid var(--ios-separator); }
+.msg-row-top { display: flex; align-items: center; gap: 6px; }
 .msg-row-top strong { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-row-time { flex: none; font-size: 15px; color: var(--ios-secondary); }
+.msg-chevron { flex: none; width: 14px; height: 14px; color: var(--ios-secondary); opacity: .7; }
 .msg-row-preview {
   font-size: 15px; line-height: 1.3; color: var(--ios-secondary); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+/* Squelettes : avatar et trois lignes, reflet qui passe (motion.css, m-shimmer). */
+.msg-skeleton[hidden] { display: none; }
+.msg-skeleton li { display: flex; gap: 12px; padding: 12px 16px 12px 24px; }
+.msg-skeleton .sk-lines { flex: 1; display: grid; gap: 8px; padding-top: 4px; }
+.sk { position: relative; display: block; overflow: hidden; background: var(--ios-fill); }
+.sk-avatar { width: 52px; height: 52px; border-radius: 50%; flex: none; }
+.sk-line { height: 12px; border-radius: 6px; }
+.sk-line.w40 { width: 40%; } .sk-line.w50 { width: 50%; } .sk-line.w60 { width: 60%; } .sk-line.w70 { width: 70%; } .sk-line.w80 { width: 80%; }
+.sk::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent);
+  animation: m-shimmer 1.2s ease-in-out infinite;
+}
+/* Liste vide : petite illustration. */
+.msg-empty { display: grid; justify-items: center; gap: 10px; padding: 40px 16px; color: var(--ios-secondary); text-align: center; }
+.msg-empty[hidden] { display: none; }
+.msg-empty p { margin: 0; font-size: 15px; }
+.msg-empty-art { width: 96px; height: 72px; }
+.msg-empty-art rect { fill: var(--ios-fill); }
+.msg-empty-art rect + rect { fill: rgba(var(--brand-rgb), .18); }
+.msg-empty-art circle { fill: rgba(var(--brand-rgb), .55); }
 .msg-note { margin-top: 16px; }
+
+/* Aperçu flottant (appui long) : fond flouté, carte de la conversation, menu. */
+.msg-peek {
+  position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 16px max(24px, env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 0, 0, .18); -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  animation: m-fade var(--dur-2, 220ms) ease both;
+}
+.msg-peek.is-leaving { opacity: 0; transition: opacity var(--dur-1, 120ms) ease; }
+.msg-peek-card {
+  display: grid; gap: 10px; width: min(360px, 100%); max-height: 50vh; overflow: hidden; padding: 14px; border: 0; border-radius: 22px;
+  background: var(--ios-bg); color: var(--ios-label); font: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+}
+.msg-peek-head { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.msg-peek-thread { display: flex; flex-direction: column; gap: 4px; }
+.msg-peek-thread .bubble { max-width: 85%; font-size: 15px; }
+.msg-peek-preview { margin: 0; color: var(--ios-secondary); font-size: 15px; }
+.msg-peek-menu, .bubble-menu {
+  display: grid; min-width: 220px; padding: 6px; border-radius: 16px; color: var(--ios-label);
+}
+.msg-peek-menu { width: min(360px, 100%); }
+.msg-peek-menu button, .bubble-menu button {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: none; color: inherit; font: inherit; font-size: 16px; text-align: left; cursor: pointer;
+}
+.msg-peek-menu button:active, .bubble-menu button:active { background: var(--ios-fill); }
+.msg-peek-menu button + button { box-shadow: inset 0 .5px 0 var(--ios-separator); }
+
+/* Conversation : appui long sur une bulle (fond flouté, bulle soulevée, menu Copier). */
+.bubble-backdrop {
+  position: absolute; inset: 0; z-index: 5; background: rgba(0, 0, 0, .12);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: m-fade var(--dur-2, 220ms) ease both;
+}
+.bubble-backdrop.is-leaving { opacity: 0; transition: opacity var(--dur-1, 120ms) ease; }
+.bubble-row.is-focused { position: relative; z-index: 6; }
+.bubble-menu { position: absolute; z-index: 7; min-width: 160px; }
+.chat-new {
+  position: absolute; left: 50%; bottom: calc(var(--chat-form-h, 60px) + 10px); z-index: 3; translate: -50% 0;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 0;
+  color: var(--ios-blue); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.chat-new[hidden] { display: none; }
 .nav-badge { width: 10px; height: 10px; border-radius: 50%; background: #e11d48; flex: none; position: absolute; top: 9px; right: calc(50% - 16px); box-shadow: 0 0 0 2px var(--v2-surface); }
 
 /* Conversation : plein écran au-dessus de la barre ; hauteur = zone visible (clavier compris). */
 .chat {
-  --chat-top: 0px; --chat-height: 100dvh;
+  --chat-top: 0px; --chat-height: 100dvh; touch-action: pan-y;
   position: fixed; left: 0; right: 0; top: var(--chat-top); height: var(--chat-height); z-index: 60;
   display: flex; flex-direction: column; background: var(--ios-bg); color: var(--ios-label);
 }
@@ -1417,13 +1516,33 @@ body.chat-open .topbar-nav { display: none; }
 .chat-who strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-messages {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column;
+  overflow-anchor: auto; touch-action: pan-y; display: flex; flex-direction: column;
   padding: calc(52px + env(safe-area-inset-top, 0px) + 8px) max(12px, env(safe-area-inset-right, 0px))
     calc(var(--chat-form-h, 60px) + 8px) max(12px, env(safe-area-inset-left, 0px));
 }
 .chat-empty { margin: auto; color: var(--ios-secondary); text-align: center; }
-.chat-stamp { margin: 14px 0 6px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
+/* Séparateurs : date (« Aujourd’hui », « Hier », date) puis heure, centrés en petit gris. */
+.chat-day, .chat-stamp { margin: 14px 0 6px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
+.chat-day { margin-top: 18px; font-size: 12px; }
+.chat-day::first-letter { text-transform: uppercase; }
+/* Anciens messages hors écran : le navigateur saute leur rendu. */
+.chat-messages > :nth-last-child(n+40) { content-visibility: auto; contain-intrinsic-size: auto 40px; }
 .chat-receipt { margin: 2px 4px 0 0; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
+.chat-receipt[hidden] { display: none; }
+.bubble-row { display: flex; flex-direction: column; align-items: flex-start; }
+.bubble-row.from-me { align-items: flex-end; }
+/* Envoi en cours : bulle un peu pâle. Échec : point d'exclamation rouge, ligne entière tactile. */
+.bubble-row.is-sending .bubble { opacity: .7; }
+.bubble-row.is-failed { cursor: pointer; }
+.bubble-row.is-failed .chat-receipt { color: #ff3b30; }
+.bubble-alert {
+  position: absolute; left: -34px; top: 50%; margin-top: -12px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  background: #ff3b30; color: #fff; font: inherit; font-size: 15px; font-weight: 800; line-height: 1; cursor: pointer;
+}
+@media (pointer: coarse) {
+  /* Appui long sur une bulle : menu Copier plutôt que la sélection du système. */
+  .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
 .bubble-wrap { display: flex; flex-direction: column; align-items: flex-end; }
 .bubble {
   position: relative; max-width: 75%; margin-top: 2px; padding: 7px 12px; border-radius: 18px;

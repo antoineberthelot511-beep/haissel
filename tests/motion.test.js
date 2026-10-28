@@ -90,11 +90,12 @@ describe('toast de publication', () => {
     const el = (tag) => {
       const node = {
         tag, children: [], className: '', attributes: {}, html: '', textContent: '',
-        classList: { add: (c) => { node.className += ` ${c}`; } },
+        classList: { add: (c) => { node.className += ` ${c}`; }, contains: (c) => node.className.split(' ').includes(c) },
         setAttribute(name, value) { this.attributes[name] = value; },
         insertAdjacentHTML(where, html) { this.html += html; },
         append(...items) { this.children.push(...items); },
         remove() { nodes.splice(nodes.indexOf(node), 1); },
+        addEventListener() {},
       };
       return node;
     };
@@ -144,9 +145,11 @@ describe('branchement', () => {
     const html = fs.readFileSync(path.join(FRONTEND, 'index.html'), 'utf8');
     expect(html).toContain('<link rel="stylesheet" href="motion.css" />');
     expect(html.indexOf('src="motion.js"')).toBeLessThan(html.indexOf('src="app.js"'));
-    for (const id of ['bell-badge', 'nav-messages-badge', 'team-thread-dot']) {
+    for (const id of ['bell-badge', 'nav-messages-badge']) {
       expect(html).toMatch(new RegExp(`id="${id}"[^>]*data-pop`));
     }
+    // Pastilles de non-lu de la liste Messages (épinglée et ligne).
+    expect(html.match(/data-unread-dot data-pop/g)).toHaveLength(2);
     expect(app).toContain('window.HaisselMotion.setCount(ui.statPublished, published);');
     expect(app).toMatch(/HaisselMotion\?\.cascade\(ui\.homeOffers\)/);
   });

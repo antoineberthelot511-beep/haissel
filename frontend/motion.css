@@ -35,6 +35,13 @@
 @keyframes m-toast-in { from { opacity: 0; transform: translateY(-24px) scale(.96); } to { opacity: 1; transform: none; } }
 @keyframes m-toast-out { to { opacity: 0; transform: translateY(-16px); } }
 @keyframes m-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes m-menu-in { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes m-menu-out { to { opacity: 0; transform: scale(.92); } }
+@keyframes m-item-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes m-send { from { opacity: 0; transform: translateY(40px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes m-peek { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes m-dialog { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes m-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
 
 /* --- Changement d'onglet ------------------------------------------------- */
 /*
@@ -74,10 +81,12 @@ img.m-img.is-loaded { opacity: 1; }
 .story-ring .story-avatar { position: relative; }
 
 /* --- Boutons : appui à .96, relâchement avec ressort ---------------------- */
-.primary-button, .secondary-button, .ghost-button, .filters-button, .install-banner-action, .sheet-apply, .story-ring, .nav-fab-circle {
+.primary-button, .secondary-button, .ghost-button, .text-button, .tab-button, .account-band-button, .filters-button,
+.install-banner-action, .sheet-apply, .story-ring, .nav-fab-circle {
   transition: transform var(--dur-3) var(--spring), background-color var(--dur-2) ease, color var(--dur-2) ease, box-shadow var(--dur-2) ease;
 }
 .primary-button:active:not(:disabled), .secondary-button:active:not(:disabled), .ghost-button:active:not(:disabled),
+.text-button:active:not(:disabled), .tab-button:active, .account-band-button:active,
 .install-banner-action:active, .sheet-apply:active:not(:disabled), .story-ring:active {
   transform: scale(.96); transition-duration: var(--dur-1);
 }
@@ -86,8 +95,44 @@ img.m-img.is-loaded { opacity: 1; }
 .nav-button .icon.m-bounce, .nav-button .nav-avatar.m-bounce { animation: m-bounce var(--dur-3) var(--spring); }
 .m-pop { animation: m-pop var(--dur-3) var(--spring) both; }
 
+/* --- Menus : depuis le point touché (transform-origin posé par motion.js) --- */
+.m-menu-in { animation: m-menu-in var(--dur-3) var(--spring) both; }
+.m-menu-in > * { animation: m-item-in var(--dur-2) var(--ease-out) both; animation-delay: calc(var(--m-i, 0) * 20ms); }
+.m-menu-out { animation: m-menu-out var(--dur-1) ease-in both; }
+
+/* --- Modales et confirmations : fond flouté en fondu, carte .92 → 1 -------- */
+.app-dialog[open] { animation: m-dialog var(--dur-3) var(--spring) both; }
+.app-dialog[open]::backdrop { animation: m-fade var(--dur-2) ease both; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* --- Champs : libellé et contour au focus, secousse sur une erreur --------- */
+.field > span { display: block; transform-origin: 0 50%; transition: color var(--dur-2) ease, transform var(--dur-2) var(--ease-out); }
+.field:focus-within > span { color: var(--brand); transform: translateX(2px); }
+.field input, .field select, .field textarea, .msg-search {
+  transition: border-color var(--dur-2) ease, box-shadow var(--dur-2) ease, background-color var(--dur-2) ease;
+}
+.m-shake { animation: m-shake 320ms ease both; }
+
+/* --- Listes de Réglages et d'Activité : appui, chevron qui glisse de 2 px -- */
+.about-row, .install-row, .profile-link, button.activity-row, .msg-row { transition: background-color var(--dur-1) ease; }
+.about-row .icon, .install-row > .icon:last-child, .profile-link > .icon:last-child, .msg-chevron {
+  transition: transform var(--dur-2) var(--spring);
+}
+.about-row:active .icon, .install-row:active > .icon:last-child, .profile-link:active > .icon:last-child, .msg-row:active .msg-chevron,
+.msg-row.is-pressed .msg-chevron { transform: translateX(2px); }
+.install-row:active, .profile-link:active { background: var(--ios-fill, rgba(118, 118, 128, .12)); }
+/* Interrupteurs : petit rebond du curseur. */
+.ios-switch::before { transition: transform var(--dur-3) cubic-bezier(.34, 1.56, .64, 1); }
+
 /* --- Messagerie ------------------------------------------------------------ */
 .bubble.m-new { animation: m-bubble var(--dur-2) var(--ease-out) both; }
+/* Envoi : la bulle monte depuis la barre de saisie. */
+.bubble.m-send { animation: m-send var(--dur-3) var(--spring) both; transform-origin: 100% 100%; }
+/* Appui long : la bulle grossit légèrement avec un ressort. */
+.bubble { transition: transform var(--dur-3) var(--spring); }
+.bubble.is-lifted { transform: scale(1.05); }
+.bubble.is-lifted::before, .bubble.is-lifted::after { visibility: hidden; }
+.msg-peek-card { animation: m-peek var(--dur-3) var(--spring) both; }
+.chat-new { animation: m-toast-in var(--dur-3) var(--spring) both; }
 .bubble.from-me.m-new { transform-origin: 100% 100%; }
 .bubble.from-team.m-new { transform-origin: 0 100%; }
 .chat-send .icon { transition: background-color var(--dur-2) ease, transform var(--dur-2) var(--spring); }
@@ -125,6 +170,10 @@ img.m-img.is-loaded { opacity: 1; }
 .m-toast-inner { display: flex; align-items: center; gap: 10px; animation: m-toast-in var(--dur-3) var(--spring) both; }
 .m-toast.is-leaving .m-toast-inner { animation: m-toast-out var(--dur-2) ease both; }
 .m-toast.is-leaving { opacity: 0; transition: opacity var(--dur-2) ease; }
+/* Balayé vers le haut (motion.js) : suit le doigt, se ferme ou revient avec un ressort. */
+.m-toast { touch-action: none; cursor: grab; }
+.m-toast.is-settling { transition: transform var(--dur-3) var(--spring); }
+.m-toast.is-swiped { transition: transform var(--dur-2) ease, opacity var(--dur-2) ease; }
 .m-check { width: 28px; height: 28px; flex: none; }
 .m-check circle { fill: var(--brand); }
 .m-check path {
@@ -145,6 +194,12 @@ img.m-img.is-loaded { opacity: 1; }
   /* Exception : le filet de secours de l'écran de démarrage garde son délai de 12 s. */
   .boot-screen { animation-duration: 0s !important; animation-delay: 12s !important; }
   .view-panel:not(.hidden), .m-enter, .m-toast-inner, .bubble.m-new { animation: m-fade 100ms ease both !important; }
+  /* Menus, bulles, aperçu, modales : simple fondu, sans échelle ni ressort ; pas de secousse. */
+  .m-menu-in, .bubble.m-send, .msg-peek-card, .app-dialog[open], .chat-new { animation: m-fade 100ms ease both !important; }
+  .m-menu-in > *, .m-menu-out, .m-shake { animation: none !important; }
+  .bubble.is-lifted, .field:focus-within > span, .about-row:active .icon, .install-row:active > .icon:last-child,
+  .profile-link:active > .icon:last-child, .msg-row:active .msg-chevron, .msg-row.is-pressed .msg-chevron { transform: none !important; }
+  .sk::after { animation: none !important; }
   [data-reveal] { transform: none; }
   [data-reveal], img.m-img { transition: opacity 100ms ease !important; }
   .activity-empty-icon, .m-float, .story-ring.is-loading::before, .m-img-wrap.is-loading::after, .chat-send[aria-busy="true"] .icon { animation: none !important; }

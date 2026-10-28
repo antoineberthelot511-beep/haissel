@@ -149,6 +149,9 @@
             <span class="wordmark-tag">Espace membre</span>
           </a>
 
+          <!-- Titre compact de Messages : apparaît quand le grand titre défile (app.js). -->
+          <span class="topbar-title" aria-hidden="true">Messages</span>
+
           <div class="topbar-actions">
             <span id="status-badge" class="status-pill offline">Connexion</span>
             <button id="logout-button" class="ghost-button on-brand hidden" type="button">
@@ -612,33 +615,60 @@
               <div id="discover-feed" class="discover-feed" aria-live="polite"></div>
             </section>
 
-            <!-- Messages : une seule conversation, avec l'équipe (app.js). Pas de messages entre membres. -->
+            <!-- Messages : liste des conversations façon messagerie de téléphone (app.js). -->
             <section id="messages-view" class="view-panel hidden" aria-labelledby="messages-title">
               <div id="messages-inbox" class="msg-inbox">
+                <!-- Grand titre : rétrécit dans l'en-tête en verre au défilement (app.js, --msg-collapse). -->
                 <h2 id="messages-title" class="msg-title">Messages</h2>
-                <!-- Conversation épinglée : grand avatar rond, nom dessous. -->
-                <div class="msg-pinned">
-                  <button class="msg-pin" type="button" data-open-thread aria-label="Équipe Haissel, conversation épinglée">
-                    <img class="msg-pin-avatar" src="/logo.svg" alt="" width="80" height="80" />
-                    <span class="msg-pin-name" aria-hidden="true">Équipe Haissel</span>
-                  </button>
+                <label class="msg-search">
+                  <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+                  <input id="msg-search" type="search" placeholder="Rechercher" aria-label="Rechercher dans les conversations"
+                    autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
+                </label>
+                <!-- Conversations épinglées : grand avatar rond, nom dessous, pastille de non-lu. -->
+                <div id="msg-pinned" class="msg-pinned" role="list" aria-label="Conversations épinglées">
+                  <div role="listitem" class="msg-pin-item" data-conversation="team">
+                    <button class="msg-pin" type="button" data-open-thread aria-label="Équipe Haissel, conversation épinglée">
+                      <span class="msg-pin-ring">
+                        <img class="msg-pin-avatar" src="/logo.svg" alt="" width="64" height="64" />
+                        <span class="msg-pin-dot" data-unread-dot data-pop hidden><span class="visually-hidden">Non lu</span></span>
+                      </span>
+                      <span class="msg-pin-name" aria-hidden="true">Équipe Haissel</span>
+                    </button>
+                  </div>
                 </div>
-                <ul class="msg-list" aria-label="Conversations">
-                  <li>
+                <!-- Squelettes pendant le premier chargement. -->
+                <ul id="msg-skeleton" class="msg-list msg-skeleton" aria-hidden="true">
+                  <li><span class="sk sk-avatar"></span><span class="sk-lines"><span class="sk sk-line w60"></span><span class="sk sk-line"></span><span class="sk sk-line w80"></span></span></li>
+                  <li><span class="sk sk-avatar"></span><span class="sk-lines"><span class="sk sk-line w40"></span><span class="sk sk-line"></span><span class="sk sk-line w70"></span></span></li>
+                  <li><span class="sk sk-avatar"></span><span class="sk-lines"><span class="sk sk-line w50"></span><span class="sk sk-line"></span><span class="sk sk-line w60"></span></span></li>
+                </ul>
+                <ul id="msg-list" class="msg-list" aria-label="Conversations" hidden>
+                  <li data-conversation="team">
                     <button id="team-thread-open" class="msg-row" type="button" data-open-thread>
-                      <span id="team-thread-dot" class="msg-unread" data-pop hidden><span class="visually-hidden">Non lu</span></span>
-                      <img class="msg-avatar" src="/logo.svg" alt="" width="44" height="44" />
+                      <span class="msg-unread" data-unread-dot data-pop hidden><span class="visually-hidden">Non lu</span></span>
+                      <img class="msg-avatar" src="/logo.svg" alt="" width="52" height="52" />
                       <span class="msg-row-body">
                         <span class="msg-row-top">
                           <strong>Équipe Haissel</strong>
                           <time id="team-thread-time" class="msg-row-time"></time>
+                          <svg class="icon msg-chevron" aria-hidden="true"><use href="#i-chevron-right" /></svg>
                         </span>
                         <span id="team-thread-preview" class="msg-row-preview">Une question, un signalement ? Écris-nous.</span>
                       </span>
                     </button>
                   </li>
                 </ul>
-                <p class="security-note msg-note">Seule l'équipe Haissel lit tes messages ; tu ne peux pas écrire aux autres membres. Texte uniquement, les liens ne sont pas cliquables. Messages supprimés 12 mois après le dernier échange.</p>
+                <!-- Liste vide (recherche sans résultat) : petite illustration. -->
+                <div id="msg-empty" class="msg-empty" hidden>
+                  <svg class="msg-empty-art m-float" viewBox="0 0 96 72" aria-hidden="true">
+                    <rect x="6" y="8" width="58" height="36" rx="18" />
+                    <rect x="34" y="30" width="56" height="34" rx="17" />
+                    <circle cx="50" cy="47" r="3" /><circle cx="62" cy="47" r="3" /><circle cx="74" cy="47" r="3" />
+                  </svg>
+                  <p id="msg-empty-text">Aucune conversation.</p>
+                </div>
+                <p class="security-note msg-note">Texte uniquement, les liens ne sont pas cliquables. Messages supprimés 12 mois après le dernier échange.</p>
               </div>
 
               <!-- Conversation : plein écran, collée au clavier (visualViewport, app.js). -->
@@ -653,6 +683,11 @@
                   </div>
                 </header>
                 <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+                <!-- Lecture plus haut : les nouveaux messages n'entraînent pas la liste, ce bouton y ramène. -->
+                <button id="chat-new" class="chat-new lg-glass lg-pill lg-press" type="button" hidden>
+                  <svg class="icon sm" aria-hidden="true"><use href="#i-chevron-down" /></svg>
+                  Nouveaux messages
+                </button>
                 <div id="chat-error" class="auth-error hidden" role="alert"></div>
                 <!-- Pas de formulaire : iOS n'y propose pas sa barre clé / carte / position au-dessus du clavier. -->
                 <div id="chat-form" class="chat-form lg-glass lg-bar">
