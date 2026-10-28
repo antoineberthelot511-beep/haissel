@@ -4400,10 +4400,18 @@ document.addEventListener('DOMContentLoaded', () => {
       && !document.querySelector('dialog[open]') && !document.body.classList.contains('story-open'),
     onRefresh: () => loadCommunity(),
   });
+  /*
+   * Feuilles d'installation rangées dans la vue Profil : rattachées au <body>
+   * pour s'afficher aussi quand le tuto s'ouvre tout seul depuis une autre vue
+   * (un ancêtre masqué cacherait même une fenêtre modale).
+   */
+  document.body.append(ui.howtoSheet, ui.installSheet);
   tuto = window.HaisselTuto.mount({
     track: document.getElementById('tuto-track'),
     dots: document.getElementById('tuto-dots'),
     next: document.getElementById('tuto-next'),
+    prev: document.getElementById('tuto-prev'),
+    caption: document.getElementById('tuto-caption'),
     onDone: () => closeSheet(ui.howtoSheet),
   });
   ui.installRow.addEventListener('click', () => openInstallGuide(window.HaisselInstall.tutoKind(installState()) || 'ios'));

@@ -1657,31 +1657,142 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .ios-switch:disabled { opacity: .45; cursor: not-allowed; }
 .ios-switch:focus-visible { outline: 3px solid var(--v2-focus); }
 
-/* « Comment faire ? » : carrousel d'étapes, balayage natif (scroll-snap). */
+/*
+ * Tuto « Installe HAISSEL en 30 secondes » (tuto-ios.js) : 5 mini-écrans
+ * dessinés, même taille (cadre arrondi 9:19, 220 px de large au plus, plus
+ * petit si l'écran est bas : tout tient sur un iPhone SE sans défiler).
+ * Hauteur de la feuille fixe : écran, légende (2 lignes) et boutons ne
+ * bougent pas d'une étape à l'autre.
+ */
+.tuto-sheet {
+  --ts-h: clamp(236px, calc(100dvh - 360px), 464px);
+  --ts-w: calc(var(--ts-h) * 9 / 19);
+  --ts-bg: #ffffff; --ts-fg: #1d2433; --ts-muted: #5b6475; --ts-surface: #f1f3f7; --ts-line: #d9dee7; --ts-dim: rgba(15, 20, 30, .28);
+  --ts-frame: #1d2433; --ts-accent: var(--brand); --ts-card: #ffffff;
+}
+.tuto-sheet .sheet-panel { gap: 8px; overflow: hidden; }
+.tuto-head { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.tuto-head .mascot-head { margin: -8px 0 -8px; }
+.tuto-head .sheet-title { margin: 0; font-size: 20px; line-height: 1.25; text-align: left; max-width: 12em; }
 .tuto-track {
-  display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
-  margin: 4px -16px 0; touch-action: pan-x pan-y;
+  position: relative; display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
+  margin: 0 -16px; padding: 8px 0 12px; touch-action: pan-x pan-y;
 }
 .tuto-track::-webkit-scrollbar { display: none; }
-.tuto-track:focus-visible { outline: 3px solid var(--v2-focus); outline-offset: -3px; }
-.tuto-slide { flex: 0 0 100%; margin: 0; padding: 0 16px; scroll-snap-align: center; scroll-snap-stop: always; display: grid; justify-items: center; gap: 10px; }
-/*
- * Taille réelle, jamais agrandie (pas de flou), centrée. Place réservée par
- * les attributs width et height (rapport de l'image) : pas de saut.
- */
-.tuto-image {
-  display: block; width: auto; height: auto; max-width: 100%; max-height: 56dvh; margin: 0 auto;
-  border-radius: 18px; background: var(--ios-group); box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+.tuto-track:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.tuto-slide { flex: 0 0 100%; margin: 0; display: grid; place-items: center; scroll-snap-align: center; scroll-snap-stop: always; }
+.tuto-caption {
+  margin: 0; min-height: calc(2 * 1.3em); max-height: calc(2 * 1.3em); overflow: hidden;
+  font-size: 17px; line-height: 1.3; font-weight: 600; text-align: center; color: var(--ios-label);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.tuto-caption { margin: 0; font-size: 17px; font-weight: 600; text-align: center; color: var(--ios-label); }
-.tuto-dots { display: flex; justify-content: center; gap: 2px; margin-top: 4px; }
-.tuto-dots[hidden] { display: none; }
+.tuto-dots { display: flex; justify-content: center; gap: 2px; }
 .tuto-dot { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
 .tuto-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ios-separator-strong); transition: background-color .2s ease, transform .2s ease; }
 .tuto-dot[aria-current="step"]::before { background: var(--brand); transform: scale(1.15); }
+.tuto-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.tuto-actions .sheet-apply { flex: 1; }
+.tuto-prev {
+  flex: none; min-height: 50px; padding: 0 14px; border: 0; border-radius: 12px; background: none;
+  color: var(--ios-secondary); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.tuto-prev.is-hidden { visibility: hidden; }
+
+/* --- Téléphone dessiné ---------------------------------------------------- */
+.ts-phone {
+  position: relative; width: var(--ts-w); height: var(--ts-h); padding: 6px; box-sizing: border-box; border-radius: calc(var(--ts-w) * .16);
+  background: var(--ts-frame); box-shadow: 0 14px 34px rgba(15, 20, 30, .22), 0 2px 6px rgba(15, 20, 30, .12);
+  transition: transform 300ms cubic-bezier(.2, .8, .2, 1); will-change: transform;
+  font-size: calc(var(--ts-w) / 22); line-height: 1.25; color: var(--ts-fg);
+}
+.ts-screen {
+  position: relative; height: 100%; overflow: hidden; border-radius: calc(var(--ts-w) * .13);
+  background: var(--ts-bg); display: flex; flex-direction: column;
+}
+.ts-status { display: flex; justify-content: space-between; align-items: center; padding: .5em 1.2em .2em; font-weight: 700; font-size: .9em; }
+.ts-status-icons { display: flex; gap: .25em; }
+.ts-status-icons i { width: .8em; height: .5em; border-radius: 2px; background: var(--ts-fg); }
+.ts-line { display: block; height: .55em; margin: .35em 0; border-radius: 99px; background: var(--ts-line); }
+.ts-ico { display: inline-grid; place-items: center; width: 1.5em; height: 1.5em; color: var(--ts-accent); }
+.ts-ico svg { width: 100%; height: 100%; }
+.ts-page { flex: 1; padding: .3em .8em; overflow: hidden; }
+.ts-app-head { display: flex; align-items: center; justify-content: center; gap: .4em; margin: .2em 0 .5em; font-size: 1.05em; }
+.ts-logo { width: 1.6em; height: 1.6em; border-radius: .4em; }
+.ts-logo.sm { width: 2.4em; height: 2.4em; border-radius: .6em; }
+.ts-stories { display: flex; gap: .5em; margin-bottom: .6em; }
+.ts-stories i { width: 2.2em; height: 2.2em; border-radius: 50%; border: 2px solid var(--ts-accent); background: var(--ts-surface); }
+.ts-card { margin-bottom: .6em; padding: .5em; border-radius: .7em; background: var(--ts-card); box-shadow: 0 0 0 1px var(--ts-line); }
+.ts-card-head { display: flex; align-items: center; gap: .4em; }
+.ts-card-head .ts-line { flex: 1; margin: 0; }
+.ts-dot { width: 1.2em; height: 1.2em; border-radius: 50%; background: var(--ts-surface); }
+.ts-badge { padding: .1em .45em; border-radius: 99px; background: #fff4d6; color: #6b4a00; font-size: .75em; font-weight: 700; }
+.ts-card-visual { height: 3.6em; margin: .4em 0; border-radius: .5em; background: linear-gradient(135deg, #2b6cff, #6b4dff); }
+.ts-addr {
+  display: flex; align-items: center; gap: .5em; margin: 0 .6em 1em; padding: .45em .6em; border-radius: 1em;
+  background: var(--ts-surface); box-shadow: 0 2px 8px rgba(0, 0, 0, .12); position: relative; z-index: 3;
+}
+.ts-addr-btn { position: relative; display: inline-grid; place-items: center; width: 1.9em; height: 1.9em; border-radius: .6em; color: var(--ts-fg); }
+.ts-addr-btn .ts-ico { color: var(--ts-fg); }
+.ts-addr-text { flex: 1; text-align: center; font-weight: 600; color: var(--ts-fg); }
+.ts-dim { position: absolute; inset: 0; z-index: 2; background: var(--ts-dim); }
+.ts-popover {
+  position: absolute; left: .6em; right: 2.2em; bottom: 4.2em; z-index: 4; padding: .3em; border-radius: .9em;
+  background: var(--ts-card); box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.ts-row {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: .5em; min-height: 2.3em; padding: 0 .7em;
+  border-radius: .6em; color: var(--ts-fg); font-weight: 600;
+}
+.ts-row + .ts-row { box-shadow: inset 0 1px 0 var(--ts-line); }
+.ts-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: .8em .7em 1.4em; border-radius: 1.2em 1.2em 0 0;
+  background: var(--ts-card); box-shadow: 0 -6px 20px rgba(0, 0, 0, .2);
+}
+.ts-sheet.tall { top: 30%; }
+.ts-sheet-grab { width: 2.6em; height: .35em; margin: 0 auto .6em; border-radius: 99px; background: var(--ts-line); }
+.ts-sheet-head { display: flex; align-items: center; gap: .6em; margin-bottom: .7em; }
+.ts-sheet-head > div { flex: 1; }
+.ts-apps { display: flex; justify-content: space-between; margin-bottom: .6em; }
+.ts-apps i { width: 2.6em; height: 2.6em; border-radius: .8em; background: var(--ts-surface); }
+.ts-more {
+  position: relative; display: flex; align-items: center; gap: .5em; min-height: 2.4em; margin-top: .4em; padding: 0 .7em;
+  border-radius: .7em; background: var(--ts-surface); color: var(--ts-fg); font-weight: 700;
+}
+.ts-add { flex: 1; padding: .4em .8em; background: var(--ts-surface); }
+.ts-add-nav { display: flex; align-items: center; justify-content: space-between; gap: .3em; margin: .4em 0 1em; font-size: .9em; }
+.ts-add-nav strong { color: var(--ts-fg); }
+.ts-link { position: relative; color: var(--ts-accent); font-weight: 600; padding: .2em .3em; border-radius: .5em; }
+.ts-strong { font-weight: 800; }
+.ts-add-card { display: flex; align-items: center; gap: .8em; margin-bottom: .8em; padding: .7em; border-radius: .9em; background: var(--ts-card); }
+.ts-app-icon { width: 3.6em; height: 3.6em; border-radius: .9em; }
+.ts-add-name { flex: 1; }
+.ts-switch-row { margin-bottom: .8em; background: var(--ts-card); }
+.ts-switch { position: relative; width: 2.6em; height: 1.55em; border-radius: 99px; background: #34c759; }
+.ts-switch::after { content: ""; position: absolute; top: .15em; right: .15em; width: 1.25em; height: 1.25em; border-radius: 50%; background: #fff; }
+
+/* Mise en évidence : anneau --brand qui pulse doucement + doigt stylisé. */
+@keyframes ts-pulse { 0%, 100% { box-shadow: 0 0 0 2px var(--brand), 0 0 0 4px rgba(var(--brand-rgb), .25); } 50% { box-shadow: 0 0 0 2px var(--brand), 0 0 0 8px rgba(var(--brand-rgb), .08); } }
+.ts-screen .ts-hl { position: relative; z-index: 5; background: var(--ts-card); box-shadow: 0 0 0 2px var(--brand); animation: ts-pulse 1.6s ease-in-out infinite; }
+.ts-finger { position: absolute; right: .3em; bottom: -1.2em; z-index: 6; width: 2em; height: 2em; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .3)); pointer-events: none; }
+.ts-finger svg { width: 100%; height: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .ts-screen .ts-hl { animation: none; box-shadow: 0 0 0 2px var(--brand), 0 0 0 5px rgba(var(--brand-rgb), .2); }
+  .ts-phone { transition: none; transform: none !important; }
+}
+
+/* Mode sombre : écran dessiné sombre, contrastes ≥ 4,5:1. */
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tuto-sheet {
+    --ts-bg: #15181f; --ts-fg: #f2f4f8; --ts-muted: #b4bccb; --ts-surface: #232733; --ts-line: #3a4050; --ts-dim: rgba(0, 0, 0, .45);
+    --ts-frame: #000; --ts-accent: var(--brand-on-dark); --ts-card: #1d212b;
+  }
   :root:not([data-theme="light"]) .tuto-dot[aria-current="step"]::before { background: var(--brand-on-dark); }
 }
+:root[data-theme="dark"] .tuto-sheet {
+  --ts-bg: #15181f; --ts-fg: #f2f4f8; --ts-muted: #b4bccb; --ts-surface: #232733; --ts-line: #3a4050; --ts-dim: rgba(0, 0, 0, .45);
+  --ts-frame: #000; --ts-accent: var(--brand-on-dark); --ts-card: #1d212b;
+}
+:root[data-theme="dark"] .tuto-dot[aria-current="step"]::before { background: var(--brand-on-dark); }
 
 /* ---------- Loader (loader inspiré de css-loaders.com) ---------- */
 /*
@@ -1781,9 +1892,6 @@ img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -2px 0; padding: 0;
   border: 0; border-radius: 50%; background: none; color: var(--v2-secondary); font-size: 22px; line-height: 1; cursor: pointer;
 }
-
-/* Cadre de l'image du tuto : fond squelette, coins arrondis (motion.css). */
-.tuto-media { display: block; width: fit-content; max-width: 100%; margin: 0 auto; border-radius: 18px; overflow: hidden; }
 
 /* Focus des menus, feuilles et fenêtres : jamais au toucher ni au clic,
    seulement à la navigation clavier (:focus-visible), anneau --brand de 2 px. */

@@ -984,15 +984,19 @@
                 </section>
               </div>
 
-              <!-- Ajouter à l'écran d'accueil (iPhone) : carrousel de 4 étapes au plus (tuto-ios.js). -->
-              <dialog id="howto-sheet" class="sheet" aria-labelledby="howto-title">
+              <!-- Installer sur iPhone : 5 mini-écrans dessinés (tuto-ios.js), hauteur fixe. -->
+              <dialog id="howto-sheet" class="sheet tuto-sheet" aria-labelledby="howto-title">
                 <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>
-                  <span class="mascot-head" data-mascot="tuto-telephone" data-mascot-size="88"></span>
-                  <h2 id="howto-title" class="sheet-title">Ajouter HAISSEL à l'écran d'accueil</h2>
+                  <div class="tuto-head">
+                    <span class="mascot-head" data-mascot="tuto-telephone" data-mascot-size="96"></span>
+                    <h2 id="howto-title" class="sheet-title">Installe HAISSEL en 30 secondes</h2>
+                  </div>
                   <div id="tuto-track" class="tuto-track" role="group" aria-roledescription="carrousel" aria-label="Étapes de l'installation" tabindex="0"></div>
+                  <p id="tuto-caption" class="tuto-caption" aria-live="polite"></p>
                   <div id="tuto-dots" class="tuto-dots"></div>
-                  <div class="sheet-actions">
+                  <div class="tuto-actions">
+                    <button id="tuto-prev" class="tuto-prev" type="button">Précédent</button>
                     <button id="tuto-next" class="primary-button sheet-apply" type="button">Suivant</button>
                   </div>
                 </div>
@@ -1236,7 +1240,6 @@
     <script src="chat-thread.js"></script>
     <script src="activity.js"></script>
     <script src="install.js"></script>
-    <script src="images/tuto-ios/steps.js"></script>
     <script src="motion.js"></script>
     <script src="mascot.js"></script>
     <script src="tuto-ios.js"></script>

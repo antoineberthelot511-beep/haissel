@@ -84,7 +84,10 @@
   function enforce() {
     frame = 0;
     const all = [...doc.querySelectorAll('img.mascot')];
-    const winner = pickVisible(all.map((img) => ({ visible: shown(img), order: Number(img.dataset.mascotOrder) })));
+    // Un ours dans une fenêtre ouverte (feuille, dialogue) passe devant celui de la page dessous.
+    const winner = pickVisible(all.map((img) => ({
+      visible: shown(img), order: Number(img.dataset.mascotOrder) + (img.closest('dialog[open]') ? 1e9 : 0),
+    })));
     all.forEach((img, i) => {
       const hide = i !== winner && shown(img);
       if (img.hidden !== hide) img.hidden = hide;

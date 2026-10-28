@@ -18,8 +18,7 @@
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "vercel-build": "node scripts/vercel-build.js",
-    "tuto:build": "node scripts/tuto-build.js"
+    "vercel-build": "node scripts/vercel-build.js"
   },
   "jest": {
     "testEnvironment": "node",

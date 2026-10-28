@@ -73,37 +73,22 @@ describe('palette de marque', () => {
 });
 
 describe('tuto d’installation iPhone', () => {
-  const sandbox = { requestAnimationFrame: (fn) => fn() };
+  const sandbox = { requestAnimationFrame: (fn) => fn(), matchMedia: () => ({ matches: false }), Math, Number };
   sandbox.window = sandbox;
   vm.runInNewContext(read('tuto-ios.js'), sandbox);
   const T = sandbox.HaisselTuto;
 
-  test('légendes dans un seul tableau, 5 au plus', () => {
-    expect(T.CAPTIONS).toEqual([
-      'Touche le bouton ≡ à gauche de l’adresse', 'Choisis « Partager »', 'Touche « En voir plus »',
-      'Choisis « Sur l’écran d’accueil »', 'Active « Ouvrir comme app web », puis touche « Ajouter »',
-    ]);
-    expect(T.MAX_STEPS).toBe(5);
-  });
-
-  test('seules les étapes dont l’image existe sont affichées', () => {
-    expect(T.availableSteps({}).length).toBe(0);
-    const steps = T.availableSteps({ 1: { file: 'etape-1.webp', width: 207, height: 433 }, 3: { file: 'etape-3.webp', width: 208, height: 427 }, 5: { file: 'etape-5.webp', width: 205, height: 429 } });
-    expect(steps.map((s) => s.number)).toEqual([1, 3, 5]);
-    expect(steps[0]).toMatchObject({
-      src: '/images/tuto-ios/etape-1.webp', alt: 'Étape 1 : Touche le bouton ≡ à gauche de l’adresse', width: 207, height: 433,
-    });
-    // Jamais plus de 5 étapes.
-    expect(T.availableSteps({ 6: { file: 'etape-6.webp' } })).toEqual([]);
-    // Nom inattendu ignoré (pas de chemin arbitraire).
-    expect(T.availableSteps({ 2: '../../evil.svg' })).toEqual([]);
-  });
-
-  test('carrousel : images paresseuses à hauteur réservée, points, « Suivant » puis « C’est parti »', () => {
+  // DOM minimal : ce que tuto-ios.js utilise.
+  function fakeDoc() {
     const el = (tag) => {
+      const classes = new Set();
       const node = {
-        tag, children: [], attributes: {}, listeners: {}, textContent: '', hidden: false, ownerDocument: null,
+        tag, children: [], attributes: {}, listeners: {}, textContent: '', innerHTML: '', style: {},
         offsetLeft: 0, clientWidth: 300, scrollLeft: 0,
+        get className() { return [...classes].join(' '); },
+        set className(value) { classes.clear(); String(value).split(' ').filter(Boolean).forEach((c) => classes.add(c)); },
+        classList: { add: (c) => classes.add(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), contains: (c) => classes.has(c) },
+        get firstChild() { return node.children[0]; },
         setAttribute(name, value) { this.attributes[name] = String(value); },
         removeAttribute(name) { delete this.attributes[name]; },
         addEventListener(type, fn) { this.listeners[type] = fn; },
@@ -113,49 +98,98 @@ describe('tuto d’installation iPhone', () => {
       };
       return node;
     };
-    const doc = { createElement: el };
-    const track = el('div');
-    track.ownerDocument = doc;
-    const dots = el('div');
-    const next = el('button');
-    const onDone = jest.fn();
-    sandbox.HaisselTutoFiles = { 1: { file: 'etape-1.webp', width: 207, height: 433 }, 2: { file: 'etape-2.webp', width: 216, height: 451 } };
-    const tuto = T.mount({ track, dots, next, onDone });
+    return { createElement: el, createTextNode: (text) => ({ text }) };
+  }
+  const walk = (node, out = []) => {
+    out.push(node);
+    (node.children || []).forEach((child) => walk(child, out));
+    return out;
+  };
 
-    expect(tuto.count).toBe(2);
-    expect(track.children).toHaveLength(2);
-    const media = track.children[0].children[0];
-    expect(media.className).toBe('tuto-media');
-    const img = media.children[0];
-    // Taille réelle de l'image : place réservée, jamais agrandie.
-    expect(img).toMatchObject({ loading: 'lazy', width: 207, height: 433, alt: 'Étape 1 : Touche le bouton ≡ à gauche de l’adresse' });
-    expect(dots.children).toHaveLength(2);
+  test('5 étapes, légendes dans un seul tableau', () => {
+    expect(T.CAPTIONS).toEqual([
+      'Touche le bouton ≡ à gauche de l’adresse', 'Choisis « Partager »', 'Touche « En voir plus »',
+      'Choisis « Sur l’écran d’accueil »', 'Active « Ouvrir comme app web », puis touche « Ajouter »',
+    ]);
+    expect(T.STEPS).toBe(5);
+  });
+
+  test('mini-écrans dessinés : aucune capture, un seul élément mis en évidence par écran, logo HAISSEL', () => {
+    const doc = fakeDoc();
+    const track = doc.createElement('div');
+    track.ownerDocument = doc;
+    const parts = ['div', 'button', 'button', 'p'].map((tag) => doc.createElement(tag));
+    const [dots, next, prev, caption] = parts;
+    const onDone = jest.fn();
+    T.mount({ track, dots, next, prev, caption, onDone });
+    expect(track.children).toHaveLength(5);
+    const expected = ['ts-addr-btn', 'ts-row', 'ts-more', 'ts-row', 'ts-link'];
+    track.children.forEach((slide, index) => {
+      const nodes = walk(slide);
+      const phone = slide.children[0];
+      expect(phone.className).toBe('ts-phone');
+      expect(phone.attributes['aria-hidden']).toBe('true');
+      expect(slide.attributes['aria-label']).toBe(`Étape ${index + 1} sur 5 : ${T.CAPTIONS[index]}`);
+      const highlighted = nodes.filter((n) => n.classList && n.classList.contains('ts-hl'));
+      expect(highlighted).toHaveLength(1);
+      expect(highlighted[0].classList.contains(expected[index])).toBe(true);
+      // Doigt stylisé dans l'élément mis en évidence.
+      expect(highlighted[0].children.some((c) => c.className === 'ts-finger')).toBe(true);
+      // Aucune image sauf le logo HAISSEL.
+      const imgs = nodes.filter((n) => n.tag === 'img');
+      expect(imgs.every((img) => img.src === '/logo.svg')).toBe(true);
+    });
+    const texts = (index) => walk(track.children[index]).filter((n) => n.text).map((n) => n.text);
+    expect(texts(1)).toContain('Partager');
+    expect(texts(2)).toContain('En voir plus');
+    expect(texts(3)).toContain('Sur l’écran d’accueil');
+    expect(texts(4)).toEqual(expect.arrayContaining(['Ajouter', 'Ouvrir comme app web', 'HAISSEL']));
+    expect(walk(track.children[4]).some((n) => n.className === 'ts-switch is-on')).toBe(true);
+    expect(JSON.stringify(T.ICONS)).not.toMatch(/apple/i);
+
+    // Navigation : légende, Précédent caché à l'étape 1, « C'est parti » à la dernière.
+    expect(caption.textContent).toBe(T.CAPTIONS[0]);
+    expect(prev.classList.contains('is-hidden')).toBe(true);
     expect(dots.children[0].attributes['aria-current']).toBe('step');
+    for (let i = 0; i < 4; i += 1) next.listeners.click();
+    expect(next.textContent).toBe('C’est parti');
+    expect(caption.textContent).toBe(T.CAPTIONS[4]);
+    expect(prev.classList.contains('is-hidden')).toBe(false);
+    prev.listeners.click();
     expect(next.textContent).toBe('Suivant');
     next.listeners.click();
-    expect(next.textContent).toBe('C’est parti');
-    expect(dots.children[1].attributes['aria-current']).toBe('step');
     next.listeners.click();
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
-  test('images générées et listées avec leur taille (npm run tuto:build)', () => {
-    const steps = { window: {} };
-    vm.runInNewContext(read('images/tuto-ios/steps.js'), steps);
-    const files = steps.window.HaisselTutoFiles;
-    expect(Object.keys(files).length).toBeGreaterThan(0);
-    for (const { file, width, height } of Object.values(files)) {
-      expect([file, fs.existsSync(path.join(FRONTEND, 'images/tuto-ios', file))]).toEqual([file, true]);
-      expect(width).toBeGreaterThan(0);
-      expect(height).toBeGreaterThan(width);
-    }
-    // Pas d'agrandissement : largeur maximale = largeur réelle.
-    expect(read('app-v2.css')).toMatch(/\.tuto-image \{[^}]*width: auto; height: auto; max-width: 100%/);
+  test('glissement : l’écran qui arrive grandit de 0,92 à 1', () => {
+    expect(T.MIN_SCALE).toBe(0.92);
+    expect(T.scaleFor(0)).toBe(1);
+    expect(T.scaleFor(1)).toBeCloseTo(0.92);
+    expect(T.scaleFor(-0.5)).toBeCloseTo(0.96);
+    expect(T.scaleFor(3)).toBeCloseTo(0.92);
+  });
+
+  test('feuille : ours 96 px, titre, légende 17 px sur 2 lignes, Précédent + Suivant, taille 9:19 bornée à 220 px', () => {
     const html = read('index.html');
-    expect(html.indexOf('src="images/tuto-ios/steps.js"')).toBeLessThan(html.indexOf('src="tuto-ios.js"'));
-    expect(html).not.toContain('class="howto-steps"');
+    const sheet = html.slice(html.indexOf('id="howto-sheet"'), html.indexOf('</dialog>', html.indexOf('id="howto-sheet"')));
+    expect(sheet).toContain('data-mascot="tuto-telephone" data-mascot-size="96"');
+    expect(sheet).toContain('Installe HAISSEL en 30 secondes');
+    expect(sheet.indexOf('id="tuto-track"')).toBeLessThan(sheet.indexOf('id="tuto-caption"'));
+    expect(sheet.indexOf('id="tuto-caption"')).toBeLessThan(sheet.indexOf('id="tuto-dots"'));
+    expect(sheet.indexOf('id="tuto-prev"')).toBeLessThan(sheet.indexOf('id="tuto-next"'));
+    const css = read('app-v2.css');
+    expect(css).toMatch(/--ts-h: clamp\(236px, calc\(100dvh - 360px\), 464px\);\s*--ts-w: calc\(var\(--ts-h\) \* 9 \/ 19\);/);
+    expect(css).toMatch(/\.tuto-caption \{[^}]*min-height: calc\(2 \* 1\.3em\); max-height: calc\(2 \* 1\.3em\);[^}]*font-size: 17px;[^}]*text-align: center;/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.ts-screen \.ts-hl \{ animation: none;/);
+  });
+
+  test('anciennes captures et script de génération supprimés (archive dans design/)', () => {
+    expect(fs.existsSync(path.join(FRONTEND, 'images/tuto-ios'))).toBe(false);
+    expect(fs.existsSync(path.join(__dirname, '../scripts/tuto-build.js'))).toBe(false);
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
-    expect(pkg.scripts['tuto:build']).toBe('node scripts/tuto-build.js');
-    expect(pkg.devDependencies.sharp).toBeTruthy();
+    expect(pkg.scripts['tuto:build']).toBeUndefined();
+    expect(read('index.html')).not.toContain('tuto-ios/steps.js');
+    expect(fs.existsSync(path.join(__dirname, '../design/tuto-ios'))).toBe(true);
   });
 });
