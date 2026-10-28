@@ -91,13 +91,19 @@ describe('contenu', () => {
     expect(page).toMatch(/liens affiliés sont réservés à l'équipe HAISSEL/);
   });
 
-  test('plus aucun repère [À …], sauf le téléphone de Vercel à vérifier', () => {
-    for (const page of [...PAGES, 'contact.html']) {
-      const markers = [...read(page).matchAll(/\[À [^\]]*\]/g)].map((m) => m[0]);
-      const allowed = page === 'mentions-legales.html' ? ['[À VÉRIFIER : la page légale publique de Vercel n’indique aucun numéro]'] : [];
-      expect([page, markers]).toEqual([page, allowed]);
-      expect(read(page)).not.toMatch(/À COMPLÉTER|À VALIDER|médiateur/);
+  test('plus aucun repère [À …] dans frontend/', () => {
+    const files = fs.readdirSync(FRONTEND).filter((name) => /\.(html|js|css)$/.test(name));
+    for (const name of files) {
+      expect([name, read(name).match(/\[À [^\]]*\]/g)]).toEqual([name, null]);
     }
+    for (const page of [...PAGES, 'contact.html']) expect(read(page)).not.toMatch(/À COMPLÉTER|À VALIDER|À VÉRIFIER|médiateur/);
+    expect(read('mentions-legales.html')).toContain('Contact : <a href="https://vercel.com/help" rel="noopener noreferrer">https://vercel.com/help</a>.');
+  });
+
+  test('double authentification : aucune mention destinée aux membres', () => {
+    expect(read('cgu.html')).not.toMatch(/double authentification/i);
+    expect(read('confidentialite.html')).toContain('double authentification obligatoire pour les administrateurs');
+    expect(read('confidentialite.html')).not.toMatch(/si tu l’actives<\/td>/);
   });
 
   test('éditeur non professionnel, hébergeur, serveurs en Europe, contact par formulaire', () => {

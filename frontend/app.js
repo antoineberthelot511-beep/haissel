@@ -3181,7 +3181,7 @@ function resetTurnstile(form) {
 }
 
 // ---------------------------------------------------------------------------
-// Double authentification (facultative pour les membres)
+// Double authentification (réservée aux administrateurs ; un membre qui l'avait activée peut la désactiver)
 // ---------------------------------------------------------------------------
 
 /*
@@ -3218,6 +3218,14 @@ function renderMfaState() {
   if (!box || !state.user) return;
   const pill = document.getElementById('mfa-state-pill');
   const active = Boolean(state.user.mfa_enabled);
+  const isAdmin = String(state.user.role || '').toUpperCase() === 'ADMIN';
+  /*
+   * Réservée aux administrateurs. Un membre qui l'avait activée avant ne voit
+   * que « Désactiver » ; les autres membres ne voient pas le bloc.
+   */
+  box.hidden = !isAdmin && !active;
+  if (box.hidden) return;
+  document.getElementById('mfa-member-note').classList.toggle('hidden', isAdmin);
 
   pill.textContent = active ? 'Activée' : 'Non activée';
   pill.className = active ? 'pill ok' : 'pill';

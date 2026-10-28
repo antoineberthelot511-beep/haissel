@@ -634,8 +634,20 @@ async function reauthenticate(req, password) {
   return valid;
 }
 
+/*
+ * Mise en place de la double authentification : réservée au rôle ADMIN (pour
+ * qui elle est obligatoire). Un membre qui l'avait déjà activée la garde et
+ * peut toujours la désactiver (mfaDisable reste ouvert à tous).
+ */
+function adminOnlyMfa(req, res) {
+  if (req.userRole === 'ADMIN') return false;
+  sendError(res, 403, 'MFA_ADMIN_ONLY', 'La double authentification est réservée aux administrateurs.');
+  return true;
+}
+
 async function mfaSetup(req, res, next) {
   try {
+    if (adminOnlyMfa(req, res)) return undefined;
     if (req.user.mfa_enabled) {
       return sendError(res, 409, 'MFA_ALREADY_ENABLED', 'La double authentification est déjà active.');
     }
@@ -656,6 +668,7 @@ async function mfaSetup(req, res, next) {
 
 async function mfaEnable(req, res, next) {
   try {
+    if (adminOnlyMfa(req, res)) return undefined;
     const row = (await pool.query('SELECT mfa_pending_secret_enc FROM users WHERE id = $1', [req.user.id])).rows[0];
     if (!row?.mfa_pending_secret_enc) {
       return sendError(res, 400, 'MFA_SETUP_MISSING', 'Commencez par générer une clé.');

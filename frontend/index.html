@@ -249,7 +249,7 @@
 
               <!-- Double authentification -->
               <form id="mfa-form" class="auth-form hidden" novalidate>
-                <p class="form-intro">Saisis le code à 6 chiffres affiché par ton application d'authentification.</p>
+                <p class="form-intro">Saisis le code à 6 chiffres affiché par ton application de codes.</p>
                 <label class="field icon-field" id="mfa-code-field">
                   <span>Code de vérification</span>
                   <svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg>
@@ -1009,14 +1009,16 @@
                   <p class="security-note">Changer le mot de passe ferme toutes tes autres sessions.</p>
                 </div>
 
-                <!-- Double authentification : facultative pour les membres,
-                     imposée aux administrateurs (voir ensureAdmin). -->
-                <div class="profile-card-box security-box" id="mfa-box">
+                <!-- Double authentification : réservée aux administrateurs (obligatoire,
+                     voir ensureAdmin). Un membre qui l'avait activée ne voit que
+                     la désactivation ; les autres membres ne voient pas ce bloc. -->
+                <div class="profile-card-box security-box" id="mfa-box" hidden>
                   <h3 class="card-title">Double authentification</h3>
+                  <p class="security-note hidden" id="mfa-member-note">Elle est active sur ton compte : un code t’est demandé à chaque connexion. Tu peux la désactiver ci-dessous.</p>
                   <p class="mfa-state" id="mfa-state" aria-live="polite">
                     <span class="pill" id="mfa-state-pill">—</span>
                   </p>
-                  <p class="security-note" id="mfa-explain">Un code à 6 chiffres, en plus du mot de passe, à la connexion. Même si quelqu’un apprend ton mot de passe, il ne peut pas entrer sans ton téléphone. C’est facultatif, mais vivement conseillé.</p>
+                  <p class="security-note" id="mfa-explain">Un code à 6 chiffres, en plus du mot de passe, à la connexion. Même si quelqu’un apprend ton mot de passe, il ne peut pas entrer sans ton téléphone. Obligatoire pour les comptes administrateurs.</p>
 
                   <div id="mfa-error" class="auth-error hidden" role="alert"></div>
                   <div id="mfa-info" class="auth-info hidden" role="status" aria-live="polite"></div>

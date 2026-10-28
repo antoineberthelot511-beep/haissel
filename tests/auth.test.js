@@ -425,7 +425,10 @@ describe('Mot de passe', () => {
 // ===========================================================================
 describe('Double authentification', () => {
   it('activation, connexion en deux étapes, anti-rejeu, codes de récupération', async () => {
+    // Mise en place réservée aux administrateurs (mfa-member.test.js) :
+    // administrateur dont la double authentification n'est pas encore active.
     const user = await createUser();
+    await pool.query("INSERT INTO admins (user_id, role) VALUES ($1, 'ADMIN')", [user.id]);
     let identity = await login(app, user);
 
     const setup = await request(app).post('/api/auth/mfa/setup').set(auth(identity)).send({ password: PASSWORD });
