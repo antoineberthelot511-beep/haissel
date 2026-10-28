@@ -99,7 +99,7 @@ a:hover { color: var(--v2-primary-strong); }
 :focus-visible { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
 .skip-link { display: inline-flex; align-items: center; min-height: 44px; border-radius: var(--v2-r-full); }
 
-.icon { width: 20px; height: 20px; stroke-width: 1.9; }
+.icon { width: 20px; height: 20px; }
 .icon.sm { width: 16px; height: 16px; }
 .icon.lg { width: 24px; height: 24px; }
 
@@ -195,7 +195,7 @@ body:has(#auth-screen:not(.hidden)) .topbar-nav { display: none; }
   background: var(--v2-primary-container); color: var(--v2-on-primary); box-shadow: var(--v2-shadow-3);
   transition: transform .15s ease;
 }
-.nav-fab-circle .icon { width: 30px; height: 30px; stroke-width: 2.6; }
+.nav-fab-circle .icon { width: 30px; height: 30px; }
 .topbar-nav .nav-fab:hover .nav-fab-circle { transform: scale(1.05); }
 .topbar-nav .nav-fab:active .nav-fab-circle { transform: scale(.95); }
 .topbar-nav .nav-fab.active .nav-fab-circle { background: var(--v2-primary-strong); }
@@ -479,7 +479,7 @@ button.fc-author:hover { color: var(--v2-primary); }
   flex: none; display: grid; place-items: center; width: 72px; height: 72px; border-radius: var(--v2-r);
   background: var(--v2-primary-fixed); color: var(--v2-primary-strong);
 }
-.od-icon .icon { width: 34px; height: 34px; stroke-width: 1.7; }
+.od-icon .icon { width: 34px; height: 34px; }
 .od-hero h2 { font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .od-hero h2:focus { outline: none; }
 .od-verified {
@@ -924,7 +924,8 @@ p { margin: 0; }
 small { font-weight: 500; color: var(--v2-secondary); }
 .hidden { display: none !important; }
 .icon-sprite { display: none; }
-.icon { flex: none; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+/* Icônes du sprite : chaque tracé porte ses propres fill / stroke ; seule color est héritée. */
+.icon { flex: none; }
 
 .skip-link {
   position: absolute; left: 1rem; top: -5rem; z-index: 2000; padding: 0 1rem;
@@ -1279,7 +1280,7 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
   position: absolute; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
   border: 0; background: none; color: var(--ios-secondary); cursor: pointer;
 }
-.search-clear .icon { padding: 2px; border-radius: 50%; background: var(--ios-secondary); color: var(--ios-fill-solid); stroke-width: 3; }
+.search-clear .icon { padding: 2px; border-radius: 50%; background: var(--ios-secondary); color: var(--ios-fill-solid); }
 .filters-button {
   position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px;
   border: 0; border-radius: 12px; background: var(--ios-fill); color: var(--ios-blue); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
@@ -1411,7 +1412,7 @@ body.chat-open .topbar-nav { display: none; }
   padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 0 max(4px, env(safe-area-inset-left, 0px));
 }
 .chat-back { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--ios-blue); cursor: pointer; }
-.chat-back .icon { width: 28px; height: 28px; stroke-width: 2.4; }
+.chat-back .icon { width: 28px; height: 28px; }
 .chat-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .chat-who strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-messages {
@@ -1457,7 +1458,7 @@ body.chat-open .topbar-nav { display: none; }
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -1px -1px -1px 0; padding: 0;
   border: 0; background: none; cursor: pointer;
 }
-.chat-send .icon { width: 32px; height: 32px; padding: 7px; border-radius: 50%; background: var(--brand); color: var(--brand-on); stroke-width: 2.6; transition: background-color .15s; }
+.chat-send .icon { width: 32px; height: 32px; padding: 7px; border-radius: 50%; background: var(--brand); color: var(--brand-on); transition: background-color .15s; }
 .chat-send:disabled { cursor: default; }
 .chat-send:disabled .icon { background: var(--chat-send-off, #c7c7cc); }
 
