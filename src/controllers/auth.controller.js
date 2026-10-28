@@ -169,6 +169,9 @@ function validateRegistration(body) {
   };
 }
 
+const GENERIC_REGISTER_CONFLICT = 'Impossible de créer ce compte avec ces informations. '
+  + 'Si tu as déjà un compte, connecte-toi ou réinitialise ton mot de passe.';
+
 async function register(req, res, next) {
   try {
     const { error, value } = validateRegistration(req.body);
@@ -199,12 +202,10 @@ async function register(req, res, next) {
         await logSecurityEvent('register_duplicate_email', { req });
         return res.status(202).json({ success: true, data: { verification_required: true } });
       }
-      return sendError(
-        res,
-        409,
-        'USER_ALREADY_EXISTS',
-        isEmail ? 'Cette adresse e-mail est déjà utilisée.' : 'Ce pseudo est déjà pris.'
-      );
+      // Adresse déjà utilisée : message générique (l'existence d'un compte
+      // n'est pas révélée). Le pseudo, public, reste signalé clairement.
+      if (isEmail) await logSecurityEvent('register_duplicate_email', { req });
+      return sendError(res, 409, 'USER_ALREADY_EXISTS', isEmail ? GENERIC_REGISTER_CONFLICT : 'Ce pseudo est déjà pris.');
     }
 
     await logSecurityEvent('register', { req, userId: user.id });
@@ -519,7 +520,20 @@ async function resendVerification(req, res, next) {
 // Mot de passe oublié / réinitialisation
 // ---------------------------------------------------------------------------
 
+/*
+ * « Mot de passe oublié » : même réponse ET même durée, que le compte existe
+ * ou non. L'envoi d'un e-mail prend du temps : la réponse attend toujours au
+ * moins NEUTRAL_REPLY_MIN_MS depuis la réception.
+ */
+const NEUTRAL_REPLY_MIN_MS = 1500;
+
+function waitUntilElapsed(startedAt, minMs) {
+  const left = minMs - (Date.now() - startedAt);
+  return left > 0 ? new Promise((resolve) => { setTimeout(resolve, left); }) : Promise.resolve();
+}
+
 async function forgotPassword(req, res, next) {
+  const startedAt = Date.now();
   try {
     if (!isMailEnabled()) {
       return sendError(res, 503, 'MAIL_DISABLED', "L'envoi d'e-mails n'est pas configuré : contactez l'administrateur.");
@@ -536,7 +550,8 @@ async function forgotPassword(req, res, next) {
         await logSecurityEvent('password_reset_requested', { req, userId: user.id });
       }
     }
-    // Réponse identique, que le compte existe ou non.
+    // Réponse identique, que le compte existe ou non, après la même durée minimale.
+    await waitUntilElapsed(startedAt, module.exports.NEUTRAL_REPLY_MIN_MS);
     return res.status(202).json({ success: true, data: { message: NEUTRAL_EMAIL_REPLY } });
   } catch (error) {
     return next(error);
@@ -811,6 +826,8 @@ async function deleteMyAccount(req, res, next) {
 }
 
 module.exports = {
+  NEUTRAL_REPLY_MIN_MS,
+  GENERIC_REGISTER_CONFLICT,
   getAuthConfig,
   exportMyData,
   deleteMyAccount,

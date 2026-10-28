@@ -22,6 +22,9 @@ const { recordConversion, ConversionError } = require('../services/conversion.se
 
 const TIMESTAMP_TOLERANCE_SECONDS = 300;
 
+/* Réseaux d'affiliation acceptés par le webhook. */
+const ALLOWED_PROVIDERS = new Set(['mylead']);
+
 function getProviderSecret(provider) {
   const specific = process.env[`AFFILIATE_WEBHOOK_SECRET_${provider.toUpperCase().replace(/-/g, '_')}`];
   const secret = specific || process.env.AFFILIATE_WEBHOOK_SECRET || '';
@@ -38,6 +41,10 @@ function computeSignature(secret, timestamp, rawBody) {
 
 async function handleAffiliateWebhook(req, res, next) {
   const provider = String(req.params.provider || '').toLowerCase();
+  // Liste blanche : tout autre fournisseur n'existe pas (404).
+  if (!ALLOWED_PROVIDERS.has(provider)) {
+    return sendError(res, 404, 'NOT_FOUND', 'Ressource introuvable.');
+  }
   if (!/^[a-z0-9_-]{2,40}$/.test(provider)) {
     return sendError(res, 404, 'UNKNOWN_PROVIDER', 'Fournisseur inconnu.');
   }

@@ -243,20 +243,20 @@ describe('CONVERSIONS & WEBHOOK', () => {
     const payload = { external_reference: 'ORD-1', code: aliceCode, amount_cents: 500, currency: 'EUR', status: 'approved' };
     const body = JSON.stringify(payload);
 
-    const unsigned = await request(app).post('/api/webhooks/affiliate/partner').set('Content-Type', 'application/json').send(body);
+    const unsigned = await request(app).post('/api/webhooks/affiliate/mylead').set('Content-Type', 'application/json').send(body);
     expect(unsigned.status).toBe(401);
 
-    const wrongSecret = await webhook('partner', payload, { secret: 'wrong-secret-wrong-secret-wrong-secret-xx' });
+    const wrongSecret = await webhook('mylead', payload, { secret: 'wrong-secret-wrong-secret-wrong-secret-xx' });
     expect(wrongSecret.status).toBe(401);
     expect(wrongSecret.body.error.code).toBe('INVALID_SIGNATURE');
 
-    const stale = await webhook('partner', payload, { timestamp: Math.floor(Date.now() / 1000) - 3600 });
+    const stale = await webhook('mylead', payload, { timestamp: Math.floor(Date.now() / 1000) - 3600 });
     expect(stale.status).toBe(401);
     expect(stale.body.error.code).toBe('INVALID_TIMESTAMP');
 
     // Corps modifié après signature
     const headers = signWebhook(body);
-    const tampered = await request(app).post('/api/webhooks/affiliate/partner').set(headers)
+    const tampered = await request(app).post('/api/webhooks/affiliate/mylead').set(headers)
       .send(body.replace('500', '50000'));
     expect(tampered.status).toBe(401);
 
@@ -266,10 +266,10 @@ describe('CONVERSIONS & WEBHOOK', () => {
 
   it('rejects invalid payloads even when correctly signed', async () => {
     const base = { external_reference: 'ORD-X', code: aliceCode, amount_cents: 500, currency: 'EUR' };
-    expect((await webhook('partner', { ...base, amount_cents: -5 })).status).toBe(400);
-    expect((await webhook('partner', { ...base, amount_cents: 10 ** 10 })).status).toBe(400);
-    expect((await webhook('partner', { ...base, currency: 'XXX' })).status).toBe(400);
-    expect((await webhook('partner', { ...base, code: 'HAI-NOPE2345' })).status).toBe(422);
+    expect((await webhook('mylead', { ...base, amount_cents: -5 })).status).toBe(400);
+    expect((await webhook('mylead', { ...base, amount_cents: 10 ** 10 })).status).toBe(400);
+    expect((await webhook('mylead', { ...base, currency: 'XXX' })).status).toBe(400);
+    expect((await webhook('mylead', { ...base, code: 'HAI-NOPE2345' })).status).toBe(422);
   });
 
   it('refuses a click_id that belongs to another affiliate', async () => {
@@ -277,7 +277,7 @@ describe('CONVERSIONS & WEBHOOK', () => {
     await request(app).get(`/r/${bobCode}`).set(lanHeaders('192.168.1.90'));
     const bobClick = await pool.query('SELECT id FROM clicks WHERE user_id = $1 LIMIT 1', [bob.id]);
 
-    const res = await webhook('partner', {
+    const res = await webhook('mylead', {
       external_reference: 'ORD-CLICK', code: aliceCode, click_id: bobClick.rows[0].id, amount_cents: 500, currency: 'EUR', status: 'approved',
     });
     expect(res.status).toBe(422);
@@ -290,12 +290,12 @@ describe('CONVERSIONS & WEBHOOK', () => {
       external_reference: 'ORD-100', code: aliceCode, click_id: click.rows[0].id, amount_cents: 4250, currency: 'EUR', status: 'approved',
     };
 
-    const first = await webhook('partner', payload);
+    const first = await webhook('mylead', payload);
     expect(first.status).toBe(201);
     expect(first.body.data.status).toBe('approved');
 
     // Même événement reçu deux fois (et en parallèle) : aucun double crédit.
-    const [again, concurrent] = await Promise.all([webhook('partner', payload), webhook('partner', payload)]);
+    const [again, concurrent] = await Promise.all([webhook('mylead', payload), webhook('mylead', payload)]);
     expect(again.status).toBe(200);
     expect(again.body.data.duplicate).toBe(true);
     expect(concurrent.body.data.conversion_id).toBe(first.body.data.conversion_id);
@@ -307,7 +307,7 @@ describe('CONVERSIONS & WEBHOOK', () => {
   });
 
   it('refuses to reuse an external reference with a different amount', async () => {
-    const res = await webhook('partner', {
+    const res = await webhook('mylead', {
       external_reference: 'ORD-100', code: aliceCode, amount_cents: 999999, currency: 'EUR', status: 'approved',
     });
     expect(res.status).toBe(409);
@@ -315,24 +315,24 @@ describe('CONVERSIONS & WEBHOOK', () => {
 
   it('a pending then rejected conversion never produces an active earning', async () => {
     const payload = { external_reference: 'ORD-200', code: aliceCode, amount_cents: 1000, currency: 'EUR', status: 'pending' };
-    const pending = await webhook('partner', payload);
+    const pending = await webhook('mylead', payload);
     expect(pending.status).toBe(201);
     let earnings = await pool.query('SELECT * FROM earnings WHERE conversion_id = $1', [pending.body.data.conversion_id]);
     expect(earnings.rows).toHaveLength(0);
 
-    const rejected = await webhook('partner', { ...payload, status: 'rejected' });
+    const rejected = await webhook('mylead', { ...payload, status: 'rejected' });
     expect(rejected.status).toBe(200);
     expect(rejected.body.data.status).toBe('rejected');
     earnings = await pool.query('SELECT * FROM earnings WHERE conversion_id = $1', [pending.body.data.conversion_id]);
     expect(earnings.rows).toHaveLength(0);
 
     // Statut final : impossible de repasser en approved.
-    const reapprove = await webhook('partner', { ...payload, status: 'approved' });
+    const reapprove = await webhook('mylead', { ...payload, status: 'approved' });
     expect(reapprove.status).toBe(409);
   });
 
   it('admin can approve a pending conversion, pay it, and cannot cancel it once paid', async () => {
-    const pending = await webhook('partner', {
+    const pending = await webhook('mylead', {
       external_reference: 'ORD-300', code: aliceCode, amount_cents: 750, currency: 'EUR', status: 'pending',
     });
     const id = pending.body.data.conversion_id;

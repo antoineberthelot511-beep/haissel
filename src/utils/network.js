@@ -35,9 +35,22 @@ function normalizeIp(ip) {
   return value.startsWith('::ffff:') && value.includes('.') ? value.slice(7) : value;
 }
 
+/*
+ * Vercel : x-vercel-forwarded-for est posé par l'infrastructure de Vercel
+ * (un client ne peut pas l'imposer), contrairement à X-Forwarded-For, que
+ * n'importe qui peut forger. Ordre : x-vercel-forwarded-for (premier
+ * élément), puis x-real-ip, puis req.ip.
+ */
+function vercelClientIp(req) {
+  const vercel = String(req.get('x-vercel-forwarded-for') || '').split(',')[0].trim();
+  if (vercel) return vercel;
+  const real = String(req.get('x-real-ip') || '').trim();
+  if (real) return real;
+  return req.ip || req.socket?.remoteAddress;
+}
+
 function getClientIp(req) {
-  // Vercel (trust proxy activé dans app.js) : IP fournie par son proxy.
-  if (process.env.VERCEL === '1' && req.ip) return normalizeIp(req.ip);
+  if (process.env.VERCEL === '1') return normalizeIp(vercelClientIp(req));
   if (isTrustedProxyRequest(req)) {
     const forwarded = req.get('x-real-ip');
     if (forwarded) return normalizeIp(forwarded);

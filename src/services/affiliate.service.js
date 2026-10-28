@@ -23,13 +23,13 @@ function isValidCode(value) {
 }
 
 /**
- * Seules les URL http(s) absolues sont acceptées comme destination.
+ * Seules les URL https absolues sont acceptées comme destination.
  */
 function isSafeOfferUrl(value) {
   if (typeof value !== 'string' || value.length > 2000) return false;
   try {
     const url = new URL(value.trim());
-    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+    return url.protocol === 'https:' && Boolean(url.hostname);
   } catch (error) {
     return false;
   }

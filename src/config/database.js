@@ -39,12 +39,39 @@ function resolveDatabaseUrl({ unpooled = false } = {}) {
   return unpooled ? resolveDatabaseUrl() : explicit;
 }
 
+/*
+ * TLS : pg signale que sslmode=prefer/require/verify-ca dans l'adresse sont
+ * traités comme verify-full (avertissement répété dans les journaux). On
+ * retire donc sslmode (et les paramètres associés) de l'adresse donnée à pg
+ * et on demande explicitement la vérification du certificat : même
+ * comportement sécurisé, sans avertissement. DATABASE_URL n'est pas modifiée
+ * et l'adresse n'est jamais journalisée.
+ */
+const SSL_URL_PARAMS = ['sslmode', 'ssl', 'sslrootcert', 'sslcert', 'sslkey', 'uselibpqcompat'];
+
+function stripSslParams(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    SSL_URL_PARAMS.forEach((name) => parsed.searchParams.delete(name));
+    return parsed.toString();
+  } catch (error) {
+    return url;
+  }
+}
+
+function poolSslConfig(env = process.env) {
+  return env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : false;
+}
+
+const databaseSsl = poolSslConfig();
+
 const pool = new Pool({
-  connectionString: resolveDatabaseUrl(),
+  connectionString: databaseSsl ? stripSslParams(resolveDatabaseUrl()) : resolveDatabaseUrl(),
   max: Number(process.env.DATABASE_POOL_MAX || 10),
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  ssl: databaseSsl,
   ...(schema ? { options: `-c search_path=${schema}` } : {}),
 });
 
@@ -77,6 +104,8 @@ async function withTransaction(fn) {
 }
 
 module.exports = {
+  stripSslParams,
+  poolSslConfig,
   pool,
   resolveDatabaseUrl,
   testConnection,
