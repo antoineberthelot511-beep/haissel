@@ -75,6 +75,8 @@ function publicUser(user, role) {
     adult_declaration_required: needsDeclaration(user),
     // Feuille d'installation de l'app déjà fermée une fois (sur n'importe quel appareil).
     install_tuto_seen: Boolean(user.install_tuto_seen_at),
+    // Profil visible par les autres membres (Réglages) ; privé par défaut.
+    profile_public: Boolean(user.profile_public),
   };
 }
 
@@ -85,7 +87,7 @@ async function getRole(userId) {
 
 const USER_COLUMNS = `id, username, email, display_name, first_name, last_name, created_at,
   is_active, is_banned, email_verified_at, mfa_enabled, password_hash,
-  is_adult, adult_declared_at, install_tuto_seen_at`;
+  is_adult, adult_declared_at, install_tuto_seen_at, profile_public`;
 
 // ---------------------------------------------------------------------------
 // Configuration publique (le frontend n'affiche que ce qui fonctionne)
@@ -406,6 +408,20 @@ async function markInstallTutoSeen(req, res, next) {
       [req.user.id]
     );
     return res.status(200).json({ success: true, data: { install_tuto_seen: true } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/** POST /api/auth/me/profile-visibility { public: true|false } : réglage « Profil visible par les membres ». */
+async function setProfileVisibility(req, res, next) {
+  try {
+    const value = (req.body || {}).public;
+    if (typeof value !== 'boolean') {
+      return sendError(res, 400, 'INVALID_REQUEST', 'Valeur attendue : true ou false.', { field: 'public' });
+    }
+    await pool.query('UPDATE users SET profile_public = $2, updated_at = NOW() WHERE id = $1', [req.user.id, value]);
+    return res.status(200).json({ success: true, data: { profile_public: value } });
   } catch (error) {
     return next(error);
   }
@@ -826,6 +842,7 @@ async function deleteMyAccount(req, res, next) {
 }
 
 module.exports = {
+  setProfileVisibility,
   NEUTRAL_REPLY_MIN_MS,
   GENERIC_REGISTER_CONFLICT,
   getAuthConfig,

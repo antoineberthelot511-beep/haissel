@@ -25,6 +25,8 @@ router.get('/me', pendingOk, auth.me);
 router.post('/adult-declaration', authRateLimiter, signedIn, auth.declareAdult);
 // Session et jeton CSRF obligatoires (signedIn).
 router.post('/install-tuto/seen', authRateLimiter, signedIn, auth.markInstallTutoSeen);
+// Réglages : profil visible par les autres membres (privé par défaut).
+router.post('/me/profile-visibility', authRateLimiter, signedIn, auth.setProfileVisibility);
 router.post('/logout', pendingOk, auth.logout);
 router.post('/logout-all', signedIn, auth.logoutAll);
 

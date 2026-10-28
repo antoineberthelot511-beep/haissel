@@ -1819,3 +1819,8 @@ img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
 .goodbye-screen.is-leaving { opacity: 0; transition: opacity 200ms ease; }
 .boot-screen img.mascot { margin-bottom: 12px; }
 .boot-screen { align-content: center; }
+
+/* Badge du type d'offre : « Lien affilié » + « En savoir plus », ou « Fiche membre · lien officiel ». */
+.kind-badge { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.kind-more { font-size: 12px; font-weight: 700; color: var(--brand); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.discover-text .kind-more, .story-viewer .kind-more { color: inherit; }

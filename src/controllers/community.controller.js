@@ -356,6 +356,11 @@ async function listOffers(req, res, next) {
     const savedOnly = req.query.saved === '1';
     // Filtres de la feuille « Filtres » : valeurs en liste blanche, sinon ignorées.
     const kind = req.query.kind === 'campaign' || req.query.kind === 'affiliate' ? req.query.kind : null;
+    // Grille d'un membre (?author=) : fait partie de son profil, donc privée elle aussi.
+    if (author) {
+      const owner = (await pool.query('SELECT id, profile_public FROM users WHERE username = $1', [author])).rows[0];
+      if (owner && !canSeeProfile(req, owner)) return sendError(res, 403, 'PROFILE_PRIVATE', PRIVATE_PROFILE_MESSAGE);
+    }
     // « Plus populaires » : nombre de sauvegardes, seul signal stocké ; à égalité, les plus récentes.
     const order = req.query.sort === 'popular'
       ? '(SELECT COUNT(*) FROM member_offer_saves s WHERE s.offer_id = o.id) DESC, '
@@ -600,13 +605,25 @@ async function adminDeleteCategory(req, res, next) {
   }
 }
 
-/** Profil public : pseudo, ancienneté et nombre d'offres publiées. Ni nom ni e-mail. */
+/*
+ * Profils privés par défaut : le profil d'un membre (ancienneté, nombre de
+ * fiches, grille) n'est visible que par lui-même et par l'équipe, sauf s'il
+ * a activé « Profil visible par les membres ». Ses fiches publiées restent
+ * dans le fil, avec seulement le pseudo.
+ */
+const PRIVATE_PROFILE_MESSAGE = 'Ce profil est privé.';
+
+function canSeeProfile(req, owner) {
+  return Boolean(owner.profile_public) || owner.id === req.user.id || req.userRole === 'ADMIN';
+}
+
+/** Profil : pseudo, ancienneté et nombre d'offres publiées. Ni nom ni e-mail. */
 async function getMemberProfile(req, res, next) {
   try {
     const username = String(req.params.username || '').toLowerCase();
     if (!/^[a-z0-9_.-]{1,50}$/.test(username)) return sendError(res, 404, 'NOT_FOUND', 'Membre introuvable.');
     const result = await pool.query(
-      `SELECT u.username, u.created_at,
+      `SELECT u.id, u.profile_public, u.username, u.created_at,
               (SELECT COUNT(*) FROM member_offers o WHERE o.user_id = u.id AND o.status = 'published' AND ${NOT_EXPIRED})::int AS published_offers
        FROM users u
        WHERE u.username = $1 AND u.is_active AND NOT u.is_banned`,
@@ -614,6 +631,7 @@ async function getMemberProfile(req, res, next) {
     );
     if (!result.rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Membre introuvable.');
     const row = result.rows[0];
+    if (!canSeeProfile(req, row)) return sendError(res, 403, 'PROFILE_PRIVATE', PRIVATE_PROFILE_MESSAGE);
     return res.status(200).json({
       success: true,
       data: { profile: { username: row.username, member_since: row.created_at, published_offers: row.published_offers } },

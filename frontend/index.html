@@ -963,6 +963,12 @@
                   </div>
                   <p id="notif-help" class="setting-help"></p>
                   <button id="notif-howto" class="setting-link" type="button" aria-haspopup="dialog" hidden>Comment faire ?</button>
+                  <!-- Profil privé par défaut : visible seulement par toi et l'équipe (app.js). -->
+                  <div class="setting-row">
+                    <label class="setting-label" for="profile-public-switch">Profil visible par les membres</label>
+                    <input id="profile-public-switch" class="ios-switch" type="checkbox" role="switch" aria-describedby="profile-public-help" />
+                  </div>
+                  <p id="profile-public-help" class="setting-help">Désactivé : ton profil (ancienneté, statistiques, grille) n’est visible que par toi et l’équipe. Tes fiches publiées restent visibles dans le fil, avec ton pseudo seulement.</p>
                 </div>
                 <!-- À propos : les pages légales (plus de pied de page dans l'espace membre). -->
                 <section class="about-box" aria-labelledby="about-title">

@@ -420,6 +420,7 @@ function showLoggedIn(user) {
   updateUserSummary();
   applyAgeRestrictions();
   renderMfaState();
+  renderProfileVisibility();
   // Comptes anterieurs a la declaration : la question passe avant tout.
   if (needsAgeAnswer()) openAgeGate();
   /*
@@ -944,13 +945,22 @@ function storyBadge(offer) {
   return left ? h('span', { className: 'pill story', title: 'Une fiche campagne reste visible 24 h.' }, icon('i-clock', 'icon sm'), left) : null;
 }
 
+/*
+ * Badge du type d'offre, partout où une offre apparaît (fil, Découvrir,
+ * stories, page de l'offre). Lien de l'équipe : « Lien affilié » visible,
+ * avec « En savoir plus » vers la page Transparence. Fiche d'un membre :
+ * « Fiche membre · lien officiel ».
+ */
 function kindBadge(offer) {
   if (offer.kind === 'campaign') {
-    return h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
-      icon('i-info', 'icon sm'), 'Fiche campagne');
+    return h('span', { className: 'kind-badge' },
+      h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
+        icon('i-info', 'icon sm'), 'Fiche membre · lien officiel'));
   }
-  return h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.' },
-    icon('i-link', 'icon sm'), 'Lien affilié');
+  return h('span', { className: 'kind-badge' },
+    h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.' },
+      icon('i-link', 'icon sm'), 'Lien affilié'),
+    h('a', { className: 'kind-more', href: 'transparence.html' }, 'En savoir plus'));
 }
 
 /*
@@ -1548,6 +1558,28 @@ async function renderNotifSetting() {
   ui.notifHelp.textContent = pushState.subscribed
     ? 'Activées : HAISSEL te prévient, même application fermée.'
     : 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.';
+}
+
+/* Réglages : « Profil visible par les membres » (désactivé par défaut). */
+function renderProfileVisibility() {
+  const toggle = document.getElementById('profile-public-switch');
+  if (toggle && state.user) toggle.checked = Boolean(state.user.profile_public);
+}
+
+async function handleProfileVisibility(event) {
+  const toggle = event.target;
+  const wanted = toggle.checked;
+  toggle.disabled = true;
+  try {
+    const data = await api('/api/auth/me/profile-visibility', { method: 'POST', body: { public: wanted } });
+    state.user.profile_public = data.profile_public;
+  } catch (error) {
+    toggle.checked = !wanted;
+    window.HaisselMotion?.toast(error.message, { check: false });
+  } finally {
+    toggle.disabled = false;
+    renderProfileVisibility();
+  }
 }
 
 async function handleNotifSwitch() {
@@ -3020,7 +3052,15 @@ async function openMember(username) {
     const [{ profile }, offers] = await Promise.all([
       api(`/api/community/members/${encodeURIComponent(username)}`),
       api(`/api/community/offers?author=${encodeURIComponent(username)}`),
-    ]);
+    ]).catch((error) => {
+      // Profil privé (par défaut) : seuls le membre et l'équipe le voient.
+      if (error.status === 403) {
+        ui.memberMeta.textContent = 'Ce profil est privé. Ses fiches publiées restent visibles dans le fil.';
+        return [{ profile: null }, null];
+      }
+      throw error;
+    });
+    if (!profile) return;
     ui.memberMeta.textContent = `Membre depuis le ${formatDate(profile.member_since)} · ${profile.published_offers} offre${profile.published_offers > 1 ? 's' : ''} publiée${profile.published_offers > 1 ? 's' : ''}`;
     ui.memberOffers.replaceChildren(...(offers.items.length
       ? offers.items.map((offer) => communityCard(offer))
@@ -4356,6 +4396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     scheduleAutoTuto();
   });
   ui.notifSwitch.addEventListener('change', handleNotifSwitch);
+  document.getElementById('profile-public-switch').addEventListener('change', handleProfileVisibility);
   window.addEventListener('hashchange', openViewFromHash);
   // Retour sur l'application (réglages du téléphone modifiés entre-temps).
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.user) renderNotifSetting(); });
