@@ -38,6 +38,11 @@ function purgeLegacyStorage() {
 const $ = (id) => document.getElementById(id);
 
 /** Création d'élément sûre : les chaînes deviennent des nœuds texte. */
+/* Ours de la mascotte (mascot.js) ; rien si le script manque. */
+function bear(name, size) {
+  return window.HaisselMascot ? window.HaisselMascot.mascot(name, { size }) : null;
+}
+
 function h(tag, attrs, ...children) {
   const element = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
@@ -1048,7 +1053,9 @@ async function loadModeration() {
   const list = $('moderation-list');
   list.replaceChildren(...(data.items.length
     ? data.items.map(moderationCard)
-    : [h('p', { className: 'empty panel' }, 'Aucune offre dans cette liste.')]));
+    : [state.moderationFilter === 'pending'
+      ? h('div', { className: 'empty panel mascot-state' }, bear('admin-moderation', 140), h('p', null, 'Tout est traité.'))
+      : h('p', { className: 'empty panel' }, 'Aucune offre dans cette liste.')]));
 }
 
 // ---------------------------------------------------------------------------
@@ -1240,7 +1247,7 @@ async function loadInbox() {
     item.unread ? badge(`${item.unread} non lu${item.unread > 1 ? 's' : ''}`, 'bad') : null,
     h('span', { className: 'muted' }, `${item.last_from_team ? 'Équipe : ' : ''}${item.preview}`),
     h('small', { className: 'muted' }, date(item.last_message_at)))))
-    : [h('li', { className: 'empty' }, 'Aucune conversation pour le moment.')]));
+    : [h('li', { className: 'empty mascot-state' }, bear('admin-support', 120), h('p', null, 'Aucune conversation pour le moment.'))]));
   if (state.inboxOpen) await openInboxThread(state.inboxOpen, { refreshList: false });
 }
 

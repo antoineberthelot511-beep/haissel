@@ -72,7 +72,7 @@
   --v2-shadow-dock: 0 12px 36px -6px rgba(26, 27, 34, .16);
 
   --v2-font: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  --v2-focus: #f59e0b;
+  --v2-focus: var(--brand);
   /* Barre du bas flottante : hauteur visible + écart au bord (hors zone sûre).
      Tout contenu garde en dessous cette hauteur + la zone sûre + 16 px. */
   --v2-nav-height: calc(64px + .5rem);
@@ -1784,3 +1784,38 @@ img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
 
 /* Cadre de l'image du tuto : fond squelette, coins arrondis (motion.css). */
 .tuto-media { display: block; width: fit-content; max-width: 100%; margin: 0 auto; border-radius: 18px; overflow: hidden; }
+
+/* Focus des menus, feuilles et fenêtres : jamais au toucher ni au clic,
+   seulement à la navigation clavier (:focus-visible), anneau --brand de 2 px. */
+:is(.msg-peek, .bubble-menu, .sv-menu, [role="menu"], .sheet, .app-dialog) :focus:not(:focus-visible),
+:is(.sheet, .app-dialog):focus:not(:focus-visible) { outline: none; box-shadow: none; }
+:is(.msg-peek, .bubble-menu, .sv-menu, [role="menu"], .sheet, .app-dialog) :focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px; box-shadow: none;
+}
+
+/* Mascotte (mascot.js, mascot.css) : emplacements de l'application. */
+.profile-grid > .mascot-head { grid-column: 1 / -1; }
+#learn-view > .mascot-head { margin-bottom: 4px; }
+.chat-empty.mascot-state { padding: 0; }
+.msg-empty #msg-empty-mascot { display: block; }
+.install-banner-mascot { flex: none; margin: -14px 0 -10px -6px; }
+.install-banner-mascot img.mascot { width: 72px; height: 72px; }
+.m-toast.has-mascot .m-toast-inner { gap: 6px; }
+.m-toast.has-mascot img.mascot { width: 56px; height: 56px; margin: -6px 0; }
+.offline-banner {
+  position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 85;
+  display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 0 auto; padding: 6px 14px 6px 6px; border-radius: 20px;
+  color: var(--v2-on-surface); font-weight: 600; font-size: 14px;
+}
+.offline-banner[hidden] { display: none; }
+.offline-banner p { margin: 0; }
+.offline-banner img.mascot { margin: 0; }
+.goodbye-screen {
+  position: fixed; inset: 0; z-index: 1100; display: grid; place-content: center; justify-items: center; gap: 12px;
+  background: var(--v2-bg); color: var(--v2-on-surface); font-size: 22px; font-weight: 800;
+  animation: m-fade var(--dur-2, 220ms) ease both;
+}
+.goodbye-screen p { margin: 0; }
+.goodbye-screen.is-leaving { opacity: 0; transition: opacity 200ms ease; }
+.boot-screen img.mascot { margin-bottom: 12px; }
+.boot-screen { align-content: center; }

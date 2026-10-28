@@ -215,7 +215,7 @@ describe('liste des conversations', () => {
     expect(inbox).toMatch(/<img class="msg-avatar" src="\/logo.svg" alt="" width="52" height="52" \/>/);
     expect(inbox).toContain('msg-chevron');
     expect(inbox).toContain('id="msg-skeleton"');
-    expect(inbox).toMatch(/<div id="msg-empty" class="msg-empty" hidden>\s*<svg/);
+    expect(inbox).toMatch(/<div id="msg-empty" class="msg-empty" hidden>\s*<span id="msg-empty-mascot"><\/span>/);
     expect(html).toContain('<span class="topbar-title" aria-hidden="true">Messages</span>');
     const css = read('app-v2.css');
     expect(css).toMatch(/\.msg-title \{[^}]*font-size: 34px;[^}]*font-weight: 800;/);

@@ -136,7 +136,7 @@ describe('toast de publication', () => {
 
   test('appelé après une publication réussie', () => {
     const handler = app.slice(app.indexOf('async function handlePublish'), app.indexOf('function renderMyLeadGuide'));
-    expect(handler).toMatch(/window\.HaisselMotion\?\.toast\(editing \? 'Fiche modifiée' : 'Fiche envoyée à l’équipe'\)/);
+    expect(handler).toMatch(/window\.HaisselMotion\?\.toast\(editing \? 'Fiche modifiée' : 'Fiche envoyée à l’équipe', \{ mascot: 'bravo' \}\)/);
   });
 });
 

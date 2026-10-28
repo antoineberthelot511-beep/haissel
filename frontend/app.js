@@ -433,6 +433,7 @@ function showLoggedIn(user) {
   loadLinks();
   // Première visite d'un membre connecté sur cet appareil : point de départ des 3 jours.
   if (!storageGet(INSTALL_KEYS.firstSeen)) storageSet(INSTALL_KEYS.firstSeen, String(Date.now()));
+  welcomeNewMember(user);
   renderInstallUi();
   autoTuto.done = false;
   autoTuto.tries = 0;
@@ -707,7 +708,7 @@ async function loadLearn() {
     if (error.status === 401 || error.status === 403) return;
     for (const list of lists) {
       list.setAttribute('aria-busy', 'false');
-      list.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+      list.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
         h('p', null, `Impossible de charger le contenu : ${error.message}`),
         h('button', { className: 'secondary-button', type: 'button', onclick: loadLearn }, 'Réessayer')));
     }
@@ -734,6 +735,11 @@ const OFFER_STATUS_LABELS = {
   published: ['Publiée', 'published'],
   rejected: ['Refusée', 'rejected'],
 };
+
+/* Ours de la mascotte (mascot.js) ; rien si le script manque. */
+function bear(name, size) {
+  return window.HaisselMascot ? window.HaisselMascot.mascot(name, { size }) : null;
+}
 
 function openDialog(dialog) {
   if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -1194,7 +1200,7 @@ async function loadCommunity() {
     ui.communityList.replaceChildren(...(items.length
       ? items.map((offer) => gridTile(offer))
       : [query
-        ? h('div', { className: 'search-empty' },
+        ? h('div', { className: 'search-empty mascot-state' }, bear('aucun-resultat', 140),
           h('p', null, 'Aucun résultat'),
           h('button', { className: 'secondary-button', type: 'button', onclick: clearSearch }, 'Effacer les filtres'))
         : h('div', { className: 'panel-card' }, 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
@@ -1212,20 +1218,20 @@ async function loadCommunity() {
       const feed = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
       ui.homeOffers.replaceChildren(...(feed.length
         ? feed.map((offer) => postCard(offer))
-        : [h('div', { className: 'panel-card' },
-          'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
+        : [h('div', { className: 'panel-card mascot-state' }, bear('vide-dodo', 140),
+          h('p', null, 'Aucune offre pour le moment. Tu peux être le premier à en publier une.'))]));
       // Premier rendu visible : entrée en cascade (8 éléments au plus, motion.js).
       if (feed.length && ui.homeOffers.offsetParent) window.HaisselMotion?.cascade(ui.homeOffers);
     }
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.communityList.setAttribute('aria-busy', 'false');
-    ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+    ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
       h('p', null, `Impossible de charger les offres : ${error.message}`),
       h('button', { className: 'secondary-button', type: 'button', onclick: loadCommunity }, 'Réessayer')));
     if (ui.homeOffers) {
-      ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
-        'Offres indisponibles pour le moment.'));
+      ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
+        h('p', null, 'Offres indisponibles pour le moment.')));
     }
   } finally {
     // Premier rendu de l'Accueil (stories et fil, état vide ou erreur).
@@ -1409,7 +1415,7 @@ async function loadActivity() {
     } catch (error) {
       if (error.status === 401 || error.status === 403) return;
       if (!activity.loaded && document.body.dataset.view === 'notifications') {
-        ui.activityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+        ui.activityList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
           h('p', null, 'Impossible d’afficher ton activité pour le moment.'),
           h('button', { className: 'secondary-button', type: 'button', onclick: loadActivity }, 'Réessayer')));
       }
@@ -1459,8 +1465,7 @@ function renderActivity() {
     return;
   }
   if (!activity.items.length) {
-    ui.activityList.replaceChildren(h('div', { className: 'activity-empty' },
-      h('span', { className: 'activity-empty-icon', 'aria-hidden': 'true' }, icon('i-bell', 'icon lg')),
+    ui.activityList.replaceChildren(h('div', { className: 'activity-empty mascot-state' }, bear('vide-dodo', 140),
       h('p', null, 'Rien de nouveau pour l’instant.')));
     return;
   }
@@ -1554,6 +1559,7 @@ async function handleNotifSwitch() {
     : await window.HaisselPush.disable(pushDeps());
   await renderNotifSetting();
   if (result === 'error') ui.notifHelp.textContent = 'Activation impossible pour le moment. Réessaie dans un instant.';
+  else if (wanted && ui.notifSwitch.checked) window.HaisselMotion?.toast('Notifications activées', { mascot: 'notifications' });
 }
 
 /* Feuille « Comment faire ? » : le carrousel repart de la première étape. */
@@ -2362,11 +2368,25 @@ function renderInbox() {
     if (!item.hidden) pinnedVisible += 1;
   });
   ui.msgPinned.hidden = !pinnedVisible;
-  ui.msgList.querySelectorAll('[data-conversation]').forEach((item) => { item.hidden = !shown.has(item.dataset.conversation); });
+  // Comme sur iPhone : une conversation épinglée n'est plus dans la liste (sauf pendant une recherche).
+  let rows = 0;
+  ui.msgList.querySelectorAll('[data-conversation]').forEach((item) => {
+    const id = item.dataset.conversation;
+    item.hidden = !shown.has(id) || (!searching && pins.includes(id));
+    if (!item.hidden) rows += 1;
+  });
   ui.msgSkeleton.hidden = chat.listReady;
-  ui.msgList.hidden = !chat.listReady;
-  ui.msgEmpty.hidden = !chat.listReady || shown.size > 0;
+  ui.msgList.hidden = !chat.listReady || !rows;
+  // Vide seulement s'il n'y a rien du tout à montrer : tout épinglé n'est pas « vide ».
+  const empty = chat.listReady && !rows && !pinnedVisible;
+  ui.msgEmpty.hidden = !empty;
   ui.msgEmptyText.textContent = searching ? `Aucun résultat pour « ${chat.query.trim()} ».` : 'Aucune conversation.';
+  const pose = searching ? 'aucun-resultat' : 'messages';
+  const holder = document.getElementById('msg-empty-mascot');
+  if (empty && holder && holder.dataset.pose !== pose) {
+    holder.dataset.pose = pose;
+    holder.replaceChildren(...[bear(pose, 120)].filter(Boolean));
+  }
 }
 
 function paintUnread(count) {
@@ -2490,7 +2510,9 @@ function renderChat() {
   const messages = entry.store.messages();
   const empty = list.querySelector('.chat-empty');
   if (!messages.length) {
-    if (entry.loaded && !empty) list.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
+    if (entry.loaded && !empty) {
+      list.replaceChildren(h('div', { className: 'chat-empty mascot-state' }, bear('message-recu', 120), h('p', null, 'Pose ta question : l’équipe te répond ici.')));
+    }
     return { created: [], atBottom: true };
   }
   empty?.remove();
@@ -3381,6 +3403,7 @@ async function renewMyOffer(offer) {
   try {
     const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}/renew`, { method: 'POST' });
     myOffersFeedback('info', data.message);
+    window.HaisselMotion?.toast('Ta story est de nouveau en ligne pour 24 h', { mascot: 'story-selfie' });
     loadMyOffers();
     state.community.loaded = false;
   } catch (error) {
@@ -3438,8 +3461,10 @@ function myOfferTile(offer) {
     className: `grid-cell${expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `${offer.title} : ${label}. Gérer cette fiche`,
     'data-offer-id': String(offer.id),
     onclick: () => {
+      const pose = { published: expired ? null : 'fiche-validee', rejected: 'fiche-refusee' }[offer.status];
       ui.myOfferDetail.replaceChildren(
         h('button', { className: 'text-button my-offer-detail-close', type: 'button', onclick: () => { ui.myOfferDetail.hidden = true; } }, icon('i-close', 'icon sm'), 'Fermer'),
+        pose ? bear(pose, 88) : null,
         myOfferCard(offer));
       ui.myOfferDetail.hidden = false;
       ui.myOfferDetail.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -3462,11 +3487,11 @@ async function loadSavedOffers() {
     ui.savedOffers.setAttribute('aria-busy', 'false');
     ui.savedOffers.replaceChildren(...(items.length
       ? items.map((offer) => gridTile(offer))
-      : [h('div', { className: 'panel-card' }, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.')]));
+      : [h('div', { className: 'panel-card mascot-state' }, bear('vide-dodo', 120), h('p', null, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.'))]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.savedOffers.setAttribute('aria-busy', 'false');
-    ui.savedOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, `Impossible de charger tes offres sauvegardées : ${error.message}`));
+    ui.savedOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120), `Impossible de charger tes offres sauvegardées : ${error.message}`));
   }
 }
 
@@ -3485,11 +3510,11 @@ async function loadMyOffers() {
     else ui.statPublished.textContent = String(published);
     ui.myOfferDetail.hidden = true;
     ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferTile)
-      : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.')]));
+      : [h('div', { className: 'panel-card mascot-state' }, bear('vide-dodo', 120), h('p', null, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.'))]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.myOffers.setAttribute('aria-busy', 'false');
-    ui.myOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, `Impossible de charger tes offres : ${error.message}`));
+    ui.myOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120), `Impossible de charger tes offres : ${error.message}`));
   }
 }
 
@@ -3521,7 +3546,7 @@ async function handlePublish(event) {
     resetPublishForm();
     resetTurnstile(ui.publishForm);
     publishFeedback('info', data.offer?.status === 'published' ? 'Ton offre est publiée.' : data.message);
-    window.HaisselMotion?.toast(editing ? 'Fiche modifiée' : 'Fiche envoyée à l’équipe');
+    window.HaisselMotion?.toast(editing ? 'Fiche modifiée' : 'Fiche envoyée à l’équipe', { mascot: 'bravo' });
     ui.publishSuccess.focus?.();
     loadMyOffers();
   } catch (error) {
@@ -3560,7 +3585,7 @@ async function loadLinks() {
     if (error.status !== 401 && error.status !== 403) {
       widgetItems(ui.homeLinks, [], 'Liens indisponibles pour le moment.');
       ui.linksList.setAttribute('aria-busy', 'false');
-      ui.linksList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+      ui.linksList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
         h('p', null, `Impossible de charger les liens : ${error.message}`),
         h('button', { className: 'secondary-button', type: 'button', onclick: loadLinks }, 'Réessayer')));
     }
@@ -4000,6 +4025,20 @@ async function handlePasswordChange(event) {
   }
 }
 
+/* Écran « À bientôt » : 1,5 s après la déconnexion, puis la page de connexion. */
+const GOODBYE_MS = 1500;
+
+function sayGoodbye() {
+  const screen = h('div', { className: 'goodbye-screen', role: 'status' }, bear('au-revoir', 160), h('p', null, 'À bientôt !'));
+  document.body.append(screen);
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      screen.classList.add('is-leaving');
+      window.setTimeout(() => { screen.remove(); resolve(); }, 220);
+    }, GOODBYE_MS);
+  });
+}
+
 async function handleLogout() {
   try {
     await api('/api/auth/logout', { method: 'POST' });
@@ -4009,6 +4048,31 @@ async function handleLogout() {
   state.csrf = '';
   showLoggedOut();
   showAuthForm('login-form');
+  await sayGoodbye();
+}
+
+/*
+ * Première ouverture après l'inscription (compte de moins de 7 jours, jamais
+ * accueilli sur cet appareil) : toast « Bienvenue » avec l'ours.
+ */
+const WELCOME_KEY = 'haissel-welcomed';
+
+function welcomeNewMember(user) {
+  if (storageGet(WELCOME_KEY)) return;
+  storageSet(WELCOME_KEY, '1');
+  const created = Date.parse(user.created_at || '');
+  if (!created || Date.now() - created > 7 * 24 * 3600 * 1000) return;
+  window.HaisselMotion?.toast(`Bienvenue sur HAISSEL, ${user.display_name || user.username} !`, { mascot: 'bienvenue', duration: 4000 });
+}
+
+/* Hors ligne : bandeau avec l'ours tant que navigator.onLine est faux. */
+function watchOnline() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  const paint = () => { banner.hidden = navigator.onLine !== false; };
+  window.addEventListener('online', paint);
+  window.addEventListener('offline', paint);
+  paint();
 }
 
 async function handleLogoutAll() {
@@ -4300,6 +4364,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.reportForm.addEventListener('submit', handleReport);
   // Messages
   bindMessages();
+  watchOnline();
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });

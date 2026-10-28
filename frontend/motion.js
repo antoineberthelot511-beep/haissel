@@ -168,7 +168,7 @@
   }
 
   /* Toast de confirmation en verre, depuis le haut, avec une coche dessinée. */
-  function toast(message, { check = true, duration = 2600 } = {}) {
+  function toast(message, { check = true, duration = 2600, mascot = '' } = {}) {
     doc.querySelectorAll('.m-toast').forEach((old) => old.remove());
     const el = doc.createElement('div');
     el.className = 'm-toast lg-glass lg-pill';
@@ -176,7 +176,11 @@
     el.setAttribute('aria-live', 'polite');
     const inner = doc.createElement('div');
     inner.className = 'm-toast-inner';
-    if (check) {
+    // Avec l'ours (mascot.js) à la place de la coche : publication, bienvenue…
+    if (mascot && root.HaisselMascot) {
+      el.classList.add('has-mascot');
+      inner.append(root.HaisselMascot.mascot(mascot, { size: 72 }));
+    } else if (check) {
       inner.insertAdjacentHTML('beforeend',
         '<svg class="m-check" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="14"/><path d="M8 14.5l4 4 8-9"/></svg>');
     }
