@@ -47,8 +47,8 @@ function loadDom() {
 const M = loadPure();
 
 describe('images', () => {
-  test('21 poses, .webp (et .png) dans design/mascotte, .webp copiés dans frontend/images/mascotte', () => {
-    expect(M.POSES).toHaveLength(21);
+  test('22 poses, .webp (et .png) dans design/mascotte, .webp copiés dans frontend/images/mascotte', () => {
+    expect(M.POSES).toHaveLength(22);
     for (const [i, name] of M.POSES.entries()) {
       const base = `ours-${String(i + 1).padStart(2, '0')}-${name}`;
       for (const file of [`design/mascotte/${base}.webp`, `design/mascotte/${base}.png`, `frontend/images/mascotte/${base}.webp`]) {
@@ -217,5 +217,25 @@ describe('avatar de l’équipe', () => {
     expect(app).toContain("h('span', { className: 'activity-icon is-team' }, teamAvatar(40))");
     expect(admin).toContain("src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe Haissel'");
     expect(index).toContain('<img class="wordmark-logo" src="/logo.svg"');
+  });
+});
+
+describe('Découvrir vide', () => {
+  test('ours 22 (160 px), titre, sous-titre, « Actualiser » ; loader sur fond sombre avant chargement', () => {
+    expect(M.POSES).toContain('rien-a-decouvrir');
+    expect(M.src('rien-a-decouvrir')).toBe('/images/mascotte/ours-22-rien-a-decouvrir.webp');
+    expect(fs.existsSync(path.join(FRONTEND, 'images/mascotte/ours-22-rien-a-decouvrir.webp'))).toBe(true);
+    const empty = app.slice(app.indexOf('function discoverEmpty('), app.indexOf('function showDiscoverLoading('));
+    expect(empty).toContain("bear('rien-a-decouvrir', 160)");
+    expect(empty).toContain("'Rien à découvrir pour le moment'");
+    expect(empty).toContain("'Les nouvelles offres arrivent ici dès qu’elles sont validées.'");
+    expect(empty).toContain("'Actualiser'");
+    expect(app).toContain('ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide) : [discoverEmpty()]));');
+    expect(index).toMatch(/<div id="discover-feed"[^>]*>\s*<!--[^>]*-->\s*<section class="discover-slide is-empty" aria-busy="true"><div class="loader"/);
+    const css = read('app-v2.css');
+    expect(css).toMatch(/\.discover-empty-title \{[^}]*font-size: 20px; font-weight: 800;/);
+    expect(css).toMatch(/\.discover-empty-text \{[^}]*font-size: 15px;/);
+    expect(css).toMatch(/animation: mascot-in 420ms[^;]*, bear-search 4s ease-in-out 600ms infinite;/);
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*img\.mascot\.discover-bear \{ animation: none !important; \}/);
   });
 });

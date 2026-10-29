@@ -1227,13 +1227,32 @@ body[data-view="discover"] .topbar .topbar-inner { display: none; }
 #discover-view { margin: 0; transform: none !important; animation: none !important; }
 .discover-feed {
   position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain;
-  scroll-snap-type: y mandatory; background: #000; color: #fff;
+  scroll-snap-type: y mandatory; background: #000; color: #fff; --loader-color: #8DB4FF;
 }
 .discover-slide {
   position: relative; height: 100vh; height: 100dvh; scroll-snap-align: start; scroll-snap-stop: always;
   display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 16px 0; overflow: hidden;
 }
-.discover-slide.is-empty { color: rgba(255, 255, 255, .7); }
+.discover-slide.is-empty { color: rgba(255, 255, 255, .7); background: radial-gradient(120% 70% at 50% 40%, #1a1f2e 0%, #0b0b0f 70%); }
+/* Découvrir vide : ours, titre, sous-titre, « Actualiser », centrés verticalement. */
+.discover-empty { display: grid; justify-items: center; gap: 10px; max-width: 320px; padding: 0 16px 96px; text-align: center; }
+.discover-empty-title { margin: 6px 0 0; font-size: 20px; font-weight: 800; color: #fff; }
+.discover-empty-text { margin: 0; font-size: 15px; line-height: 1.4; color: #b4bccb; }
+.discover-refresh { margin-top: 8px; }
+@keyframes bear-search {
+  0%, 78%, 100% { transform: none; }
+  84% { transform: rotate(-5deg); }
+  90% { transform: rotate(5deg); }
+  96% { transform: rotate(-2deg); }
+}
+/* Entrée douce (mascot.css), puis léger balancement toutes les 4 s, comme s'il cherchait. */
+img.mascot.discover-bear {
+  transform-origin: 50% 90%;
+  animation: mascot-in 420ms cubic-bezier(.34, 1.45, .55, 1) both, bear-search 4s ease-in-out 600ms infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  img.mascot.discover-bear { animation: none !important; }
+}
 .discover-card {
   width: min(calc(100% - 56px), 360px); aspect-ratio: 4 / 5; margin: -190px 56px 0 0; border-radius: 28px;
   display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px;

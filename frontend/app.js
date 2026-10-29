@@ -944,8 +944,33 @@ function discoverSlide(offer) {
 function renderDiscover(items) {
   if (!ui.discoverFeed) return;
   const list = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
-  ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide)
-    : [h('section', { className: 'discover-slide is-empty' }, h('p', null, 'Rien à découvrir pour le moment.'))]));
+  ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide) : [discoverEmpty()]));
+}
+
+/*
+ * Découvrir vide : l'ours qui cherche (entrée douce puis léger balancement
+ * toutes les 4 s, coupé en mouvement réduit), sur le fond sombre de
+ * Découvrir ; « Actualiser » recharge les offres (petit loader en attendant).
+ */
+function discoverEmpty() {
+  const bearImg = bear('rien-a-decouvrir', 160);
+  bearImg?.classList.add('discover-bear');
+  return h('section', { className: 'discover-slide is-empty' },
+    h('div', { className: 'discover-empty' },
+      bearImg,
+      h('h2', { className: 'discover-empty-title' }, 'Rien à découvrir pour le moment'),
+      h('p', { className: 'discover-empty-text' }, 'Les nouvelles offres arrivent ici dès qu’elles sont validées.'),
+      h('button', {
+        className: 'secondary-button small-button discover-refresh', type: 'button',
+        onclick: () => { showDiscoverLoading(); state.community.loaded = false; loadCommunity(); },
+      }, icon('i-refresh', 'icon sm'), 'Actualiser')));
+}
+
+/* Chargement : petit loader sur le fond sombre (jamais d'écran noir vide). */
+function showDiscoverLoading() {
+  if (!ui.discoverFeed) return;
+  ui.discoverFeed.replaceChildren(h('section', { className: 'discover-slide is-empty', 'aria-busy': 'true' },
+    h('div', { className: 'loader', role: 'status', 'aria-label': 'Chargement' })));
 }
 
 function storyBadge(offer) {
@@ -1248,6 +1273,8 @@ async function loadCommunity() {
     ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
       h('p', null, `Impossible de charger les offres : ${error.message}`),
       h('button', { className: 'secondary-button', type: 'button', onclick: loadCommunity }, 'Réessayer')));
+    // Découvrir : pas d'écran noir en cas d'erreur, l'état vide propose « Actualiser ».
+    if (!communityQuery()) renderDiscover([]);
     if (ui.homeOffers) {
       ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
         h('p', null, 'Offres indisponibles pour le moment.')));
