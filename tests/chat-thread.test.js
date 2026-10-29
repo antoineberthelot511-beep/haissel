@@ -91,8 +91,6 @@ describe('libellés de date', () => {
     expect(Chat.stampLabel(new Date(2026, 9, 25, 14, 5), now)).toBe('Aujourd’hui 14:05');
     expect(Chat.stampLabel(new Date(2026, 9, 24, 9, 12), now)).toBe('Hier 09:12');
     expect(Chat.stampLabel('pas une date', now)).toBe('');
-    expect(Chat.listTimeLabel(new Date(2026, 9, 25, 14, 5), now)).toBe('14:05');
-    expect(Chat.listTimeLabel(new Date(2026, 9, 24, 9, 12), now)).toBe('Hier');
     expect(Chat.dayLabel(new Date(2026, 9, 25, 9, 0), now)).toBe('Aujourd’hui');
     expect(Chat.dayLabel(new Date(2026, 9, 24, 9, 0), now)).toBe('Hier');
     expect(Chat.dayLabel(new Date(2026, 9, 20, 9, 0), now)).toMatch(/^mardi 20 octobre$/);

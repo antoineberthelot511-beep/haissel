@@ -9,9 +9,8 @@
  *   Chaque ligne a une clé stable : app.js ne crée que les lignes nouvelles.
  * - createThreadStore : messages reçus du serveur + messages envoyés de façon
  *   optimiste (« Envoi… », « Envoyé », échec avec réessai), sans doublon.
- * - filterConversations : recherche en direct dans la liste des conversations.
  * - pollDelay : rythme d'interrogation selon la conversation ouverte et l'onglet.
- * - stampLabel, dayLabel, hourLabel, listTimeLabel : libellés de date.
+ * - stampLabel, dayLabel, hourLabel : libellés de date.
  * - countActiveFilters : nombre affiché sur le bouton « Filtres ».
  */
 (function attach(root) {
@@ -131,15 +130,6 @@
     return { messages, applyServer, post, retry };
   }
 
-  /** Recherche sans accents ni casse, dans le nom et l'aperçu. */
-  const fold = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-  function filterConversations(list, query) {
-    const q = fold(query);
-    if (!q) return list.slice();
-    return list.filter((c) => fold(c.name).includes(q) || fold(c.preview).includes(q));
-  }
-
   /** Délai avant la prochaine interrogation ; null : on n'interroge pas (onglet caché). */
   function pollDelay({ open = false, visible = true } = {}) {
     if (!visible) return null;
@@ -183,17 +173,6 @@
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
 
-  /** Heure de la liste des conversations : heure du jour, « Hier », sinon la date. */
-  function listTimeLabel(value, now = new Date()) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    if (sameDay(date, now)) return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    if (sameDay(date, yesterday)) return 'Hier';
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  }
-
   /** Le tri n'est pas un filtre : seuls catégorie, type et « sauvegardées » comptent. */
   function countActiveFilters({ category = '', kind = '', saved = false } = {}) {
     return (category ? 1 : 0) + (kind ? 1 : 0) + (saved ? 1 : 0);
@@ -209,7 +188,7 @@
   }
 
   root.HaisselChat = {
-    STAMP_GAP_MS, POLL_OPEN_MS, POLL_IDLE_MS, layoutThread, createThreadStore, filterConversations, pollDelay,
-    stampLabel, dayLabel, hourLabel, listTimeLabel, countActiveFilters, enterSends,
+    STAMP_GAP_MS, POLL_OPEN_MS, POLL_IDLE_MS, layoutThread, createThreadStore, pollDelay,
+    stampLabel, dayLabel, hourLabel, countActiveFilters, enterSends,
   };
 }(typeof window !== 'undefined' ? window : globalThis));

@@ -184,57 +184,50 @@ describe('interrogation sans doublon ni re-rendu complet', () => {
     expect(open.indexOf('renderChat()')).toBeLessThan(open.indexOf('pollTick()'));
     expect(app).toContain('const chatCache = new Map();');
     // Fermer ne vide pas le fil ; seule la déconnexion efface le cache.
-    const close = app.slice(app.indexOf('function closeChat('), app.indexOf('function bindChatEdgeSwipe'));
+    const close = app.slice(app.indexOf('function closeChat('), app.indexOf('function onLongPress('));
     expect(close).not.toMatch(/chatMessages\.replaceChildren|chatCache\.clear/);
     expect(app).toMatch(/function resetChat\(\) \{[\s\S]*?chatCache\.clear\(\);/);
   });
 });
 
-describe('liste des conversations', () => {
-  const list = [
-    { id: 'team', name: 'Équipe Haissel', preview: 'Ta fiche est validée' },
-    { id: 'autre', name: 'Camille', preview: 'Merci pour l’astuce' },
-  ];
+describe('onglet Messages du membre : directement la conversation avec l’équipe', () => {
+  const html = read('index.html');
+  const view = html.slice(html.indexOf('id="messages-view"'), html.indexOf('id="notifications-view"'));
 
-  test('recherche en direct : nom ou aperçu, sans accents ni casse', () => {
-    expect(Chat.filterConversations(list, '').map((c) => c.id)).toEqual(['team', 'autre']);
-    expect(Chat.filterConversations(list, '  ').map((c) => c.id)).toEqual(['team', 'autre']);
-    expect(Chat.filterConversations(list, 'equipe').map((c) => c.id)).toEqual(['team']);
-    expect(Chat.filterConversations(list, 'VALIDÉE').map((c) => c.id)).toEqual(['team']);
-    expect(Chat.filterConversations(list, 'astuce').map((c) => c.id)).toEqual(['autre']);
-    expect(Chat.filterConversations(list, 'zzz')).toEqual([]);
-    expect(app).toMatch(/ui\.msgSearch\.addEventListener\('input', \(\) => \{ chat\.query = ui\.msgSearch\.value; renderInbox\(\); \}\);/);
+  test('ni liste, ni recherche, ni épinglées, ni grand titre, ni bouton retour', () => {
+    for (const gone of ['msg-title', 'msg-search', 'msg-pinned', 'msg-list', 'msg-skeleton', 'msg-empty', 'data-open-thread', 'chat-back', 'Retour aux messages']) {
+      expect([gone, view.includes(gone)]).toEqual([gone, false]);
+    }
+    expect(html).not.toContain('topbar-title');
+    for (const gone of ['function renderInbox', 'function openPeek', 'function readPins', 'function watchInboxTitle', 'function bindChatEdgeSwipe', 'CHAT_SLIDE']) {
+      expect([gone, app.includes(gone)]).toEqual([gone, false]);
+    }
   });
 
-  test('index.html : grand titre, recherche, épinglée avec le logo, squelettes, état vide', () => {
-    const html = read('index.html');
-    const inbox = html.slice(html.indexOf('id="messages-inbox"'), html.indexOf('id="team-thread"'));
-    expect(inbox).toContain('<h2 id="messages-title" class="msg-title">Messages</h2>');
-    expect(inbox).toMatch(/<input id="msg-search" type="search" placeholder="Rechercher"/);
-    expect(inbox).toMatch(/<img class="msg-pin-avatar team-avatar" src="\/images\/mascotte\/avatar-equipe-128.webp" alt="Équipe Haissel" width="64" height="64" \/>/);
-    expect(inbox).toMatch(/<img class="msg-avatar team-avatar" src="\/images\/mascotte\/avatar-equipe-128.webp" alt="Équipe Haissel" width="52" height="52" \/>/);
-    expect(inbox).toContain('msg-chevron');
-    expect(inbox).toContain('id="msg-skeleton"');
-    expect(inbox).toMatch(/<div id="msg-empty" class="msg-empty" hidden>\s*<span id="msg-empty-mascot"><\/span>/);
-    expect(html).toContain('<span class="topbar-title" aria-hidden="true">Messages</span>');
+  test('en-tête : avatar ours de l’équipe, « Équipe Haissel », « Répond en général sous 24 h »', () => {
+    expect(view).toMatch(/<img class="msg-avatar sm team-avatar" src="\/images\/mascotte\/avatar-equipe-128\.webp" alt="Équipe Haissel"/);
+    expect(view).toContain('<strong id="chat-title">Équipe Haissel</strong>');
+    expect(view).toContain('<small class="chat-who-sub">Répond en général sous 24 h</small>');
+  });
+
+  test('ouvert à l’entrée dans l’onglet, fermé en le quittant ; la barre du bas reste visible', () => {
+    expect(app).toMatch(/if \(viewName === 'messages' && state\.user\) openChat\(\);\s*else closeChat\(\);/);
     const css = read('app-v2.css');
-    expect(css).toMatch(/\.msg-title \{[^}]*font-size: 34px;[^}]*font-weight: 800;/);
-    expect(css).toMatch(/body\[data-view="messages"\] \.topbar-title \{ visibility: visible; opacity: var\(--msg-collapse, 0\); \}/);
+    expect(css).not.toMatch(/body\.chat-open \.topbar-nav \{ display: none; \}/);
+    expect(css).toMatch(/\.chat \{[^}]*z-index: 30;/);
+    expect(app).toContain("ui.teamThread.style.setProperty('--chat-height', `${Math.max(200, vv.height - top - navHeight)}px`);");
   });
 
-  test('appui long : aperçu flouté + menu (Marquer comme lu, Épingler / Désépingler)', () => {
-    const peek = app.slice(app.indexOf('function openPeek('), app.indexOf('function closePeek('));
-    expect(peek).toContain("menuItem('Marquer comme lu'");
-    expect(peek).toContain("pinned ? 'Désépingler' : 'Épingler'");
-    expect(peek).toContain('HaisselMotion?.openMenu(menu, point)');
-    expect(read('app-v2.css')).toMatch(/\.msg-peek \{[^}]*backdrop-filter: blur\(18px\)/);
-    expect(read('motion.css')).toMatch(/\.msg-peek-card \{ animation: m-peek var\(--dur-3\) var\(--spring\) both; \}/);
+  test('pastille de non-lus sur l’icône de l’onglet Messages', () => {
+    const paint = app.slice(app.indexOf('function paintUnread('), app.indexOf('async function refreshUnread('));
+    expect(paint).toContain('ui.navMessagesBadge.hidden = !count;');
+    expect(html).toMatch(/id="nav-messages-badge"[^>]*data-pop/);
   });
 
-  test('conversation : glisse depuis la droite en 300 ms, balayage depuis le bord gauche', () => {
-    expect(app).toContain("const CHAT_SLIDE = { duration: 300, easing: 'cubic-bezier(.2, .8, .2, 1)' };");
-    expect(app).toMatch(/animate\(\[\{ transform: 'translateX\(100%\)' \}, \{ transform: 'none' \}\], CHAT_SLIDE\)/);
-    expect(app).toMatch(/event\.clientX > 24\) return;/);
+  test('conversation vide : ours 21 et texte au-dessus de la barre de saisie', () => {
+    expect(app).toMatch(/chat-empty mascot-state' \}, bear\('aucun-message', 120\), h\('p', null, NO_MESSAGE_TEXT\)\)/);
+    expect(app).toContain("const NO_MESSAGE_TEXT = 'Pas encore de message. Pose ta question, l’équipe te répond ici.';");
+    expect(read('app-v2.css')).toContain('.chat-empty { margin: auto 0 8px;');
   });
 
   test('appui long sur une bulle : seulement Copier', () => {
@@ -285,22 +278,19 @@ describe('prefers-reduced-motion', () => {
   const block = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
 
   test('les nouvelles animations sont neutralisées', () => {
-    expect(block).toMatch(/\.m-menu-in, \.bubble\.m-send, \.msg-peek-card, \.app-dialog\[open\], \.chat-new \{ animation: m-fade 100ms ease both !important; \}/);
+    expect(block).toMatch(/\.m-menu-in, \.bubble\.m-send, \.app-dialog\[open\], \.chat-new \{ animation: m-fade 100ms ease both !important; \}/);
     expect(block).toMatch(/\.m-menu-in > \*, \.m-menu-out, \.m-shake \{ animation: none !important; \}/);
     expect(block).toMatch(/\.bubble\.is-lifted, \.field:focus-within > span[^{]*\{ transform: none !important; \}/);
-    expect(block).toContain('.sk::after { animation: none !important; }');
   });
 
   test('chaque nouvelle classe animée a sa règle dans le bloc', () => {
-    for (const selector of ['.m-menu-in', '.m-menu-out', '.bubble.m-send', '.msg-peek-card', '.app-dialog[open]', '.m-shake', '.bubble.is-lifted', '.chat-new']) {
+    for (const selector of ['.m-menu-in', '.m-menu-out', '.bubble.m-send', '.app-dialog[open]', '.m-shake', '.bubble.is-lifted', '.chat-new']) {
       expect([selector, css.slice(0, css.indexOf('@media (prefers-reduced-motion: reduce)')).includes(selector), block.includes(selector)])
         .toEqual([selector, true, true]);
     }
   });
 
   test('côté script : pas de glissement ni de secousse en mouvement réduit', () => {
-    expect(app).toMatch(/if \(reducedMotion\(\)\) hideInbox\(\);/);
-    expect(app).toMatch(/if \(!animate \|\| reducedMotion\(\)\) finish\(\);/);
     const motion = read('motion.js');
     expect(motion).toMatch(/function shake\(element\) \{\s*if \(!element \|\| reduced\(\)\) return;/);
     expect(motion).toMatch(/if \(reduced\(\) \|\| !menu\.isConnected/);

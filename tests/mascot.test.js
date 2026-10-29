@@ -191,21 +191,12 @@ describe('prefers-reduced-motion', () => {
   });
 });
 
-describe('Messages : épinglée absente de la liste', () => {
-  test('pas de doublon épinglée / liste ; pas de liste vide quand tout est épinglé', () => {
-    const inbox = app.slice(app.indexOf('function renderInbox()'), app.indexOf('function paintUnread('));
-    expect(inbox).toContain('item.hidden = !shown.has(id) || (!searching && pins.includes(id));');
-    expect(inbox).toContain('ui.msgList.hidden = !chat.listReady || !rows;');
-    expect(inbox).toContain('const empty = chat.listReady && !rows && !pinnedVisible;');
-  });
-});
-
 describe('focus des menus, feuilles et fenêtres', () => {
   const css = read('app-v2.css');
 
   test('anneau --brand de 2 px au clavier seulement, jamais orange', () => {
-    expect(css).toMatch(/:is\(\.msg-peek, \.bubble-menu, \.sv-menu, \[role="menu"\], \.sheet, \.app-dialog\) :focus:not\(:focus-visible\),[^{]*\{ outline: none; box-shadow: none; \}/);
-    expect(css).toMatch(/:is\(\.msg-peek, \.bubble-menu, \.sv-menu, \[role="menu"\], \.sheet, \.app-dialog\) :focus-visible \{\s*outline: 2px solid var\(--brand\);/);
+    expect(css).toMatch(/:is\(\.bubble-menu, \.sv-menu, \[role="menu"\], \.sheet, \.app-dialog\) :focus:not\(:focus-visible\),[^{]*\{ outline: none; box-shadow: none; \}/);
+    expect(css).toMatch(/:is\(\.bubble-menu, \.sv-menu, \[role="menu"\], \.sheet, \.app-dialog\) :focus-visible \{\s*outline: 2px solid var\(--brand\);/);
     expect(css).toContain('--v2-focus: var(--brand);');
     expect(read('styles.css')).toContain('--focus: var(--brand);');
     // L'ambre reste pour les statuts « en attente », plus pour le focus.
@@ -222,8 +213,7 @@ describe('avatar de l’équipe', () => {
     expect(app).toMatch(/const file = size <= 64 \? 'avatar-equipe-128\.webp' : 'avatar-equipe-256\.webp';/);
     expect(app).toContain("alt: 'Équipe Haissel'");
     expect(read('app-v2.css')).toMatch(/img\.team-avatar \{ border-radius: 50%;/);
-    // Aperçu de l'appui long et Activité : même avatar ; le logo H reste celui de l'app.
-    expect(app).toContain("teamAvatar(32, 'msg-avatar sm')");
+    // Activité : même avatar ; le logo H reste celui de l'app.
     expect(app).toContain("h('span', { className: 'activity-icon is-team' }, teamAvatar(40))");
     expect(admin).toContain("src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe Haissel'");
     expect(index).toContain('<img class="wordmark-logo" src="/logo.svg"');

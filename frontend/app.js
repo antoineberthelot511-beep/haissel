@@ -228,8 +228,9 @@ function setActiveView(viewName) {
   // Sens du glissement (motion.js) : ordre des onglets de la barre du bas.
   window.HaisselMotion?.noteView(viewName);
   rememberView(viewName);
-  // Quitter Messages ferme la conversation (interrogation au rythme normal).
-  if (viewName !== 'messages') closeChat({ animate: false });
+  // Messages = la conversation avec l'équipe ; la quitter la ferme (interrogation au rythme normal).
+  if (viewName === 'messages' && state.user) openChat();
+  else closeChat();
   refreshUnread();
   if (viewName === 'notifications' && state.user) showActivity();
   if (viewName === 'home' && state.user) renderHomeLearnCard();
@@ -241,7 +242,6 @@ function setActiveView(viewName) {
     loadSavedOffers();
   }
   window.scrollTo({ top: 0 });
-  if (viewName === 'messages') chat.updateTitle?.();
 }
 
 /*
@@ -2378,11 +2378,10 @@ function closeStoryViewer() {
  */
 // Champ de saisie : 5 lignes au plus, puis il défile.
 const CHAT_MAX_LINES = 5;
-const CHAT_PINS_KEY = 'haissel.messages.pinned';
 const LONG_PRESS_MS = 450;
 // Distance au bas de la liste sous laquelle on suit les nouveaux messages.
 const CHAT_STICK_PX = 80;
-const chat = { pollTimer: 0, viewport: null, fullHeight: 0, open: false, listReady: false, unread: 0, query: '', last: null };
+const chat = { pollTimer: 0, viewport: null, fullHeight: 0, open: false, unread: 0 };
 const chatCache = new Map();
 const NO_MESSAGE_TEXT = 'Pas encore de message. Pose ta question, l’équipe te répond ici.';
 
@@ -2404,92 +2403,26 @@ function teamThread() {
 
 function resetChat() {
   stopPolling();
-  closeChat({ animate: false });
+  closeChat();
   chatCache.clear();
   ui.chatMessages.replaceChildren();
-  chat.listReady = false;
-  chat.last = null;
 }
 
-// --- Liste des conversations -----------------------------------------------
-
-/* Épinglage : préférence de cet appareil (aucune donnée de compte). */
-function readPins() {
-  try {
-    const raw = safeStorage()?.getItem(CHAT_PINS_KEY);
-    const list = raw ? JSON.parse(raw) : ['team'];
-    return Array.isArray(list) ? list : ['team'];
-  } catch (error) { return ['team']; }
-}
-
-function writePins(list) {
-  try { safeStorage()?.setItem(CHAT_PINS_KEY, JSON.stringify(list)); } catch (error) { /* stockage indisponible : rien n'est gardé */ }
-}
-
-function conversations() {
-  return [{ id: 'team', name: 'Équipe Haissel', preview: ui.teamThreadPreview.textContent, unread: chat.unread }];
-}
-
-/** Épinglées en haut (cachées pendant une recherche), lignes filtrées, état vide. */
-function renderInbox() {
-  const pins = readPins();
-  const searching = Boolean(chat.query.trim());
-  const shown = new Set(window.HaisselChat.filterConversations(conversations(), chat.query).map((c) => c.id));
-  let pinnedVisible = 0;
-  ui.msgPinned.querySelectorAll('[data-conversation]').forEach((item) => {
-    item.hidden = searching || !pins.includes(item.dataset.conversation);
-    if (!item.hidden) pinnedVisible += 1;
-  });
-  ui.msgPinned.hidden = !pinnedVisible;
-  // Comme sur iPhone : une conversation épinglée n'est plus dans la liste (sauf pendant une recherche).
-  let rows = 0;
-  ui.msgList.querySelectorAll('[data-conversation]').forEach((item) => {
-    const id = item.dataset.conversation;
-    item.hidden = !shown.has(id) || (!searching && pins.includes(id));
-    if (!item.hidden) rows += 1;
-  });
-  ui.msgSkeleton.hidden = chat.listReady;
-  ui.msgList.hidden = !chat.listReady || !rows;
-  // Vide seulement s'il n'y a rien du tout à montrer : tout épinglé n'est pas « vide ».
-  const empty = chat.listReady && !rows && !pinnedVisible;
-  ui.msgEmpty.hidden = !empty;
-  ui.msgEmptyText.textContent = searching ? `Aucun résultat pour « ${chat.query.trim()} ».` : NO_MESSAGE_TEXT;
-  const pose = searching ? 'aucun-resultat' : 'aucun-message';
-  const holder = document.getElementById('msg-empty-mascot');
-  if (empty && holder && holder.dataset.pose !== pose) {
-    holder.dataset.pose = pose;
-    holder.replaceChildren(...[bear(pose, 120)].filter(Boolean));
-  }
-}
+// --- Pastille de non-lus (icône de l'onglet Messages) ------------------------
 
 function paintUnread(count) {
   chat.unread = count;
   ui.navMessagesBadge.hidden = !count;
-  document.querySelectorAll('[data-unread-dot]').forEach((dot) => { dot.hidden = !count; });
-  ui.teamThreadOpen.classList.toggle('is-unread', Boolean(count));
   ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
-}
-
-/** Ligne de la liste : aperçu du dernier message (textContent) et heure. */
-function paintThreadPreview(last) {
-  if (!last) return;
-  chat.last = last;
-  ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content}`;
-  ui.teamThreadTime.textContent = window.HaisselChat.listTimeLabel(last.created_at);
-  ui.teamThreadTime.setAttribute('datetime', last.created_at);
 }
 
 async function refreshUnread() {
   if (!state.user) return;
   try {
     const data = await api('/api/messages/unread');
-    paintUnread(data.unread);
-    paintThreadPreview(data.last);
+    // Conversation ouverte et visible : ses réponses sont déjà lues.
+    paintUnread(chat.open && document.visibilityState === 'visible' ? 0 : data.unread);
   } catch (error) { /* pastille seulement : on réessaiera */ }
-  if (!chat.listReady) {
-    chat.listReady = true;
-    renderInbox();
-  }
   // Même rythme pour la cloche (Activité).
   loadActivity();
 }
@@ -2637,11 +2570,6 @@ function scrollChatToEnd(smooth = false) {
   ui.chatNew.hidden = true;
 }
 
-function lastMessage() {
-  const messages = teamThread().store.messages();
-  return messages[messages.length - 1] || null;
-}
-
 async function loadChat() {
   const entry = teamThread();
   try {
@@ -2651,7 +2579,6 @@ async function loadChat() {
     entry.loaded = true;
     const { created, atBottom } = renderChat();
     paintUnread(0);
-    paintThreadPreview(lastMessage());
     if (first) { scrollChatToEnd(); return; }
     // Nouveaux messages : la bulle apparaît depuis son coin (motion.css).
     created.forEach(({ row, node }) => { if (row.type === 'bubble') node.firstChild.classList.add('m-new'); });
@@ -2692,7 +2619,6 @@ function showSent(done) {
   scrollChatToEnd(true);
   done.then(() => {
     renderChat();
-    paintThreadPreview(lastMessage());
   });
 }
 
@@ -2706,8 +2632,6 @@ function showSent(done) {
 function fitChatToViewport() {
   const vv = window.visualViewport;
   if (!vv || ui.teamThread.hidden) return;
-  ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop}px`);
-  ui.teamThread.style.setProperty('--chat-height', `${vv.height}px`);
   /*
    * Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
    * Le seuil compare à la plus grande hauteur vue : depuis l'écran d'accueil
@@ -2717,6 +2641,16 @@ function fitChatToViewport() {
   const open = chat.fullHeight - vv.height > 120;
   const opened = open && !ui.teamThread.classList.contains('keyboard-open');
   ui.teamThread.classList.toggle('keyboard-open', open);
+  /*
+   * Entre l'en-tête de l'app et la barre du bas (qui garde la pastille) ;
+   * clavier ouvert, la barre du bas est sous le clavier : collée au clavier.
+   */
+  const header = document.querySelector('.topbar');
+  const nav = document.querySelector('.topbar-nav');
+  const top = Math.max(0, header ? header.getBoundingClientRect().bottom : 0);
+  const navHeight = !open && nav && nav.getClientRects().length ? Math.max(0, window.innerHeight - nav.getBoundingClientRect().top) : 0;
+  ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop + top}px`);
+  ui.teamThread.style.setProperty('--chat-height', `${Math.max(200, vv.height - top - navHeight)}px`);
   const list = ui.chatMessages;
   // À l'ouverture du clavier : dernier message. Sinon, on reste en bas si on y était.
   if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX) scrollChatToEnd();
@@ -2757,12 +2691,13 @@ function fitChatInput() {
   ui.chatSend.disabled = !input.value.trim();
 }
 
-const CHAT_SLIDE = { duration: 300, easing: 'cubic-bezier(.2, .8, .2, 1)' };
-
-/* La conversation glisse depuis la droite (300 ms) ; déjà en mémoire, elle s'affiche tout de suite. */
+/*
+ * Côté membre, l'onglet Messages est directement la conversation avec
+ * l'équipe : seul interlocuteur possible. Elle s'affiche à l'entrée dans
+ * l'onglet (déjà en mémoire : instantané) et se ferme quand on le quitte.
+ */
 function openChat() {
   if (chat.open) return;
-  closePeek();
   chat.open = true;
   ui.teamThread.hidden = false;
   document.body.classList.add('chat-open');
@@ -2772,73 +2707,18 @@ function openChat() {
   watchViewport(true);
   renderChat();
   scrollChatToEnd();
-  const hideInbox = () => { if (chat.open) ui.messagesInbox.hidden = true; };
-  if (reducedMotion()) hideInbox();
-  else ui.teamThread.animate([{ transform: 'translateX(100%)' }, { transform: 'none' }], CHAT_SLIDE).finished.then(hideInbox, hideInbox);
   pollTick();
-  ui.chatInput.focus({ preventScroll: true });
 }
 
-/* Retour : la conversation repart vers la droite, depuis là où le doigt l'a laissée. */
-function closeChat({ animate = true } = {}) {
+function closeChat() {
   if (!chat.open) return;
   chat.open = false;
   closeBubbleMenu();
-  ui.messagesInbox.hidden = false;
   ui.chatNew.hidden = true;
-  const finish = () => {
-    if (chat.open) return;
-    watchViewport(false);
-    ui.teamThread.hidden = true;
-    ui.teamThread.style.transform = '';
-    document.body.classList.remove('chat-open');
-  };
-  if (!animate || reducedMotion()) finish();
-  else {
-    const from = ui.teamThread.style.transform || 'none';
-    ui.teamThread.animate([{ transform: from }, { transform: 'translateX(100%)' }], { ...CHAT_SLIDE, fill: 'forwards' })
-      .finished.then((animation) => { finish(); animation.cancel(); }, finish);
-  }
-  renderInbox();
+  watchViewport(false);
+  ui.teamThread.hidden = true;
+  document.body.classList.remove('chat-open');
   schedulePoll();
-}
-
-/* Balayage depuis le bord gauche (24 px) : la conversation suit le doigt, puis se ferme ou revient. */
-function bindChatEdgeSwipe() {
-  const el = ui.teamThread;
-  let drag = null;
-  el.addEventListener('pointerdown', (event) => {
-    if (!chat.open || event.pointerType === 'mouse' || event.clientX > 24) return;
-    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, vx: 0, t: event.timeStamp, active: false };
-  });
-  el.addEventListener('pointermove', (event) => {
-    if (!drag || drag.id !== event.pointerId) return;
-    const dx = Math.max(0, event.clientX - drag.x);
-    if (!drag.active) {
-      const dy = Math.abs(event.clientY - drag.y);
-      if (dy > 12 && dy > dx) { drag = null; return; }
-      if (dx < 8) return;
-      drag.active = true;
-      try { el.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
-    }
-    const dt = Math.max(1, event.timeStamp - drag.t);
-    drag.vx = (dx - drag.dx) / dt;
-    drag.dx = dx;
-    drag.t = event.timeStamp;
-    el.style.transform = `translateX(${dx}px)`;
-  });
-  const release = (event) => {
-    if (!drag || drag.id !== event.pointerId) return;
-    const { active, dx, vx } = drag;
-    drag = null;
-    if (!active) return;
-    if (event.type !== 'pointercancel' && (dx > el.offsetWidth * 0.35 || vx > 0.5)) { closeChat(); return; }
-    const from = el.style.transform;
-    el.style.transform = '';
-    if (!reducedMotion()) el.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.34, 1.3, .64, 1)' });
-  };
-  el.addEventListener('pointerup', release);
-  el.addEventListener('pointercancel', release);
 }
 
 /*
@@ -2890,63 +2770,6 @@ function onLongPress(target, selector, onPress) {
   });
 }
 
-// --- Aperçu flottant (appui long sur une conversation) ----------------------
-
-let peek = null;
-
-function menuItem(label, iconId, onSelect) {
-  return h('button', { type: 'button', role: 'menuitem', onclick: onSelect }, h('span', null, label), icon(iconId, 'icon sm'));
-}
-
-function openPeek(source, point) {
-  closePeek();
-  const id = source.closest('[data-conversation]')?.dataset.conversation || 'team';
-  const pinned = readPins().includes(id);
-  const recent = chatCache.has(id) ? teamThread().store.messages().slice(-4) : [];
-  const thread = recent.length
-    ? recent.map((m) => h('div', { className: `bubble ${m.from_team ? 'from-team' : 'from-me'}` }, h('p', null, m.content)))
-    : [h('p', { className: 'msg-peek-preview' }, ui.teamThreadPreview.textContent)];
-  const card = h('button', { className: 'msg-peek-card', type: 'button', 'aria-label': 'Ouvrir la conversation', onclick: () => { closePeek(); openChat(); } },
-    h('span', { className: 'msg-peek-head' }, teamAvatar(32, 'msg-avatar sm'), h('strong', null, 'Équipe Haissel')),
-    h('span', { className: 'msg-peek-thread' }, thread));
-  const menu = h('div', { className: 'msg-peek-menu lg-glass', role: 'menu', 'aria-label': 'Actions' },
-    menuItem('Marquer comme lu', 'i-check', () => { closePeek(); markThreadRead(); }),
-    menuItem(pinned ? 'Désépingler' : 'Épingler', pinned ? 'i-bookmark' : 'i-bookmark-fill', () => {
-      writePins(pinned ? readPins().filter((p) => p !== id) : [...readPins(), id]);
-      closePeek();
-      renderInbox();
-    }));
-  const overlay = h('div', { className: 'msg-peek', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Aperçu de la conversation' }, card, menu);
-  overlay.addEventListener('click', (event) => { if (event.target === overlay) closePeek(); });
-  overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePeek(); });
-  document.body.append(overlay);
-  peek = { overlay, menu, source };
-  window.HaisselMotion?.openMenu(menu, point);
-  menu.querySelector('button')?.focus({ preventScroll: true });
-}
-
-function closePeek() {
-  if (!peek) return;
-  const { overlay, menu, source } = peek;
-  peek = null;
-  overlay.classList.add('is-leaving');
-  const remove = () => overlay.remove();
-  if (window.HaisselMotion) window.HaisselMotion.closeMenu(menu, remove);
-  else remove();
-  if (document.activeElement && overlay.contains(document.activeElement)) source.focus({ preventScroll: true });
-}
-
-/* « Marquer comme lu » : la lecture de la conversation passe les réponses en « lues » (serveur). */
-async function markThreadRead() {
-  const entry = teamThread();
-  try {
-    const data = await api('/api/messages/team');
-    entry.store.applyServer(data.messages || []);
-    entry.loaded = true;
-    paintUnread(0);
-  } catch (error) { /* la pastille sera rafraîchie à la prochaine interrogation */ }
-}
-
 // --- Appui long sur une bulle : Copier --------------------------------------
 
 let bubbleMenu = null;
@@ -2996,23 +2819,7 @@ function closeBubbleMenu() {
   else done();
 }
 
-/* Grand titre « Messages » → titre compact de l'en-tête, lié au défilement (0 → 1). */
-function watchInboxTitle() {
-  let frame = 0;
-  const update = () => {
-    frame = 0;
-    if (document.body.dataset.view !== 'messages') return;
-    const title = document.getElementById('messages-title');
-    const p = Math.min(1, Math.max(0, window.scrollY / Math.max(1, title.offsetHeight)));
-    document.documentElement.style.setProperty('--msg-collapse', p.toFixed(3));
-  };
-  window.addEventListener('scroll', () => { if (!frame) frame = window.requestAnimationFrame(update); }, { passive: true });
-  return update;
-}
-
 function bindMessages() {
-  document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
-  [ui.msgPinned, ui.msgList].forEach((list) => onLongPress(list, '[data-open-thread]', openPeek));
   onLongPress(ui.chatMessages, '.bubble', openBubbleMenu);
   ui.chatMessages.addEventListener('click', (event) => {
     const row = event.target.closest('.bubble-row.is-failed');
@@ -3024,9 +2831,6 @@ function bindMessages() {
   }, { passive: true });
   ui.chatNew.addEventListener('click', () => scrollChatToEnd(true));
   ui.teamThread.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeBubbleMenu(); });
-  document.getElementById('chat-back').addEventListener('click', () => closeChat());
-  bindChatEdgeSwipe();
-  ui.msgSearch.addEventListener('input', () => { chat.query = ui.msgSearch.value; renderInbox(); });
   ui.chatSend.addEventListener('click', sendChat);
   ui.chatInput.addEventListener('input', fitChatInput);
   // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
@@ -3040,7 +2844,6 @@ function bindMessages() {
     if (document.visibilityState === 'visible') pollTick();
     else stopPolling();
   });
-  chat.updateTitle = watchInboxTitle();
 }
 
 let communityTimer;
@@ -4294,7 +4097,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', chatNew: 'chat-new', msgPinned: 'msg-pinned', msgList: 'msg-list', msgSkeleton: 'msg-skeleton', msgEmpty: 'msg-empty', msgEmptyText: 'msg-empty-text', msgSearch: 'msg-search', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', chatSend: 'chat-send', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', chatNew: 'chat-new', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',

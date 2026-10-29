@@ -148,8 +148,6 @@ describe('branchement', () => {
     for (const id of ['bell-badge', 'nav-messages-badge']) {
       expect(html).toMatch(new RegExp(`id="${id}"[^>]*data-pop`));
     }
-    // Pastilles de non-lu de la liste Messages (épinglée et ligne).
-    expect(html.match(/data-unread-dot data-pop/g)).toHaveLength(2);
     expect(app).toContain('window.HaisselMotion.setCount(ui.statPublished, published);');
     expect(app).toMatch(/HaisselMotion\?\.cascade\(ui\.homeOffers\)/);
   });

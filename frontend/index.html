@@ -150,8 +150,6 @@
             <span class="wordmark-tag">Espace membre</span>
           </a>
 
-          <!-- Titre compact de Messages : apparaît quand le grand titre défile (app.js). -->
-          <span class="topbar-title" aria-hidden="true">Messages</span>
 
           <div class="topbar-actions">
             <span id="status-badge" class="status-pill offline">Connexion</span>
@@ -618,67 +616,17 @@
               <div id="discover-feed" class="discover-feed" aria-live="polite"></div>
             </section>
 
-            <!-- Messages : liste des conversations façon messagerie de téléphone (app.js). -->
-            <section id="messages-view" class="view-panel hidden" aria-labelledby="messages-title">
-              <div id="messages-inbox" class="msg-inbox">
-                <!-- Grand titre : rétrécit dans l'en-tête en verre au défilement (app.js, --msg-collapse). -->
-                <h2 id="messages-title" class="msg-title">Messages</h2>
-                <label class="msg-search">
-                  <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
-                  <input id="msg-search" type="search" placeholder="Rechercher" aria-label="Rechercher dans les conversations"
-                    autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
-                </label>
-                <!-- Conversations épinglées : grand avatar rond, nom dessous, pastille de non-lu. -->
-                <div id="msg-pinned" class="msg-pinned" role="list" aria-label="Conversations épinglées">
-                  <div role="listitem" class="msg-pin-item" data-conversation="team">
-                    <button class="msg-pin" type="button" data-open-thread aria-label="Équipe Haissel, conversation épinglée">
-                      <span class="msg-pin-ring">
-                        <img class="msg-pin-avatar team-avatar" src="/images/mascotte/avatar-equipe-128.webp" alt="Équipe Haissel" width="64" height="64" />
-                        <span class="msg-pin-dot" data-unread-dot data-pop hidden><span class="visually-hidden">Non lu</span></span>
-                      </span>
-                      <span class="msg-pin-name" aria-hidden="true">Équipe Haissel</span>
-                    </button>
-                  </div>
-                </div>
-                <!-- Squelettes pendant le premier chargement. -->
-                <ul id="msg-skeleton" class="msg-list msg-skeleton" aria-hidden="true">
-                  <li><span class="sk sk-avatar"></span><span class="sk-lines"><span class="sk sk-line w60"></span><span class="sk sk-line"></span><span class="sk sk-line w80"></span></span></li>
-                  <li><span class="sk sk-avatar"></span><span class="sk-lines"><span class="sk sk-line w40"></span><span class="sk sk-line"></span><span class="sk sk-line w70"></span></span></li>
-                  <li><span class="sk sk-avatar"></span><span class="sk-lines"><span class="sk sk-line w50"></span><span class="sk sk-line"></span><span class="sk sk-line w60"></span></span></li>
-                </ul>
-                <ul id="msg-list" class="msg-list" aria-label="Conversations" hidden>
-                  <li data-conversation="team">
-                    <button id="team-thread-open" class="msg-row" type="button" data-open-thread>
-                      <span class="msg-unread" data-unread-dot data-pop hidden><span class="visually-hidden">Non lu</span></span>
-                      <img class="msg-avatar team-avatar" src="/images/mascotte/avatar-equipe-128.webp" alt="Équipe Haissel" width="52" height="52" />
-                      <span class="msg-row-body">
-                        <span class="msg-row-top">
-                          <strong>Équipe Haissel</strong>
-                          <time id="team-thread-time" class="msg-row-time"></time>
-                          <svg class="icon msg-chevron" aria-hidden="true"><use href="#i-chevron-right" /></svg>
-                        </span>
-                        <span id="team-thread-preview" class="msg-row-preview">Une question, un signalement ? Écris-nous.</span>
-                      </span>
-                    </button>
-                  </li>
-                </ul>
-                <!-- Liste vide : ours « messages » ; recherche sans résultat : ours « aucun résultat ». -->
-                <div id="msg-empty" class="msg-empty" hidden>
-                  <span id="msg-empty-mascot"></span>
-                  <p id="msg-empty-text">Aucune conversation.</p>
-                </div>
-                <p class="security-note msg-note">Texte uniquement, les liens ne sont pas cliquables. Messages supprimés 12 mois après le dernier échange.</p>
-              </div>
-
-              <!-- Conversation : plein écran, collée au clavier (visualViewport, app.js). -->
-              <div id="team-thread" class="chat" role="dialog" aria-labelledby="chat-title" hidden>
+            <!-- Messages (membre) : directement la conversation avec l'équipe, seul interlocuteur (app.js). -->
+            <section id="messages-view" class="view-panel hidden" aria-labelledby="chat-title">
+              <!-- Conversation : entre l'en-tête et la barre du bas, collée au clavier (visualViewport, app.js). -->
+              <div id="team-thread" class="chat" role="region" aria-labelledby="chat-title" hidden>
                 <header class="chat-head lg-glass lg-bar">
-                  <button id="chat-back" class="chat-back" type="button" aria-label="Retour aux messages">
-                    <svg class="icon" aria-hidden="true"><use href="#i-chevron-left" /></svg>
-                  </button>
                   <div class="chat-who">
-                    <img class="msg-avatar sm team-avatar" src="/images/mascotte/avatar-equipe-128.webp" alt="Équipe Haissel" width="32" height="32" />
-                    <strong id="chat-title">Équipe Haissel</strong>
+                    <img class="msg-avatar sm team-avatar" src="/images/mascotte/avatar-equipe-128.webp" alt="Équipe Haissel" width="36" height="36" />
+                    <span class="chat-who-text">
+                      <strong id="chat-title">Équipe Haissel</strong>
+                      <small class="chat-who-sub">Répond en général sous 24 h</small>
+                    </span>
                   </div>
                 </header>
                 <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
