@@ -52,6 +52,8 @@
 /* Fondu + glissement de 12 px dans le sens de la navigation. */
 .view-panel:not(.hidden) { animation: m-slide-fwd var(--dur-2) var(--ease-out) both; }
 html[data-nav-dir="back"] .view-panel:not(.hidden) { animation-name: m-slide-back; }
+/* Activité (cloche) : arrive sur le côté un peu plus lentement (350 ms au lieu de 220 ms). */
+#notifications-view:not(.hidden) { animation-duration: var(--dur-3); }
 
 /* --- Entrée en cascade (premier écran seulement, 8 éléments au plus) ------ */
 .m-enter { animation: m-enter var(--dur-3) var(--ease-out) both; animation-delay: calc(var(--m-i, 0) * 30ms); }

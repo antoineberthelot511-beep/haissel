@@ -152,3 +152,8 @@ describe('branchement', () => {
     expect(app).toMatch(/HaisselMotion\?\.cascade\(ui\.homeOffers\)/);
   });
 });
+
+test('Activité : glissement d’entrée un peu plus lent (350 ms), neutralisé en mouvement réduit', () => {
+  expect(css).toContain('#notifications-view:not(.hidden) { animation-duration: var(--dur-3); }');
+  expect(css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))).toMatch(/\.view-panel:not\(\.hidden\)[^{]*\{ animation: m-fade 100ms ease both !important; \}/);
+});
