@@ -162,7 +162,7 @@ describe('interrogation sans doublon ni re-rendu complet', () => {
     expect(render).toContain('updateChatRow(node, row)');
     // Seul l'état vide remplace le contenu ; jamais quand il y a des messages.
     expect(render.match(/replaceChildren/g)).toHaveLength(1);
-    expect(render).toMatch(/if \(!messages\.length\) \{[\s\S]*?replaceChildren[\s\S]*?return/);
+    expect(render).toMatch(/if \(window\.HaisselChat\.showEmptyState\(messages, entry\.loaded\)\) \{[\s\S]*?replaceChildren[\s\S]*?return/);
     // Lecture plus haut : position gardée (ancrage) et bouton « Nouveaux messages ».
     expect(render).toContain('firstVisibleRow(list)');
     expect(render).toContain('list.scrollTop += delta');

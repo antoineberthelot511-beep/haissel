@@ -1271,7 +1271,10 @@ async function openInboxThread(id, { refreshList = true } = {}) {
       else handleError(error);
     }
   });
-  const messages = h('div', { className: 'inbox-messages' }, ...data.messages.map((message) => h('div', {
+  // Conversation sans aucun message : l'ours « aucun message » ; dès qu'un message existe, rien.
+  const messages = h('div', { className: 'inbox-messages' }, ...(data.messages.length ? [] : [
+    h('div', { className: 'empty mascot-state' }, bear('aucun-message', 120), h('p', null, 'Pas encore de message dans cette conversation.')),
+  ]), ...data.messages.map((message) => h('div', {
     className: `inbox-bubble ${message.from_team ? 'team' : 'member'}`,
   }, h('p', null, message.content), h('small', { className: 'muted' },
     // Côté équipe : l'avatar de l'équipe (l'ours), comme dans l'application.

@@ -130,6 +130,15 @@
     return { messages, applyServer, post, retry };
   }
 
+  /*
+   * État vide de la conversation (ours « aucun message ») : seulement une
+   * fois chargée ET sans aucun message, ni du membre ni de l'équipe. Un envoi
+   * optimiste en cours compte comme un message.
+   */
+  function showEmptyState(messages, loaded) {
+    return Boolean(loaded) && (!messages || messages.length === 0);
+  }
+
   /** Délai avant la prochaine interrogation ; null : on n'interroge pas (onglet caché). */
   function pollDelay({ open = false, visible = true } = {}) {
     if (!visible) return null;
@@ -188,7 +197,7 @@
   }
 
   root.HaisselChat = {
-    STAMP_GAP_MS, POLL_OPEN_MS, POLL_IDLE_MS, layoutThread, createThreadStore, pollDelay,
+    STAMP_GAP_MS, POLL_OPEN_MS, POLL_IDLE_MS, layoutThread, createThreadStore, showEmptyState, pollDelay,
     stampLabel, dayLabel, hourLabel, countActiveFilters, enterSends,
   };
 }(typeof window !== 'undefined' ? window : globalThis));

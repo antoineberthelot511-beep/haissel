@@ -1447,7 +1447,9 @@ body.chat-open .site-footer { display: none; }
     calc(var(--chat-form-h, 60px) + 8px) max(12px, env(safe-area-inset-left, 0px));
 }
 /* Conversation vide : l'ours et le texte juste au-dessus de la barre de saisie. */
-.chat-empty { margin: auto 0 8px; color: var(--ios-secondary); text-align: center; }
+.chat-empty { margin: auto 0 8px; color: var(--ios-secondary); text-align: center; transition: opacity 150ms ease; }
+/* Premier message : l'état vide s'efface en 150 ms (retiré du flux aussitôt). */
+.chat-empty.is-leaving { position: absolute; left: 0; right: 0; bottom: calc(var(--chat-form-h, 60px) + 8px); opacity: 0; }
 /* Séparateurs : date (« Aujourd’hui », « Hier », date) puis heure, centrés en petit gris. */
 .chat-day, .chat-stamp { margin: 14px 0 6px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
 .chat-day { margin-top: 18px; font-size: 12px; }

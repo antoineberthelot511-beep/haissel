@@ -2541,14 +2541,21 @@ function renderChat() {
   const entry = teamThread();
   const list = ui.chatMessages;
   const messages = entry.store.messages();
-  const empty = list.querySelector('.chat-empty');
-  if (!messages.length) {
-    if (entry.loaded && !empty) {
+  const empty = list.querySelector('.chat-empty:not(.is-leaving)');
+  // Ours « aucun message » : conversation chargée et vraiment vide (0 message), rien d'autre.
+  if (window.HaisselChat.showEmptyState(messages, entry.loaded)) {
+    if (!empty) {
       list.replaceChildren(h('div', { className: 'chat-empty mascot-state' }, bear('aucun-message', 120), h('p', null, NO_MESSAGE_TEXT)));
+      entry.nodes.clear();
     }
     return { created: [], atBottom: true };
   }
-  empty?.remove();
+  if (!messages.length) return { created: [], atBottom: true };
+  // Premier message (même optimiste) : l'ours s'efface aussitôt en 150 ms.
+  if (empty) {
+    empty.classList.add('is-leaving');
+    window.setTimeout(() => empty.remove(), reducedMotion() ? 0 : 150);
+  }
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX;
   const anchor = atBottom ? null : firstVisibleRow(list);
   const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
@@ -2558,18 +2565,8 @@ function renderChat() {
   for (const [key, node] of entry.nodes) {
     if (!keep.has(key)) { node.remove(); entry.nodes.delete(key); }
   }
-  // L'équipe n'a encore rien répondu : l'ours « aucun message » en tête du fil.
-  const waiting = !messages.some((m) => m.from_team);
-  let hint = list.querySelector('.chat-hint');
-  if (waiting && !hint) {
-    hint = h('div', { className: 'chat-hint mascot-state' }, bear('aucun-message', 120), h('p', null, NO_MESSAGE_TEXT));
-    list.prepend(hint);
-  } else if (!waiting && hint) {
-    hint.remove();
-    hint = null;
-  }
   const created = [];
-  let previous = hint;
+  let previous = null;
   rows.forEach((row) => {
     let node = entry.nodes.get(row.key);
     if (node) updateChatRow(node, row);

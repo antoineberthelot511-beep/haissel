@@ -154,7 +154,6 @@ describe('emplacements', () => {
     expect(app).toMatch(/search-empty mascot-state' \}, bear\('aucun-resultat', 140\)/);
     expect(app).toMatch(/activity-empty mascot-state' \}, bear\('vide-dodo', 140\)/);
     expect(app).toMatch(/chat-empty mascot-state' \}, bear\('aucun-message', 120\)/);
-    expect(app).toMatch(/chat-hint mascot-state' \}, bear\('aucun-message', 120\)/);
     expect(app).toContain("const NO_MESSAGE_TEXT = 'Pas encore de message. Pose ta question, l’équipe te répond ici.';");
     expect(admin).toContain("bear('admin-moderation', 140), h('p', null, 'Tout est traité.')");
   });
