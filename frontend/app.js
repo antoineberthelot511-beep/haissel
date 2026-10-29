@@ -1308,8 +1308,12 @@ function openSheet(dialog) {
   if (dialog.open) return;
   const panel = dialog.querySelector('.sheet-panel');
   sheets.get(dialog).closing = false;
+  // Focus initial sans anneau : il n'apparaît qu'après une touche du clavier dans la feuille.
+  dialog.dataset.noRing = '';
+  dialog.addEventListener('keydown', () => { delete dialog.dataset.noRing; }, { once: true });
   dialog.showModal();
   panel.style.transform = '';
+  dialog.style.setProperty('--sheet-fade', '1');
   if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
   // Montée avec ressort (même courbe que le Liquid Glass) ; la fermeture est plus rapide.
   else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 350, easing: 'cubic-bezier(.34, 1.2, .55, 1)' });
@@ -1334,41 +1338,66 @@ function closeSheet(dialog, { apply = false } = {}) {
   animation.finished.then(() => { done(); animation.cancel(); }, done);
 }
 
+/*
+ * Geste commun à toutes les feuilles (sheet-gesture.js) : glisser vers le bas
+ * depuis n'importe où (poignée et titre sans défilement natif, touch-action:
+ * none) ; la direction est décidée au premier mouvement, un balayage
+ * horizontal (carrousel du tuto) ne ferme rien. La feuille suit le doigt, le
+ * fond s'éclaircit ; au lâcher : fermeture (25 % ou lancer) ou retour avec
+ * ressort. Le fond assombri et Échap ferment aussi.
+ */
 function bindSheet(dialog, { beforeClose = null, onClose = null } = {}) {
   const entry = { closing: false, drag: null, beforeClose, onClose };
   sheets.set(dialog, entry);
   const panel = dialog.querySelector('.sheet-panel');
+  const Gesture = window.HaisselSheetGesture;
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeSheet(dialog); });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) closeSheet(dialog); });
   dialog.querySelectorAll('[data-close-sheet]').forEach((button) => button.addEventListener('click', () => closeSheet(dialog)));
+  const paintDrag = (dy) => {
+    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+    dialog.style.setProperty('--sheet-fade', String(Gesture.backdropOpacity(dy, panel.offsetHeight)));
+  };
   panel.addEventListener('pointerdown', (event) => {
     // Les contrôles natifs gardent leur comportement (roue iOS, menu Android).
-    // Carrousel du tuto : le balayage horizontal lui appartient.
-    if (event.target.closest('select, input, button, label, a, .tuto-track') || event.button > 0) return;
-    entry.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
-    panel.setPointerCapture(event.pointerId);
+    if (event.target.closest('select, input, textarea, label, a') || event.button > 0 || entry.closing) return;
+    // Contenu qui défile : on ne ferme que depuis le haut de la feuille.
+    if (panel.scrollTop > 0 && !event.target.closest('.sheet-grabber, .sheet-title')) return;
+    const drag = Gesture.createSheetDrag({ height: panel.offsetHeight });
+    drag.start(event.clientX, event.clientY, event.timeStamp);
+    entry.drag = { id: event.pointerId, drag, captured: false };
   });
   panel.addEventListener('pointermove', (event) => {
-    const drag = entry.drag;
-    if (!drag || drag.id !== event.pointerId) return;
-    const dy = Math.max(0, event.clientY - drag.y);
-    const dt = Math.max(1, event.timeStamp - drag.t);
-    drag.vy = (dy - drag.dy) / dt;
-    drag.dy = dy;
-    drag.t = event.timeStamp;
-    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+    const current = entry.drag;
+    if (!current || current.id !== event.pointerId) return;
+    const { axis, dy } = current.drag.move(event.clientX, event.clientY, event.timeStamp);
+    if (axis === 'other') { entry.drag = null; return; }
+    if (axis !== 'down') return;
+    if (!current.captured) {
+      current.captured = true;
+      try { panel.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
+    }
+    paintDrag(dy);
   });
+  // Le clic qui suit un glissement ne doit pas toucher un bouton (« Suivant »…).
+  panel.addEventListener('click', (event) => {
+    if (!entry.justDragged) return;
+    entry.justDragged = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
   const release = (event) => {
-    const drag = entry.drag;
-    if (!drag || drag.id !== event.pointerId) return;
+    const current = entry.drag;
+    if (!current || current.id !== event.pointerId) return;
     entry.drag = null;
-    const decision = event.type === 'pointercancel' ? 'restore'
-      : window.HaisselStories.decideRelease('dismiss', { dy: drag.dy, vy: drag.vy, height: panel.offsetHeight });
+    const decision = event.type === 'pointercancel' && current.drag.dy === 0 ? 'ignore' : current.drag.end();
+    if (decision === 'ignore') return;
+    entry.justDragged = current.drag.dy > 0;
+    window.setTimeout(() => { entry.justDragged = false; }, 0);
     if (decision === 'close') { closeSheet(dialog); return; }
-    if (!drag.dy) return;
     const from = panel.style.transform;
-    panel.style.transform = '';
-    if (!reducedMotion()) panel.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+    paintDrag(0);
+    if (from && !reducedMotion()) panel.animate([{ transform: from }, { transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
   };
   panel.addEventListener('pointerup', release);
   panel.addEventListener('pointercancel', release);

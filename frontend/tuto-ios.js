@@ -1,7 +1,7 @@
 /*
  * Feuille « Installe HAISSEL en 30 secondes » (iPhone) : carrousel de 5
- * images (frontend/images/tuto-ios/etape-N.webp, 572×1024, ours compris ;
- * npm run tuto:build les copie depuis design/tuto-ios-v2/).
+ * images (frontend/images/tuto-ios/etape-N.webp, 519×998, téléphones détourés ;
+ * npm run tuto:build les prépare depuis design/tuto-ios-v2/).
  *
  * Légende hors des images, à hauteur fixe (2 lignes) : la feuille ne change
  * pas de hauteur d'une étape à l'autre. Balayage au doigt natif (scroll-snap) ;
@@ -25,8 +25,8 @@
   }
 
   const IMAGE_DIR = '/images/tuto-ios/';
-  const IMAGE_WIDTH = 572;
-  const IMAGE_HEIGHT = 1024;
+  const IMAGE_WIDTH = 519;
+  const IMAGE_HEIGHT = 998;
 
   /** Étapes : image, légende et texte alternatif. */
   function steps() {

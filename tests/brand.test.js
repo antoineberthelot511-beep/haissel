@@ -114,7 +114,7 @@ describe('tuto d’installation iPhone', () => {
     expect(T.STEPS).toBe(5);
   });
 
-  test('5 images 572×1024 à place réservée, légende, Précédent / Suivant, « C’est parti »', () => {
+  test('5 images 519×998 à place réservée, légende, Précédent / Suivant, « C’est parti »', () => {
     const doc = fakeDoc();
     const track = doc.createElement('div');
     track.ownerDocument = doc;
@@ -125,7 +125,7 @@ describe('tuto d’installation iPhone', () => {
     track.children.forEach((slide, index) => {
       const img = slide.children[0];
       expect(img).toMatchObject({
-        className: 'tuto-image', src: `/images/tuto-ios/etape-${index + 1}.webp`, width: 572, height: 1024,
+        className: 'tuto-image', src: `/images/tuto-ios/etape-${index + 1}.webp`, width: 519, height: 998,
         alt: `Étape ${index + 1} : ${T.CAPTIONS[index]}`, loading: index === 0 ? 'eager' : 'lazy', decoding: 'async',
       });
     });
@@ -141,14 +141,14 @@ describe('tuto d’installation iPhone', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
-  test('images présentes, 572×1024, copiées depuis design/tuto-ios-v2 (npm run tuto:build)', async () => {
+  test('images présentes, même taille (canevas transparent commun), préparées par npm run tuto:build', async () => {
     // eslint-disable-next-line global-require
     const sharp = require('sharp');
+    const size = JSON.parse(read('images/tuto-ios/size.json'));
+    expect(size).toEqual({ width: T.IMAGE_WIDTH, height: T.IMAGE_HEIGHT });
     for (let n = 1; n <= 5; n += 1) {
-      const file = path.join(FRONTEND, `images/tuto-ios/etape-${n}.webp`);
-      const meta = await sharp(file).metadata();
-      expect([n, meta.width, meta.height]).toEqual([n, 572, 1024]);
-      expect(fs.readFileSync(file).equals(fs.readFileSync(path.join(__dirname, `../design/tuto-ios-v2/etape-${n}.webp`)))).toBe(true);
+      const meta = await sharp(path.join(FRONTEND, `images/tuto-ios/etape-${n}.webp`)).metadata();
+      expect([n, meta.width, meta.height, meta.hasAlpha]).toEqual([n, size.width, size.height, true]);
     }
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
     expect(pkg.scripts['tuto:build']).toBe('node scripts/tuto-build.js');
@@ -163,7 +163,7 @@ describe('tuto d’installation iPhone', () => {
     expect(T.scaleFor(3)).toBeCloseTo(0.92);
   });
 
-  test('feuille : titre sans ours, image 100 % / 300 px / ratio réservé / coins 24 px, légende 2 lignes, boutons', () => {
+  test('feuille : titre sans ours, téléphone détouré 300 px max sans cadre, ratio réservé, légende 2 lignes, boutons', () => {
     const html = read('index.html');
     const sheet = html.slice(html.indexOf('id="howto-sheet"'), html.indexOf('</dialog>', html.indexOf('id="howto-sheet"')));
     expect(sheet).not.toContain('data-mascot');
@@ -172,8 +172,9 @@ describe('tuto d’installation iPhone', () => {
     expect(sheet.indexOf('id="tuto-caption"')).toBeLessThan(sheet.indexOf('id="tuto-dots"'));
     expect(sheet.indexOf('id="tuto-prev"')).toBeLessThan(sheet.indexOf('id="tuto-next"'));
     const css = read('app-v2.css');
-    expect(css).toContain('--tuto-w: min(100%, 300px, 572px, calc((92dvh - 280px) * 572 / 1024));');
-    expect(css).toMatch(/\.tuto-image \{[^}]*width: var\(--tuto-w\); max-width: 572px; height: auto; aspect-ratio: 572 \/ 1024;[^}]*border-radius: 24px;[^}]*box-shadow/);
+    expect(css).toContain('--tuto-w: min(100%, 300px, calc((92dvh - 280px) * 519 / 998));');
+    expect(css).toMatch(/\.tuto-image \{[^}]*width: var\(--tuto-w\); max-width: 300px; height: auto; aspect-ratio: 519 \/ 998;[^}]*padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;/);
+    expect(css).toContain('.tuto-prev.is-hidden { display: none; }');
     expect(css).toMatch(/\.tuto-caption \{[^}]*min-height: calc\(2 \* 1\.3em\); max-height: calc\(2 \* 1\.3em\);[^}]*font-size: 17px;/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tuto-image \{ transition: none; transform: none !important; \}/);
   });

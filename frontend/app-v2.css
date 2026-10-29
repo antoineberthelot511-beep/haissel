@@ -1304,7 +1304,14 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 14px 14px 0 0;
   background: var(--ios-sheet); box-shadow: 0 -8px 30px rgba(0, 0, 0, .18);
 }
-.sheet-grabber { justify-self: center; width: 36px; height: 5px; margin: 0 0 6px; border-radius: 3px; background: var(--ios-separator-strong); }
+/* Poignée : zone tactile élargie (fond limité au trait) ; poignée et titre sans défilement natif (geste de fermeture). */
+.sheet-grabber {
+  justify-self: center; width: 36px; height: 5px; margin: -6px 0 0; padding: 10px 40px; box-sizing: content-box;
+  border-radius: 3px; background: var(--ios-separator-strong); background-clip: content-box; cursor: grab;
+}
+.sheet-grabber, .sheet-title { touch-action: none; }
+/* Le fond s'éclaircit pendant le glissement (--sheet-fade, bindSheet). */
+.sheet[open]::backdrop { opacity: var(--sheet-fade, 1); }
 .sheet-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; text-align: center; }
 .sheet-field { margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--ios-secondary); text-transform: uppercase; letter-spacing: .02em; }
 .sheet-select {
@@ -1664,19 +1671,36 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
  * points et boutons tiennent sans défiler sur un iPhone SE. Rapport réservé :
  * aucun saut. Hauteur de la feuille fixe d'une étape à l'autre.
  */
-.tuto-sheet { --tuto-w: min(100%, 300px, 572px, calc((92dvh - 280px) * 572 / 1024)); }
+.tuto-sheet { --tuto-w: min(100%, 300px, calc((92dvh - 280px) * 519 / 998)); }
 .tuto-sheet .sheet-panel { gap: 8px; overflow: hidden; }
+/* Verre des feuilles (.lg-glass .lg-sheet) avec un léger dégradé, plus clair en haut. */
+.tuto-sheet .sheet-panel.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .72); --lg-native-tint: rgba(255, 255, 255, .6);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 55%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tuto-sheet .sheet-panel.lg-glass {
+    --lg-tint: rgba(11, 11, 15, .85); --lg-native-tint: rgba(11, 11, 15, .85);
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 55%);
+  }
+}
+:root[data-theme="dark"] .tuto-sheet .sheet-panel.lg-glass {
+  --lg-tint: rgba(11, 11, 15, .85); --lg-native-tint: rgba(11, 11, 15, .85);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 55%);
+}
 .tuto-title { margin: 4px 0 0; font-size: 20px; line-height: 1.25; }
 .tuto-track {
   position: relative; display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
   margin: 0 -16px; padding: 6px 0 14px; touch-action: pan-x pan-y;
 }
 .tuto-track::-webkit-scrollbar { display: none; }
+.tuto-track:focus { outline: none; }
 .tuto-track:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .tuto-slide { flex: 0 0 100%; margin: 0; padding: 0 16px; box-sizing: border-box; display: grid; place-items: center; scroll-snap-align: center; scroll-snap-stop: always; }
+/* Téléphones détourés (fond transparent) : posés directement sur la feuille, sans cadre ni fond. */
 .tuto-image {
-  display: block; width: var(--tuto-w); max-width: 572px; height: auto; aspect-ratio: 572 / 1024; margin: 0 auto;
-  border-radius: 24px; background: var(--ios-group); box-shadow: 0 10px 28px rgba(15, 20, 30, .16), 0 2px 6px rgba(15, 20, 30, .08);
+  display: block; width: var(--tuto-w); max-width: 300px; height: auto; aspect-ratio: 519 / 998; margin: 0 auto;
+  padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
   transition: transform 300ms cubic-bezier(.2, .8, .2, 1); will-change: transform; -webkit-user-select: none; user-select: none;
 }
 .tuto-caption {
@@ -1694,7 +1718,8 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
   flex: none; min-height: 50px; padding: 0 14px; border: 0; border-radius: 12px; background: none;
   color: var(--ios-secondary); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
 }
-.tuto-prev.is-hidden { visibility: hidden; }
+/* Étape 1 : « Suivant » seul, pleine largeur ; ensuite « Précédent » à gauche, même hauteur. */
+.tuto-prev.is-hidden { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .tuto-image { transition: none; transform: none !important; }
 }
@@ -1846,3 +1871,6 @@ img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
 img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }
 .activity-icon.is-team { padding: 0; overflow: hidden; background: none; }
 .activity-icon.is-team img { width: 100%; height: 100%; }
+
+/* Feuille ouverte au doigt ou à la souris : pas d'anneau sur le focus initial (« Suivant »…). */
+.sheet[data-no-ring] :focus { outline: none; box-shadow: none; }
