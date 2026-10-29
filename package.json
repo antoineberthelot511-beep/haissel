@@ -12,6 +12,7 @@
     "test": "node scripts/check-syntax.js && jest --runInBand",
     "test:unit": "jest --runInBand tests/unit.test.js",
     "test:integration": "jest --runInBand tests/integration.test.js",
+    "tuto:build": "node scripts/tuto-build.js",
     "admin:promote": "node scripts/promote-admin.js",
     "webhook:test": "node scripts/sign-webhook.js",
     "docker:build": "docker compose build",
