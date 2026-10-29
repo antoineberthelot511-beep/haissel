@@ -148,15 +148,7 @@ img.m-img.is-loaded { opacity: 1; }
 /* --- États vides : icône qui flotte (3 px, 4 s) ---------------------------- */
 .activity-empty-icon, .m-float { display: inline-block; animation: m-float 4s ease-in-out infinite; }
 
-/* --- Tirer pour rafraîchir ------------------------------------------------- */
-.ptr {
-  position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 45;
-  display: grid; place-items: center; width: 40px; height: 40px; margin-left: -20px; border-radius: 50%;
-  opacity: 0; transform: translateY(-48px) scale(.6);
-}
-.ptr .loader { animation-play-state: paused; }
-.ptr.is-refreshing .loader { animation-play-state: running; }
-.ptr.is-settling { transition: transform var(--dur-3) var(--spring), opacity var(--dur-2) ease; }
+/* --- Tirer pour rafraîchir : voir spinner.css (roue et pastille) ---------- */
 
 /* --- Toast de confirmation en verre, depuis le haut ------------------------ */
 .m-toast {

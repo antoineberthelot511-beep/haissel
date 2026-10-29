@@ -221,7 +221,7 @@ describe('avatar de l’équipe', () => {
 });
 
 describe('Découvrir vide', () => {
-  test('ours 22 (160 px), titre, sous-titre, « Actualiser » ; loader sur fond sombre avant chargement', () => {
+  test('ours 22 (160 px), titre, sous-titre, « Actualiser » ; roue sur fond sombre avant chargement', () => {
     expect(M.POSES).toContain('rien-a-decouvrir');
     expect(M.src('rien-a-decouvrir')).toBe('/images/mascotte/ours-22-rien-a-decouvrir.webp');
     expect(fs.existsSync(path.join(FRONTEND, 'images/mascotte/ours-22-rien-a-decouvrir.webp'))).toBe(true);
@@ -231,7 +231,7 @@ describe('Découvrir vide', () => {
     expect(empty).toContain("'Les nouvelles offres arrivent ici dès qu’elles sont validées.'");
     expect(empty).toContain("'Actualiser'");
     expect(app).toContain('ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide) : [discoverEmpty()]));');
-    expect(index).toMatch(/<div id="discover-feed"[^>]*>\s*<!--[^>]*-->\s*<section class="discover-slide is-empty" aria-busy="true"><div class="loader"/);
+    expect(index).toMatch(/<div id="discover-feed"[^>]*>\s*<!--[^>]*-->\s*<section class="discover-slide is-empty" aria-busy="true">\s*<span class="spinner is-lg" role="status"/);
     const css = read('app-v2.css');
     expect(css).toMatch(/\.discover-empty-title \{[^}]*font-size: 20px; font-weight: 800;/);
     expect(css).toMatch(/\.discover-empty-text \{[^}]*font-size: 15px;/);

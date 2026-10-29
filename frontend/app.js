@@ -950,7 +950,7 @@ function renderDiscover(items) {
 /*
  * Découvrir vide : l'ours qui cherche (entrée douce puis léger balancement
  * toutes les 4 s, coupé en mouvement réduit), sur le fond sombre de
- * Découvrir ; « Actualiser » recharge les offres (petit loader en attendant).
+ * Découvrir ; « Actualiser » recharge les offres (petite roue en attendant).
  */
 function discoverEmpty() {
   const bearImg = bear('rien-a-decouvrir', 160);
@@ -966,11 +966,11 @@ function discoverEmpty() {
       }, icon('i-refresh', 'icon sm'), 'Actualiser')));
 }
 
-/* Chargement : petit loader sur le fond sombre (jamais d'écran noir vide). */
+/* Chargement : petite roue sur le fond sombre (jamais d'écran noir vide). */
 function showDiscoverLoading() {
   if (!ui.discoverFeed) return;
   ui.discoverFeed.replaceChildren(h('section', { className: 'discover-slide is-empty', 'aria-busy': 'true' },
-    h('div', { className: 'loader', role: 'status', 'aria-label': 'Chargement' })));
+    window.HaisselSpinner.spinner({ size: 32 })));
 }
 
 function storyBadge(offer) {
@@ -1199,9 +1199,9 @@ function readFiltersFromUrl() {
   state.community.pendingCategory = category || '';
 }
 
-/** Petit loader centré (suite du fil, résultats de Recherche). */
+/** Petite roue centrée (suite du fil, résultats de Recherche) : spinner.js. */
 function loaderRow() {
-  return h('div', { className: 'loader-row' }, h('div', { className: 'loader is-small', role: 'status', 'aria-label': 'Chargement' }));
+  return window.HaisselSpinner.spinnerRow({ size: 28 });
 }
 
 /** Retire l'écran de démarrage (boot.js) ; sans effet après la première fois. */

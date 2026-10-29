@@ -283,58 +283,87 @@
 
   /*
    * Tirer pour rafraîchir (Accueil, tout en haut de page, écran tactile) :
-   * le petit loader suit la traction, puis onRefresh() recharge le fil.
-   * Écouteurs passifs : le défilement natif n'est jamais bloqué.
+   * une pastille ronde descend avec le doigt ; l'arc de la roue (spinner.js)
+   * s'allonge de 0 à 270° et tourne, avec une pointe de flèche. Au seuil
+   * (70 px) la flèche disparaît et la pastille rebondit. Lâché au-delà : la
+   * pastille se cale à 64 px, la roue tourne pendant onRefresh(), puis la
+   * pastille rétrécit et disparaît (200 ms). Lâché avant : elle remonte, rien
+   * n'est rechargé. Geste vertical vers le bas seulement, page tout en haut ;
+   * écouteurs passifs, le défilement natif n'est jamais bloqué.
    */
   function pullToRefresh({ isActive, onRefresh }) {
+    const Spinner = root.HaisselSpinner;
+    if (!Spinner) return null;
+    const { PTR } = Spinner;
+    // Pas de « tirer pour actualiser » natif en plus (double rechargement sur Chrome Android).
+    doc.documentElement.style.overscrollBehaviorY = 'contain';
     const indicator = doc.createElement('div');
-    indicator.className = 'ptr lg-glass lg-pill';
+    indicator.className = 'ptr';
     indicator.setAttribute('aria-hidden', 'true');
-    indicator.innerHTML = '<div class="loader is-small"></div>';
+    const wheel = Spinner.spinner({ size: 24, label: '', determinate: true });
+    indicator.append(wheel);
     doc.body.append(indicator);
     let start = null;
+    let axis = null;
     let pull = 0;
+    let armed = false;
     let busy = false;
 
+    const place = (offset, scale) => { indicator.style.transform = `translateY(${offset}px) scale(${scale})`; };
     const paint = (distance) => {
-      const p = Math.min(1, distance / PTR_THRESHOLD);
-      indicator.style.opacity = String(p);
-      indicator.style.transform = `translateY(${Math.min(distance, PTR_MAX) * 0.6 - 48}px) scale(${0.6 + p * 0.4}) rotate(${p * 180}deg)`;
+      const state = wheel.setPull(distance);
+      indicator.classList.add('is-pulling');
+      place(state.offset, 0.6 + state.progress * 0.4);
+      if (state.armed !== armed) {
+        armed = state.armed;
+        indicator.classList.toggle('is-armed', armed);
+      }
     };
-    const settle = () => {
-      indicator.classList.add('is-settling');
-      indicator.style.opacity = '0';
-      indicator.style.transform = '';
-      root.setTimeout(() => indicator.classList.remove('is-settling', 'is-refreshing'), 400);
+    const hide = () => {
+      indicator.classList.remove('is-pulling', 'is-armed', 'is-settling');
+      indicator.classList.add('is-leaving');
+      place(0, 0.4);
+      root.setTimeout(() => {
+        indicator.classList.remove('is-leaving');
+        wheel.classList.add('is-determinate');
+        wheel.setPull(0);
+      }, 200);
     };
 
     root.addEventListener('touchstart', (event) => {
       if (busy || event.touches.length !== 1 || root.scrollY > 0 || !isActive()) { start = null; return; }
-      start = event.touches[0].clientY;
+      start = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      axis = null;
       pull = 0;
-      indicator.classList.remove('is-settling');
+      armed = false;
     }, { passive: true });
 
     root.addEventListener('touchmove', (event) => {
-      if (start === null) return;
-      pull = event.touches[0].clientY - start;
-      if (pull <= 0 || root.scrollY > 0) { paint(0); return; }
+      if (!start) return;
+      const touch = event.touches[0];
+      if (!axis) axis = Spinner.lockAxis(touch.clientX - start.x, touch.clientY - start.y);
+      if (axis === 'other' || root.scrollY > 0) { start = null; if (pull) hide(); pull = 0; return; }
+      if (axis !== 'down') return;
+      pull = Math.max(0, touch.clientY - start.y);
       paint(pull);
     }, { passive: true });
 
     root.addEventListener('touchend', async () => {
-      if (start === null) return;
+      if (!start) return;
       start = null;
-      if (pull < PTR_THRESHOLD) { settle(); return; }
+      if (Spinner.releaseDecision(pull) !== 'refresh') { if (pull) hide(); return; }
       busy = true;
-      indicator.classList.add('is-settling', 'is-refreshing');
-      indicator.style.opacity = '1';
-      indicator.style.transform = 'translateY(16px) scale(1)';
+      indicator.classList.remove('is-armed');
+      indicator.classList.add('is-settling', 'is-pulling');
+      wheel.spin();
+      place(PTR.rest, 1);
       try { await onRefresh(); } finally {
         busy = false;
-        settle();
+        hide();
       }
     }, { passive: true });
+
+    return { indicator, wheel };
   }
 
   /* Changement d'onglet : sens de la navigation (ordre de la barre du bas). */

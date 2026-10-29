@@ -1227,7 +1227,7 @@ body[data-view="discover"] .topbar .topbar-inner { display: none; }
 #discover-view { margin: 0; transform: none !important; animation: none !important; }
 .discover-feed {
   position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain;
-  scroll-snap-type: y mandatory; background: #000; color: #fff; --loader-color: #8DB4FF;
+  scroll-snap-type: y mandatory; background: #000; color: #fff; --spinner-color: #8DB4FF;
 }
 .discover-slide {
   position: relative; height: 100vh; height: 100dvh; scroll-snap-align: start; scroll-snap-stop: always;
@@ -1660,6 +1660,7 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 }
 :root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet { --loader-color: var(--brand-on-dark); --chat-border: #3a3a3c; --chat-send-off: #48484a; }
 
+/* Loader à carrés : réservé à l'écran de démarrage (les autres chargements : spinner.js). */
 .loader {
   width: 45px;
   aspect-ratio: 1;
@@ -1668,14 +1669,11 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
   background-size: 40% 40%;
   animation: l19 1s infinite alternate;
 }
-.loader.is-small { width: 24px; }
 @keyframes l19 {
   0%, 10%   { background-position: 0 0, 0 calc(100%/3) }
   50%       { background-position: 0 0, calc(100%/3) calc(100%/3) }
   90%, 100% { background-position: 0 0, calc(100%/3) 0 }
 }
-/* Chargement de la suite du fil et des résultats de Recherche. */
-.loader-row { display: flex; justify-content: center; padding: 24px 0; }
 
 /* ---------- Écran de démarrage (boot.js) ---------- */
 /* Même fond que l'Accueil : pas de flash blanc à l'ouverture. */

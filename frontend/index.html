@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="liquid-glass.css" />
     <link rel="stylesheet" href="motion.css" />
     <link rel="stylesheet" href="mascot.css" />
+    <link rel="stylesheet" href="spinner.css" />
     <!-- mylead-verification: 03fcb98f110f796f0081ef088a5a07c2 -->
   </head>
   <body>
@@ -614,8 +615,10 @@
             <!-- Découvrir : une offre par écran (rempli par app.js) -->
             <section id="discover-view" class="view-panel hidden" aria-label="Découvrir">
               <div id="discover-feed" class="discover-feed" aria-live="polite">
-                <!-- Avant le premier chargement : petit loader sur fond sombre (remplacé par app.js). -->
-                <section class="discover-slide is-empty" aria-busy="true"><div class="loader" role="status" aria-label="Chargement"></div></section>
+                <!-- Avant le premier chargement : petite roue sur fond sombre (remplacée par app.js). -->
+                <section class="discover-slide is-empty" aria-busy="true">
+                  <span class="spinner is-lg" role="status" aria-label="Chargement"><svg class="spinner-svg" viewBox="0 0 24 24"><circle class="spinner-arc" cx="12" cy="12" r="8.5" fill="none" /></svg></span>
+                </section>
               </div>
             </section>
 
@@ -1189,6 +1192,7 @@
     <script src="chat-thread.js"></script>
     <script src="activity.js"></script>
     <script src="install.js"></script>
+    <script src="spinner.js"></script>
     <script src="motion.js"></script>
     <script src="mascot.js"></script>
     <script src="sheet-gesture.js"></script>
