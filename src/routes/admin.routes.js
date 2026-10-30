@@ -6,6 +6,7 @@ const community = require('../controllers/community.controller');
 const messages = require('../controllers/messages.controller');
 const push = require('../controllers/push.controller');
 const contact = require('../controllers/contact.controller');
+const revenue = require('../controllers/revenue.controller');
 const { broadcastBurstLimiter, broadcastHourlyLimiter, pushRateLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
@@ -78,6 +79,8 @@ router.get('/learn/settings', learn.getSettings);
 router.put('/learn/settings', learn.updateSettings);
 
 // Modération des offres publiées par les membres.
+// Revenus des liens de l'équipe (clics suivis, conversions, export CSV).
+router.get('/revenue', revenue.getRevenue);
 router.get('/community/offers', community.adminListOffers);
 router.post('/community/offers/:id/moderate', community.adminModerateOffer);
 router.post('/community/offers/:id/extend', community.adminExtendOffer);

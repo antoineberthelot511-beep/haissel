@@ -240,6 +240,7 @@ function setActiveView(viewName) {
   if (viewName === 'profile' && state.user) {
     if (isAdultMember()) loadMyOffers();
     loadSavedOffers();
+    loadTriedOffers();
   }
   window.scrollTo({ top: 0 });
 }
@@ -316,6 +317,7 @@ function applyPublishMode() {
     ? ['Ce lien vient de ', h('strong', null, 'mon propre compte éditeur'), ' et je respecte les conditions de la campagne.']
     : ['Ce lien mène à la ', h('strong', null, 'page officielle'), ', pas à mon lien affilié, et ma fiche respecte les conditions de la campagne.']));
   document.querySelectorAll('[data-campaign-only]').forEach((el) => { el.hidden = admin; });
+  document.querySelectorAll('[data-team-only]').forEach((el) => { el.hidden = !admin; });
   if (!state.community.editing) ui.publishFormTitle.textContent = admin ? 'Nouvelle offre' : 'Nouvelle fiche';
   document.getElementById('pub-step-1-label').textContent = admin ? 'Colle ton lien' : 'Lien officiel';
   document.getElementById('my-offers-label').textContent = admin ? 'Mes offres' : 'Mes fiches';
@@ -905,6 +907,7 @@ function postCard(offer) {
       h('span', { className: 'post-spacer' }),
       offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
     h('p', { className: 'post-todo' }, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+    benefitLine(offer),
     h('p', { className: 'post-meta' },
       offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
       left ? h('span', null, icon('i-clock', 'icon sm'), left) : null));
@@ -980,6 +983,15 @@ function storyBadge(offer) {
 }
 
 /*
+ * « Ce que tu y gagnes » (liens de l'équipe) : texte de l'annonceur saisi par
+ * l'équipe, affiché tel quel ; HAISSEL ne promet jamais de gain.
+ */
+function benefitLine(offer) {
+  if (!offer.member_benefit) return null;
+  return h('p', { className: 'offer-benefit' }, h('strong', null, 'Ce que tu y gagnes : '), offer.member_benefit);
+}
+
+/*
  * Badge du type d'offre, partout où une offre apparaît (fil, Découvrir,
  * stories, page de l'offre). Lien de l'équipe : « Lien affilié » visible,
  * avec « En savoir plus » vers la page Transparence. Fiche d'un membre :
@@ -1024,7 +1036,8 @@ function communityCard(offer, { preview = false } = {}) {
       offer.domain ? h('p', { className: 'fc-domain' }, offer.domain) : null,
       h('p', { className: 'fc-todo' },
         icon('i-check-circle'),
-        h('span', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action))),
+        h('span', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action)),
+      benefitLine(offer)),
     h('div', { className: 'fc-actions' },
       h('button', {
         className: 'offer-link-button', type: 'button', disabled: preview,
@@ -1105,6 +1118,8 @@ function offerDetail(offer) {
         offer.min_age ? fact('Âge minimum', `${offer.min_age} ans`) : null,
         // Aucun montant inventé : seulement ce que l'auteur a saisi, avec la mise en garde.
         fact('Rémunération annoncée', offer.payout_text, 'indicatif, non garanti'),
+        // Lien de l'équipe : ce que l'ANNONCEUR donne au membre (jamais une promesse de HAISSEL).
+        fact('Ce que tu y gagnes', offer.member_benefit, 'donné par l’annonceur, selon ses conditions'),
         fact('Site', offer.domain))),
 
     h('section', { className: 'od-card', 'aria-labelledby': 'offer-todo-title' },
@@ -2969,6 +2984,13 @@ function readPublishForm() {
   if (!isAdminUser()) {
     values.campaign_name = ui.pubCampaignName.value.trim();
     values.tips = ui.pubTips.value.trim() || null;
+  } else {
+    // Offre de l'équipe : règles de la campagne et suivi.
+    values.incentive_allowed = document.getElementById('pub-incentive').checked;
+    values.member_benefit = document.getElementById('pub-member-benefit').value.trim() || null;
+    values.payout_note = document.getElementById('pub-payout-note').value.trim() || null;
+    values.campaign_rules_url = document.getElementById('pub-rules-url').value.trim() || null;
+    values.subid_param = document.getElementById('pub-subid-param').value.trim() || null;
   }
   /*
    * La rémunération n'est plus saisie. Le serveur réécrit tous les champs
@@ -3062,6 +3084,9 @@ function syncOtherFields() {
   ui.pubConditionsCount.textContent = `${[...ui.pubConditionsOther.value].length}/${Math.max(0, room)}`;
 }
 
+// Âges proposés pour une offre de l'équipe (adult.service.js, TEAM_OFFER_AGES).
+const TEAM_OFFER_AGES = [13, 15, 16, 18];
+
 function onChoiceChange() {
   syncOtherFields();
   updatePublishPreview();
@@ -3076,9 +3101,11 @@ function renderPublishChoices() {
   ui.pubActionChips.replaceChildren(...[...PUB_ACTIONS, OTHER].map((value) => choiceChip({
     type: 'radio', name: 'pub-action', value, label: value === OTHER ? 'Autre…' : value, onchange: onChoiceChange,
   })));
-  ui.pubAgeChips.replaceChildren(
-    choiceChip({ type: 'radio', name: 'pub-age', value: '', label: 'Pas d’âge précisé', checked: true, onchange: onChoiceChange }),
-    choiceChip({ type: 'radio', name: 'pub-age', value: '18', label: '18 ans et +', onchange: onChoiceChange }));
+  // Offre de l'équipe : âge minimum obligatoire (13, 15, 16 ou 18, 18 par défaut). Fiche : facultatif.
+  ui.pubAgeChips.replaceChildren(...(isAdminUser()
+    ? TEAM_OFFER_AGES.map((age) => choiceChip({ type: 'radio', name: 'pub-age', value: String(age), label: `${age} ans et +`, checked: age === 18, onchange: onChoiceChange }))
+    : [choiceChip({ type: 'radio', name: 'pub-age', value: '', label: 'Pas d’âge précisé', checked: true, onchange: onChoiceChange }),
+      choiceChip({ type: 'radio', name: 'pub-age', value: '18', label: '18 ans et +', onchange: onChoiceChange })]));
   ui.pubConditionChips.replaceChildren(...[...PUB_CONDITIONS, OTHER].map((value) => choiceChip({
     type: 'checkbox', name: 'pub-condition', value, label: value === OTHER ? 'Autre' : value, onchange: onChoiceChange,
   })));
@@ -3111,7 +3138,7 @@ function fillPublishChoices(offer) {
   if (action && !known) ui.pubActionOther.value = action;
 
   const age = offer.min_age;
-  if (age !== null && age !== undefined && age !== 18) {
+  if (age !== null && age !== undefined && !ui.pubAgeChips.querySelector(`input[value="${Number(age)}"]`)) {
     // Âge fixé autrement par le passé : on le garde, proposé comme 3e choix.
     ui.pubAgeChips.append(choiceChip({ type: 'radio', name: 'pub-age', value: String(age), label: `${age} ans et + (actuel)`, onchange: onChoiceChange }));
   }
@@ -3279,6 +3306,11 @@ function startOfferEdit(offer) {
   ui.pubDescription.value = offer.description;
   ui.pubCategory.value = offer.category;
   state.community.editingPayout = offer.payout_text || null;
+  document.getElementById('pub-incentive').checked = Boolean(offer.incentive_allowed);
+  document.getElementById('pub-member-benefit').value = offer.member_benefit || '';
+  document.getElementById('pub-payout-note').value = offer.payout_note || '';
+  document.getElementById('pub-rules-url').value = offer.campaign_rules_url || '';
+  document.getElementById('pub-subid-param').value = offer.subid_param || '';
   fillPublishChoices(offer);
   ui.pubRights.checked = false;
   syncCategoryTiles();
@@ -3410,6 +3442,24 @@ async function loadSavedOffers() {
     if (error.status === 401 || error.status === 403) return;
     ui.savedOffers.setAttribute('aria-busy', 'false');
     ui.savedOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120), `Impossible de charger tes offres sauvegardées : ${error.message}`));
+  }
+}
+
+/* Offres essayées : liens de l'équipe que le membre a ouverts (privé, aucun montant). */
+async function loadTriedOffers() {
+  const grid = document.getElementById('tried-offers');
+  if (!grid) return;
+  grid.setAttribute('aria-busy', 'true');
+  if (!grid.childElementCount) grid.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement…'));
+  try {
+    const items = (await api('/api/community/offers/tried')).items || [];
+    grid.replaceChildren(...(items.length ? items.map((offer) => gridTile(offer))
+      : [h('div', { className: 'panel-card' }, 'Tu n’as encore ouvert aucun lien de l’équipe.')]));
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    grid.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, 'Impossible d’afficher tes offres essayées.'));
+  } finally {
+    grid.setAttribute('aria-busy', 'false');
   }
 }
 

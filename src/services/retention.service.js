@@ -8,6 +8,8 @@
  *  - messagerie avec l'équipe : conversation et messages supprimés 12 mois
  *    après le dernier échange ;
  *  - demandes du formulaire de contact : supprimées 12 mois après l'envoi ;
+ *  - liens de l'équipe : clics suivis supprimés après 13 mois ; conversions
+ *    gardées (comptabilité), IP hachée effacée après 13 mois ;
  *  - abonnements aux notifications : supprimés sans envoi réussi depuis 6 mois
  *    (jamais réussi et créé il y a plus de 6 mois, ou dernier succès il y a
  *    plus de 6 mois) ;
@@ -31,6 +33,9 @@ const PURGE_QUERIES = [
   ['team_conversations', `DELETE FROM conversations
                           WHERE member_id IS NOT NULL AND last_message_at < NOW() - INTERVAL '12 months'`],
   ['contact_requests', `DELETE FROM contact_requests WHERE created_at < NOW() - INTERVAL '12 months'`],
+  ['offer_clicks', `DELETE FROM offer_clicks WHERE created_at < NOW() - INTERVAL '13 months'`],
+  ['offer_conversions_ip', `UPDATE offer_conversions SET ip_hash = NULL
+                            WHERE ip_hash IS NOT NULL AND created_at < NOW() - INTERVAL '13 months'`],
   ['push_subscriptions', `DELETE FROM push_subscriptions
                           WHERE (last_success_at IS NULL AND created_at < NOW() - INTERVAL '6 months')
                              OR last_success_at < NOW() - INTERVAL '6 months'`],

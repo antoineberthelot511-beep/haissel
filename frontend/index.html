@@ -756,6 +756,35 @@
                   <p class="field-error hidden" id="err-countries" role="alert"></p>
                 </section>
 
+                <!-- Offre de l'équipe (ADMIN) : règles de la campagne et suivi (app.js, applyPublishMode). -->
+                <section class="pub-team" data-team-only hidden aria-labelledby="pub-team-title">
+                  <h3 id="pub-team-title" class="pub-team-title">Campagne et suivi</h3>
+                  <label class="toggle-row">
+                    <input id="pub-incentive" type="checkbox" />
+                    <span>Trafic incité autorisé par la campagne</span>
+                  </label>
+                  <label class="field">
+                    <span>Ce que le membre y gagne <small>(donné par l'annonceur, facultatif)</small></span>
+                    <input id="pub-member-benefit" type="text" maxlength="160" placeholder="ex. 5 € offerts à l'inscription par l'appli" />
+                  </label>
+                  <p class="field-error hidden" id="err-member_benefit" role="alert"></p>
+                  <label class="field">
+                    <span>Rémunération HAISSEL <small>(visible par l'équipe uniquement)</small></span>
+                    <input id="pub-payout-note" type="text" maxlength="300" placeholder="ex. 2,50 € par inscription validée" />
+                  </label>
+                  <p class="field-error hidden" id="err-payout_note" role="alert"></p>
+                  <label class="field">
+                    <span>Règles de la campagne <small>(lien https, facultatif)</small></span>
+                    <input id="pub-rules-url" type="url" inputmode="url" placeholder="https://" />
+                  </label>
+                  <p class="field-error hidden" id="err-campaign_rules_url" role="alert"></p>
+                  <label class="field">
+                    <span>Paramètre de sous-identifiant <small>(ex. ml_sub1, facultatif)</small></span>
+                    <input id="pub-subid-param" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ml_sub1" />
+                  </label>
+                  <p class="field-error hidden" id="err-subid_param" role="alert"></p>
+                </section>
+
                 <details class="pub-more">
                   <summary>
                     <svg class="icon" aria-hidden="true"><use href="#i-sliders" /></svg>
@@ -864,6 +893,12 @@
                 <button id="profile-saved" class="secondary-button" type="button">
                   <svg class="icon sm" aria-hidden="true"><use href="#i-search" /></svg>Filtrer dans Chercher
                 </button>
+                <!-- Offres essayées : liens de l'équipe que tu as ouverts. Visible par toi seul (app.js). -->
+                <div class="profile-panel-head">
+                  <h3>Offres essayées</h3>
+                </div>
+                <p class="security-note">Visible par toi seul.</p>
+                <div id="tried-offers" class="offer-grid" aria-live="polite"></div>
               </div>
 
               <!-- Modifier le profil : compte, notifications, données personnelles -->

@@ -2,7 +2,9 @@ const { pool, withTransaction } = require('../config/database');
 const { sendError, parseId, parsePagination } = require('../utils/http');
 const { logger } = require('../utils/logger');
 const push = require('../services/push.service');
-const { refusalForAffiliateLink, meetsMinAge, isAdult } = require('../services/adult.service');
+const { refusalForAffiliateLink, meetsMinAge, isAdult, canSeeTeamOffer, TEAM_OFFER_AGES, SIGNUP_CERTIFIED_AGE } = require('../services/adult.service');
+const tracking = require('../services/offer-tracking.service');
+const { getClientIp, hashIp } = require('../utils/network');
 const { FORBIDDEN_CLAIMS } = require('./learn.controller');
 const { isAffiliateTrackingUrl, AFFILIATE_LINK_MESSAGE } = require('../utils/affiliate-tracking');
 
@@ -207,7 +209,8 @@ function validateOffer(body, activeCategories, kind = 'campaign') {
     title: text(source, 'title', 'Titre', { min: 5, max: 120, required: true }),
     url: normalizeMemberUrl(source.url),
     description: text(source, 'description', 'Description', { min: 20, max: 1500, required: true }),
-    countries: text(source, 'countries', 'Pays concernés', { min: 2, max: 200, required: true }),
+    // Offre de l'équipe : France par défaut.
+    countries: text(source, 'countries', 'Pays concernés', { min: 2, max: 200, required: campaign }) || 'FR',
     expected_action: text(source, 'expected_action', 'Action attendue', { min: 5, max: 300, required: true }),
     payout_text: text(source, 'payout_text', 'Rémunération annoncée', { max: 160 }),
     conditions: text(source, 'conditions', 'Conditions et restrictions', { max: 2000 }),
@@ -226,13 +229,23 @@ function validateOffer(body, activeCategories, kind = 'campaign') {
   }
   offer.category = source.category;
 
-  if (source.min_age === undefined || source.min_age === null || source.min_age === '') {
+  if (!campaign) {
+    // Offre de l'équipe : âge minimum obligatoire, 13, 15, 16 ou 18.
+    if (!TEAM_OFFER_AGES.includes(source.min_age)) {
+      throw new ValidationError('INVALID_FIELD', 'Choisis l’âge minimum de la campagne : 13, 15, 16 ou 18 ans.', 400, 'min_age');
+    }
+    offer.min_age = source.min_age;
+  } else if (source.min_age === undefined || source.min_age === null || source.min_age === '') {
     offer.min_age = null;
   } else if (Number.isInteger(source.min_age) && source.min_age >= 10 && source.min_age <= 99) {
     offer.min_age = source.min_age;
   } else {
     throw new ValidationError('INVALID_FIELD', 'L’âge minimum doit être un nombre entre 10 et 99.', 400, 'min_age');
   }
+
+  Object.assign(offer, campaign
+    ? { incentive_allowed: false, member_benefit: null, payout_note: null, campaign_rules_url: null, subid_param: null }
+    : teamOfferFields(source));
 
   if (source.rights_confirmed !== true) {
     throw new ValidationError('RIGHTS_NOT_CONFIRMED', campaign
@@ -249,6 +262,29 @@ function validateOffer(body, activeCategories, kind = 'campaign') {
       400, 'description');
   }
   return offer;
+}
+
+/*
+ * Champs propres aux offres de l'équipe : trafic incité autorisé, avantage
+ * donné par l'annonceur (visible du membre), rémunération de HAISSEL et
+ * règles de la campagne (admin seulement), paramètre de sous-identifiant.
+ */
+function teamOfferFields(source) {
+  const rules = typeof source.campaign_rules_url === 'string' ? source.campaign_rules_url.trim() : '';
+  if (rules && !/^https:\/\/[^\s]+$/i.test(rules)) {
+    throw new ValidationError('INVALID_FIELD', 'Le lien des règles de la campagne doit commencer par https://.', 400, 'campaign_rules_url');
+  }
+  const param = typeof source.subid_param === 'string' ? source.subid_param.trim() : '';
+  if (param && !tracking.SUBID_PARAM_PATTERN.test(param)) {
+    throw new ValidationError('INVALID_FIELD', 'Paramètre de sous-identifiant invalide (ex. ml_sub1).', 400, 'subid_param');
+  }
+  return {
+    incentive_allowed: source.incentive_allowed === true,
+    member_benefit: text(source, 'member_benefit', 'Ce que le membre y gagne', { max: 160 }) || null,
+    payout_note: text(source, 'payout_note', 'Rémunération HAISSEL', { max: 300 }) || null,
+    campaign_rules_url: rules || null,
+    subid_param: param || null,
+  };
 }
 
 function domainOf(url) {
@@ -283,6 +319,8 @@ function isExpired(row) {
 
 function formatOffer(row, userId, viewer = null) {
   const mine = row.user_id === userId;
+  const team = row.kind === 'affiliate';
+  const viewerIsAdmin = String(viewer?.role || '').toUpperCase() === 'ADMIN';
   /*
    * Dérogation d'auteur : elle ne vaut QUE pour un majeur, et ne sert qu'à
    * relire sa propre offre malgré un âge minimum que HAISSEL ne peut pas
@@ -291,7 +329,7 @@ function formatOffer(row, userId, viewer = null) {
   const expired = isExpired(row);
   const canOpen = !viewer
     || (mine && isAdult(viewer))
-    || (!expired && refusalForAffiliateLink(viewer, row.min_age) === null);
+    || (!expired && (team ? canSeeTeamOffer(viewer, row.min_age) : refusalForAffiliateLink(viewer, row.min_age) === null));
   return {
     id: row.id,
     kind: row.kind || 'campaign',
@@ -306,7 +344,10 @@ function formatOffer(row, userId, viewer = null) {
     category_label: categoryLabels[row.category] || row.category,
     countries: row.countries,
     expected_action: row.expected_action,
-    payout_text: row.payout_text,
+    // Offre de l'équipe : aucune rémunération affichée (jamais de promesse de gain de HAISSEL) ;
+    // seulement ce que l'annonceur donne au membre, s'il est renseigné.
+    payout_text: team ? null : row.payout_text,
+    member_benefit: team ? row.member_benefit || null : null,
     min_age: row.min_age,
     conditions: row.conditions,
     status: row.status,
@@ -322,6 +363,11 @@ function formatOffer(row, userId, viewer = null) {
     is_mine: row.user_id === userId,
     saved: Boolean(row.saved),
     ...(row.user_id === userId ? { moderation_note: row.moderation_note } : {}),
+    // Réglages de monétisation : équipe seulement (jamais envoyés à un membre).
+    ...(team && (viewerIsAdmin || viewer === null) ? {
+      incentive_allowed: Boolean(row.incentive_allowed), payout_note: row.payout_note || null,
+      campaign_rules_url: row.campaign_rules_url || null, subid_param: row.subid_param || null,
+    } : {}),
   };
 }
 
@@ -378,9 +424,14 @@ async function listOffers(req, res, next) {
          -- (grisée) dans « Sauvegardées ».
          AND ($6::boolean OR ${NOT_EXPIRED})
          AND ($9::text IS NULL OR COALESCE(o.kind, 'campaign') = $9)
+         -- Offres de l'équipe : seulement si l'âge déclaré est compatible (canSeeTeamOffer).
+         AND (COALESCE(o.kind, 'campaign') <> 'affiliate' OR $10::boolean OR o.user_id = $1
+              OR ($11::boolean AND o.min_age IS NOT NULL AND o.min_age <= $12))
        ORDER BY ${order}GREATEST(o.published_at, COALESCE(o.renewed_at, o.published_at)) DESC, o.id DESC
        LIMIT $7 OFFSET $8`,
-      [req.user.id, q.replace(/[\\%_]/g, (c) => `\\${c}`), category, country, author, savedOnly, limit, offset, kind]
+      [req.user.id, q.replace(/[\\%_]/g, (c) => `\\${c}`), category, country, author, savedOnly, limit, offset, kind,
+        isAdult(req.user) || String(req.userRole || '').toUpperCase() === 'ADMIN',
+        req.user.is_adult === false, SIGNUP_CERTIFIED_AGE]
     );
     return res.status(200).json({
       success: true,
@@ -426,7 +477,7 @@ async function openOffer(req, res, next) {
     if (!id) return sendError(res, 400, 'INVALID_ID', 'Offre invalide.');
 
     const found = await pool.query(
-      `SELECT o.id, o.url, o.min_age, o.user_id, o.status, o.expires_at
+      `SELECT o.id, o.url, o.min_age, o.user_id, o.status, o.expires_at, o.kind, o.subid_param
        FROM member_offers o JOIN users u ON u.id = o.user_id
        WHERE o.id = $1 AND o.status = 'published' AND u.is_active AND NOT u.is_banned`,
       [id]
@@ -439,6 +490,8 @@ async function openOffer(req, res, next) {
     }
     if (!offer) return sendError(res, 404, 'NOT_FOUND', 'Cette offre n’est plus disponible.');
 
+    if (offer.kind === 'affiliate') return openTeamOffer(req, res, offer, isAdmin);
+
     // Même dérogation qu'à l'affichage : réservée aux majeurs.
     if (!(offer.user_id === req.user.id && isAdult(req.user))) {
       const refusal = refusalForAffiliateLink(req.user, offer.min_age);
@@ -449,6 +502,41 @@ async function openOffer(req, res, next) {
     }
 
     return res.status(200).json({ success: true, data: { url: offer.url } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/*
+ * Lien de l'équipe : âge compatible (canSeeTeamOffer), puis identifiant de
+ * suivi opaque ajouté à l'URL et clic enregistré (1 par membre, offre et
+ * 24 h ; IP hachée). Un ADMIN qui teste un lien n'est jamais suivi.
+ */
+async function openTeamOffer(req, res, offer, isAdmin) {
+  if (isAdmin) return res.status(200).json({ success: true, data: { url: offer.url } });
+  if (!canSeeTeamOffer(req.user, offer.min_age)) {
+    const refusal = refusalForAffiliateLink(req.user, offer.min_age)
+      || { code: 'AGE_RESTRICTED', message: 'Cette offre n’est pas accessible à ton âge.' };
+    logger.info('Team offer refused', { offerId: offer.id, userId: req.user.id, reason: refusal.code });
+    return sendError(res, 403, refusal.code, refusal.message);
+  }
+  const subid = tracking.trackingId(req.user.id, offer.id);
+  await tracking.recordClick({ offerId: offer.id, subid, ipHash: hashIp(getClientIp(req)) });
+  return res.status(200).json({ success: true, data: { url: tracking.withSubid(offer.url, offer.subid_param, subid) } });
+}
+
+/** GET /api/community/offers/tried : liens de l'équipe que j'ai ouverts (mon profil, privé). */
+async function listTriedOffers(req, res, next) {
+  try {
+    await loadCategories();
+    const tried = await tracking.triedOffers(req.user.id);
+    if (!tried.length) return res.status(200).json({ success: true, data: { items: [] } });
+    const result = await pool.query(`${OFFER_SELECT} WHERE o.id = ANY($2::int[]) AND o.status = 'published'`,
+      [req.user.id, tried.map((t) => t.offer_id)]);
+    const byId = new Map(result.rows.map((row) => [row.id, row]));
+    const items = tried.filter((t) => byId.has(t.offer_id))
+      .map((t) => ({ ...formatOffer(byId.get(t.offer_id), req.user.id, req.user), tried_at: t.last_at }));
+    return res.status(200).json({ success: true, data: { items } });
   } catch (error) {
     return next(error);
   }
@@ -671,12 +759,14 @@ async function createOffer(req, res, next) {
     const result = await pool.query(
       `INSERT INTO member_offers (user_id, title, url, description, category, countries, expected_action,
                                   payout_text, min_age, conditions, rights_confirmed_at, status,
-                                  kind, campaign_name, tips)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), 'pending', $11, $12, $13)
+                                  kind, campaign_name, tips,
+                                  incentive_allowed, member_benefit, payout_note, campaign_rules_url, subid_param)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), 'pending', $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [req.user.id, offer.title, offer.url, offer.description, offer.category, offer.countries,
         offer.expected_action, offer.payout_text, offer.min_age, offer.conditions,
-        kind, offer.campaign_name, offer.tips]
+        kind, offer.campaign_name, offer.tips,
+        offer.incentive_allowed, offer.member_benefit, offer.payout_note, offer.campaign_rules_url, offer.subid_param]
     );
     logger.info('Member offer submitted', { userId: req.user.id, offerId: result.rows[0].id });
     return res.status(201).json({
@@ -758,12 +848,14 @@ async function updateOffer(req, res, next) {
        SET title = $2, url = $3, description = $4, category = $5, countries = $6, expected_action = $7,
            payout_text = $8, min_age = $9, conditions = $10, rights_confirmed_at = NOW(),
            kind = $11, campaign_name = $12, tips = $13,
+           incentive_allowed = $14, member_benefit = $15, payout_note = $16, campaign_rules_url = $17, subid_param = $18,
            status = 'pending', moderation_note = NULL, published_at = NULL, expires_at = NULL, updated_at = NOW()
        WHERE id = $1 AND status IN ('pending', 'published', 'rejected')
        RETURNING *`,
       [id, offer.title, offer.url, offer.description, offer.category, offer.countries,
         offer.expected_action, offer.payout_text, offer.min_age, offer.conditions,
-        kind, offer.campaign_name, offer.tips]
+        kind, offer.campaign_name, offer.tips,
+        offer.incentive_allowed, offer.member_benefit, offer.payout_note, offer.campaign_rules_url, offer.subid_param]
     );
     if (!result.rows[0]) return sendError(res, 404, 'NOT_FOUND', 'Offre introuvable.');
     return res.status(200).json({
@@ -1085,6 +1177,7 @@ async function adminExtendOffer(req, res, next) {
 }
 
 module.exports = {
+  listTriedOffers,
   renewOffer,
   adminExtendOffer,
   STORY_HOURS,

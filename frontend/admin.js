@@ -1331,7 +1331,36 @@ function openContact(id, { refreshList = true } = {}) {
   if (refreshList) loadContact().catch(handleError);
 }
 
+// ---------------------------------------------------------------------------
+// Revenus (liens de l'équipe)
+// ---------------------------------------------------------------------------
+
+const euros = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;
+
+async function loadRevenue() {
+  const month = $('revenue-month').value;
+  const query = month ? `?month=${encodeURIComponent(month)}` : '';
+  $('revenue-csv').href = `/api/admin/revenue?format=csv${month ? `&month=${encodeURIComponent(month)}` : ''}`;
+  const data = await api(`/api/admin/revenue${query}`);
+  const { totals } = data;
+  $('revenue-totals').replaceChildren(
+    ...[['Clics suivis', num(totals.clicks)], ['Conversions', num(totals.conversions)], ['Validées', num(totals.approved)], ['Gains estimés', euros(totals.estimated_cents)]]
+      .map(([label, value]) => h('div', { className: 'stat-card' }, h('span', null, label), h('strong', null, value))));
+  renderTable('revenue-table', [
+    { label: 'Mois', render: (r) => r.month },
+    { label: 'Offre', render: (r) => h('strong', null, r.title) },
+    { label: 'Clics', render: (r) => num(r.clicks) },
+    { label: 'En attente', render: (r) => num(r.pending) },
+    { label: 'Validées', render: (r) => num(r.approved) },
+    { label: 'Refusées', render: (r) => num(r.rejected) },
+    { label: 'À vérifier', render: (r) => (r.to_review ? badge(String(r.to_review), 'bad') : '0') },
+    { label: 'Taux', render: (r) => `${String(r.conversion_rate).replace('.', ',')} %` },
+    { label: 'Gains estimés', render: (r) => euros(r.estimated_cents) },
+  ], data.items, 'Aucun clic suivi pour le moment.');
+}
+
 const LOADERS = {
+  revenue: loadRevenue,
   dashboard: loadDashboard,
   links: loadLinks,
   clicks: loadClicks,
@@ -1394,6 +1423,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  $('revenue-month')?.addEventListener('change', () => loadRevenue().catch(handleError));
   purgeLegacyStorage();
   // Widget anti-robot : clé PUBLIQUE de /api/auth/config ; sans clé, rien ne change.
   try {

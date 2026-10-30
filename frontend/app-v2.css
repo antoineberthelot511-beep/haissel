@@ -1793,3 +1793,10 @@ img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }
 
 /* Feuille ouverte au doigt ou à la souris : pas d'anneau sur le focus initial (« Suivant »…). */
 .sheet[data-no-ring] :focus { outline: none; box-shadow: none; }
+
+/* Liens de l'équipe : ce que l'annonceur donne au membre (carte et page de l'offre). */
+.offer-benefit { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--v2-on-surface); }
+/* Formulaire Publier (ADMIN) : campagne et suivi. */
+.pub-team { display: grid; gap: 10px; margin: 8px 0; padding: 14px; border-radius: 16px; background: var(--v2-surface-low, #eef1f6); }
+.pub-team[hidden] { display: none; }
+.pub-team-title { margin: 0; font-size: 15px; font-weight: 800; }

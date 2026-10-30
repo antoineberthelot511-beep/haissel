@@ -109,7 +109,7 @@ describe('visibilité 24 h', () => {
   });
 
   test('une offre ADMIN n expire jamais', async () => {
-    const id = await publish(admin, sheet({ url: 'https://mylead.global/stl/equipe-story' }));
+    const id = await publish(admin, sheet({ url: 'https://mylead.global/stl/equipe-story', min_age: 18 }));
     expect((await pool.query('SELECT expires_at FROM member_offers WHERE id = $1', [id])).rows[0].expires_at).toBeNull();
     await pool.query("UPDATE member_offers SET published_at = NOW() - INTERVAL '30 days' WHERE id = $1", [id]);
     expect(await feedIds(bob)).toContain(id);

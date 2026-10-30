@@ -3,6 +3,8 @@ const { sendError } = require('../utils/http');
 const { safeEqual } = require('../utils/network');
 const { logger } = require('../utils/logger');
 const { recordConversion, ConversionError } = require('../services/conversion.service');
+const { recordOfferConversion, TrackingError } = require('../services/offer-tracking.service');
+const { isInternalAffiliationEnabled } = require('../config/security');
 
 /*
  * POST /api/webhooks/affiliate/:provider
@@ -86,6 +88,32 @@ async function handleAffiliateWebhook(req, res, next) {
   }
 
   logger.info('Webhook received', { provider, reference: String(payload.external_reference || '').slice(0, 120) });
+
+  /*
+   * Liens de l'équipe : conversion reliée au clic par le sous-identifiant
+   * (« subid », identifiant opaque ajouté à l'URL à l'ouverture). Statuts :
+   * pending, approved, rejected. Rien n'est versé aux membres.
+   */
+  if (typeof payload.subid === 'string') {
+    try {
+      const { conversion, created } = await recordOfferConversion(payload, provider);
+      return res.status(created ? 201 : 200).json({
+        success: true,
+        data: { conversion_id: conversion.id, status: conversion.status, needs_review: conversion.needs_review, created },
+      });
+    } catch (error) {
+      if (error instanceof TrackingError) {
+        logger.warn('Webhook offer conversion refused', { provider, code: error.code });
+        return sendError(res, error.status, error.code, error.message);
+      }
+      return next(error);
+    }
+  }
+
+  // Ancien moteur interne (codes HAI-…) : gelé par défaut.
+  if (!isInternalAffiliationEnabled()) {
+    return sendError(res, 404, 'FEATURE_DISABLED', "Le moteur d'affiliation interne est désactivé sur cette instance.");
+  }
 
   try {
     const { conversion, created, changed } = await recordConversion({ ...payload, provider });
