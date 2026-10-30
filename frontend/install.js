@@ -53,8 +53,24 @@
     return state === 'installed' && pushEnabled && canPush && permission === 'default' && !subscribed && !dismissed;
   }
 
+  /**
+   * Feuille d'installation adaptée à l'appareil :
+   * 'ios' (carrousel du tuto iPhone), 'android' (invite native),
+   * 'safari' (« Ouvre HAISSEL dans Safari ») ; null : rien d'utile
+   * (déjà installée, ordinateur).
+   */
+  function tutoKind(state) {
+    return { 'ios-safari': 'ios', prompt: 'android', 'ios-other': 'safari' }[state] || null;
+  }
+
+  /** Ouverture automatique après la première connexion : une fois par compte, si utile. */
+  function autoTutoKind({ seen = true, state } = {}) {
+    return seen ? null : tutoKind(state);
+  }
+
   const api = {
-    BANNER_DELAY_MS, isIosSafari, installState, bannerVisible, notifyOfferVisible, deferred: null, installed: false,
+    BANNER_DELAY_MS, isIosSafari, installState, bannerVisible, notifyOfferVisible, tutoKind, autoTutoKind,
+    deferred: null, installed: false,
   };
 
   // Capture au plus tôt : sans preventDefault, Chrome afficherait sa propre mini-barre.

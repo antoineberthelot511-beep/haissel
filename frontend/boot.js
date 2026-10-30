@@ -12,6 +12,8 @@
 (() => {
   const FADE_MS = 200;
   const SLOW_MS = 10000;
+  // Au-delà de 3 s : l'ours « patience » au-dessus du loader (mascot.js).
+  const PATIENCE_MS = 3000;
   // Durée minimale d'affichage, au premier chargement de la page seulement.
   const MIN_MS = 600;
 
@@ -30,6 +32,14 @@
     const startedAt = now();
     let done = false;
 
+    let bear = null;
+    const patienceTimer = timers.setTimeout(() => {
+      const mascots = typeof window !== 'undefined' ? window.HaisselMascot : null;
+      if (done || !screen || !mascots) return;
+      bear = mascots.mascot('patience', { size: 120 });
+      screen.prepend(bear);
+    }, PATIENCE_MS);
+
     const slowTimer = timers.setTimeout(() => {
       if (done || !screen) return;
       const text = doc.createElement('p');
@@ -44,13 +54,15 @@
       box.className = 'boot-slow';
       box.setAttribute('role', 'alert');
       box.append(text, button);
-      screen.replaceChildren(box);
+      // Le bouton Réessayer reste ; l'ours aussi.
+      screen.replaceChildren(...(bear ? [bear] : []), box);
     }, SLOW_MS);
 
     function ready() {
       if (done) return;
       done = true;
       timers.clearTimeout(slowTimer);
+      timers.clearTimeout(patienceTimer);
       if (!screen) return;
       const wait = Math.max(0, MIN_MS - (now() - startedAt));
       timers.setTimeout(() => {

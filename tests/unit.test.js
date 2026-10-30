@@ -90,7 +90,7 @@ describe('affiliate codes and URLs', () => {
 
   it('accepts only absolute http(s) offer URLs', () => {
     expect(isSafeOfferUrl('https://partner.example/offer')).toBe(true);
-    expect(isSafeOfferUrl('http://partner.example')).toBe(true);
+    expect(isSafeOfferUrl('http://partner.example')).toBe(false);
     expect(isSafeOfferUrl('javascript:alert(1)')).toBe(false);
     expect(isSafeOfferUrl('data:text/html,hi')).toBe(false);
     expect(isSafeOfferUrl('//evil.example')).toBe(false);

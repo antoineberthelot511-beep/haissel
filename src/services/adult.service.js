@@ -110,7 +110,25 @@ function canDeclareAdult(user) {
   return { allowed: false, daysLeft: Math.max(1, Math.ceil(ADULT_UPGRADE_DELAY_DAYS - elapsedDays)) };
 }
 
+/*
+ * Offres de l'équipe (liens affiliés, « affiliate ») : âge minimum fixé par
+ * l'admin (13, 15, 16 ou 18). L'inscription certifie 15 ans au moins (case
+ * obligatoire) et la déclaration de majorité 18 ans : un mineur voit les
+ * offres 13+ et 15+, jamais les 16+ (âge non certifiable) ni les 18+.
+ */
+const TEAM_OFFER_AGES = [13, 15, 16, 18];
+const SIGNUP_CERTIFIED_AGE = 15;
+
+function canSeeTeamOffer(user, minAge) {
+  if (needsDeclaration(user)) return false;
+  if (isAdult(user)) return true;
+  return minAge !== null && minAge !== undefined && Number(minAge) <= SIGNUP_CERTIFIED_AGE;
+}
+
 module.exports = {
+  TEAM_OFFER_AGES,
+  SIGNUP_CERTIFIED_AGE,
+  canSeeTeamOffer,
   ADULT_AGE,
   ADULT_UPGRADE_DELAY_DAYS,
   canDeclareAdult,

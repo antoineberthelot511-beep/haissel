@@ -7,8 +7,10 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="stylesheet" href="/brand.css" />
     <link rel="stylesheet" href="/admin.css" />
     <link rel="stylesheet" href="/admin-theme.css" />
+    <link rel="stylesheet" href="/mascot.css" />
   </head>
   <body>
     <!-- ===================== CONNEXION ===================== -->
@@ -105,8 +107,10 @@
           <a href="#clicks" data-section="clicks">Clics</a>
           <a href="#users" data-section="users">Utilisateurs</a>
           <a href="#notifications" data-section="notifications">Notifications</a>
+          <a href="#revenue" data-section="revenue">Revenus</a>
           <a href="#moderation" data-section="moderation">Offres membres</a>
           <a href="#inbox" data-section="inbox">Messages</a>
+          <a href="#contact" data-section="contact">Contact</a>
           <a href="#categories" data-section="categories">Catégories</a>
           <a href="#content" data-section="content">Guides et tutoriels</a>
           <a href="#opportunities" data-section="opportunities">Opportunités</a>
@@ -125,6 +129,7 @@
       <main class="main-content">
         <!-- TABLEAU DE BORD -->
         <section id="section-dashboard" class="section" aria-labelledby="h-dashboard">
+          <span class="mascot-head admin-mascot" data-mascot="admin-support" data-mascot-size="88"></span>
           <header class="section-head">
             <div>
               <p class="eyebrow">Vue d'ensemble</p>
@@ -307,6 +312,42 @@
           </div>
         </section>
 
+        <!-- REVENUS : liens de l'équipe (clics suivis, conversions MyLead). Jamais visible des membres. -->
+        <section id="section-revenue" class="section" aria-labelledby="h-revenue" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Monétisation</p>
+              <h1 id="h-revenue">Revenus</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="revenue">Actualiser</button>
+          </header>
+          <p class="muted">Par offre de l'équipe et par mois : clics suivis (1 par membre et par offre sur 24 h, comptes ADMIN exclus), conversions reçues de MyLead, taux de conversion et gains estimés (en attente + validées). « À vérifier » : plusieurs conversions de la même offre depuis le même membre ou la même IP.</p>
+          <div class="row-actions">
+            <label class="field"><span>Mois</span><input id="revenue-month" type="month" /></label>
+            <a id="revenue-csv" class="btn ghost" href="/api/admin/revenue?format=csv" download>Exporter en CSV</a>
+          </div>
+          <div id="revenue-totals" class="cards-grid"></div>
+          <div id="revenue-table" class="panel table-wrap"></div>
+        </section>
+
+        <!-- CONTACT : demandes du formulaire /contact -->
+        <section id="section-contact" class="section" aria-labelledby="h-contact" hidden>
+          <header class="section-head">
+            <div>
+              <p class="eyebrow">Communauté</p>
+              <h1 id="h-contact">Contact</h1>
+            </div>
+            <button class="btn ghost" type="button" data-refresh="contact">Actualiser</button>
+          </header>
+          <p class="muted">Demandes envoyées depuis le formulaire de contact, non traitées en premier. Texte brut ; supprimées 12 mois après l'envoi.</p>
+          <div class="inbox">
+            <ul id="contact-list" class="panel inbox-list" aria-label="Demandes de contact"></ul>
+            <div id="contact-detail" class="panel inbox-thread" aria-live="polite">
+              <p class="empty">Choisissez une demande.</p>
+            </div>
+          </div>
+        </section>
+
         <!-- CATÉGORIES -->
         <section id="section-categories" class="section" aria-labelledby="h-categories" hidden>
           <header class="section-head">
@@ -461,6 +502,7 @@
 
     <script src="/turnstile.js"></script>
     <script src="/push-client.js"></script>
+    <script src="/mascot.js"></script>
     <script src="/admin.js"></script>
   </body>
 </html>

@@ -81,6 +81,7 @@ describe('Inscription : la question est obligatoire', () => {
     email: `insc${Math.random().toString(16).slice(2, 8)}@exemple.fr`,
     password: PASSWORD,
     confirm_password: PASSWORD,
+    age_terms_accepted: true,
     ...overrides,
   });
 
@@ -109,6 +110,24 @@ describe('Inscription : la question est obligatoire', () => {
     );
     expect(row.rows[0].is_adult).toBe(true);
     expect(row.rows[0].adult_declared_at).toBeInstanceOf(Date);
+  });
+
+  test('case « 15 ans ou plus, ou accord d’un parent » obligatoire et horodatée', async () => {
+    for (const value of [undefined, false, 'true', 1]) {
+      const res = await request(app).post('/api/auth/register').send(base({ is_adult: true, age_terms_accepted: value }));
+      expect([value, res.status, res.body.error?.code]).toEqual([value, 400, 'AGE_TERMS_REQUIRED']);
+    }
+    const body = base({ is_adult: false });
+    expect([201, 202]).toContain((await request(app).post('/api/auth/register').send(body)).status);
+    const row = await pool.query('SELECT age_terms_accepted_at FROM users WHERE username = $1', [body.username]);
+    expect(row.rows[0].age_terms_accepted_at).toBeInstanceOf(Date);
+
+    const fs = require('fs');
+    const path = require('path');
+    const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
+    expect(html).toMatch(/<input id="register-age-terms" type="checkbox" required \/>\s*<span>J'ai 15 ans ou plus, ou j'ai l'accord d'un parent pour m'inscrire\.<\/span>/);
+    const appJs = fs.readFileSync(path.join(__dirname, '../frontend/app.js'), 'utf8');
+    expect(appJs).toContain('body.age_terms_accepted = true;');
   });
 
   test('« non » est accepté : le compte est créé, mineur déclaré', async () => {

@@ -10,23 +10,27 @@
  *      multipliée.
  *
  * Formes : .lg-pill (rond ou pilule), .lg-bar (barre pleine largeur),
- * .lg-sheet (feuille du bas). .lg-press : enfoncement au toucher.
+ * .lg-sheet (feuille du bas). .lg-press : la surface gonfle au toucher.
  * .is-flat : verre éteint (en-tête tout en haut, barre de recherche non
  * collée), basculé par liquid-glass.js.
  *
  * Le verre n'est PAS utilisé sur le contenu (cartes, grilles, bulles, listes,
- * formulaires) : fond plein, lisible. Au plus 4 surfaces en verre visibles.
+ * formulaires, Réglages, admin) : fond plein, lisible. Au plus 5 surfaces en
+ * verre visibles à la fois.
  * Aucune ressource externe.
  */
 
 :root {
-  --lg-tint: rgba(255, 255, 255, .55);
-  --lg-edge: rgba(255, 255, 255, .6);
-  --lg-edge-low: rgba(255, 255, 255, .08);
-  --lg-line: rgba(15, 23, 42, .1);
-  --lg-drop: rgba(37, 99, 235, .12);
+  /* Teinte très transparente : le contenu reste nettement visible dessous. */
+  --lg-tint: rgba(255, 255, 255, .18);
+  --lg-line: rgba(255, 255, 255, .22);
+  --lg-drop: rgba(var(--brand-rgb), .12);
   --lg-drop-edge: rgba(255, 255, 255, .95);
-  --lg-shadow: 0 10px 30px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);
+  --lg-shadow: 0 16px 44px rgba(15, 23, 42, .18), 0 3px 10px rgba(15, 23, 42, .08);
+  /* Halo des textes et icônes posés sur le verre (contraste ≥ 4,5:1). */
+  --lg-halo: rgba(255, 255, 255, .75);
+  /* Reflet qui suit le doigt (liquid-glass.js). */
+  --lg-x: 30%; --lg-y: 0%; --lg-glow: 0;
   --lg-spring: cubic-bezier(.34, 1.45, .55, 1);
   --lg-duration: 350ms;
   /* Fond plein de repli (transparence réduite, pas de backdrop-filter). */
@@ -35,42 +39,62 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --lg-tint: rgba(22, 24, 34, .45);
-    --lg-edge: rgba(255, 255, 255, .28);
-    --lg-edge-low: rgba(255, 255, 255, .04);
-    --lg-line: rgba(255, 255, 255, .12);
-    --lg-drop: rgba(255, 255, 255, .16);
-    --lg-drop-edge: rgba(255, 255, 255, .4);
-    --lg-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+    --lg-tint: rgba(20, 22, 30, .28);
+    --lg-line: rgba(255, 255, 255, .14);
+    --lg-drop: rgba(255, 255, 255, .18);
+    --lg-drop-edge: rgba(255, 255, 255, .45);
+    --lg-shadow: 0 16px 44px rgba(0, 0, 0, .5), 0 3px 10px rgba(0, 0, 0, .3);
+    --lg-halo: rgba(0, 0, 0, .55);
     --lg-solid: #161822;
   }
-  .topbar-nav .nav-button { color: rgba(235, 238, 248, .78); }
+  .topbar-nav .nav-button { color: rgba(240, 243, 252, .92); }
   .topbar-nav .nav-button:hover { color: #fff; }
-  .topbar-nav .nav-button.active { color: #9ec1ff; }
+  .topbar-nav .nav-button.active { color: var(--brand-on-dark); }
 }
 
 /* --- Couche 1 : verre pour tous ------------------------------------------ */
 
+/* :where : position relative par défaut, sans écraser fixed / sticky / absolute. */
+:where(.lg-glass) { position: relative; }
+
 .lg-glass {
   isolation: isolate;
   background: var(--lg-tint);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(220%) brightness(1.08);
+  backdrop-filter: blur(16px) saturate(220%) brightness(1.08);
   border: 1px solid var(--lg-line);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), var(--lg-shadow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), inset 0 -1px 1px rgba(0, 0, 0, .12), var(--lg-shadow);
+  text-shadow: 0 0 6px var(--lg-halo);
   transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease;
 }
+.lg-glass .icon { filter: drop-shadow(0 0 4px var(--lg-halo)); }
 
-/* Reflet du bord : dégradé plus clair en haut, découpé en anneau par le mask. */
-.lg-glass::before,
+/*
+ * Reflet spéculaire : diagonale blanche 55 % → transparent sur le tiers
+ * supérieur, plus un point lumineux qui suit le doigt (--lg-x / --lg-y).
+ */
+.lg-glass::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(circle at var(--lg-x) var(--lg-y), rgba(255, 255, 255, var(--lg-glow)) 0, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(150deg, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, 0) 33%);
+  mix-blend-mode: soft-light;
+  transition: opacity .25s ease;
+}
+
+/* Liseré lumineux de 1,5 px : blanc 90 % en haut à gauche → 10 % en bas à droite. */
+.lg-glass::after,
 .lg-drop::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
-  background: linear-gradient(180deg, var(--lg-edge), var(--lg-edge-low) 55%, rgba(255, 255, 255, .18));
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .1));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   transition: opacity .25s ease;
 }
+
+/* Doigt posé : le reflet s'allume sous le doigt. */
+.lg-glass.is-touching { --lg-glow: .7; }
 
 /* Formes */
 .lg-pill { border-radius: 9999px; }
@@ -79,17 +103,18 @@
 
 /* Verre éteint : même forme, sans fond ni flou. */
 .lg-glass.is-flat {
-  background: transparent; border-color: transparent; box-shadow: none;
+  background: transparent; border-color: transparent; box-shadow: none; text-shadow: none;
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-.lg-glass.is-flat::before { opacity: 0; }
+.lg-glass.is-flat::before, .lg-glass.is-flat::after { opacity: 0; }
+.lg-glass.is-flat .icon { filter: none; }
 
-/* Au toucher : léger enfoncement et reflet plus vif, même ressort. */
+/* Au toucher : la surface gonfle légèrement, avec le même ressort. */
 .lg-press {
   transition: transform var(--lg-duration) var(--lg-spring),
     background-color .25s ease, border-color .25s ease, box-shadow .25s ease;
 }
-.lg-press:active { transform: scale(.96); --lg-edge: rgba(255, 255, 255, .95); --lg-edge-low: rgba(255, 255, 255, .3); }
+.lg-press:active { transform: scale(1.03); --lg-glow: .8; }
 
 /* --- Barre de navigation du bas ------------------------------------------ */
 
@@ -123,15 +148,39 @@
   100% { transform: scale(1, 1); }
 }
 
-/* --- Éléments flottants : teintes adaptées pour la lisibilité (≥ 4,5:1) ---
- * Le reste de l'interface n'a pas de thème sombre : en-tête, recherche et
- * toasts gardent un verre clair et dense en mode sombre, sous leur texte foncé.
+/* --- Teintes par surface --------------------------------------------------
+ * En-tête, recherche, filtres, onglets du profil : texte foncé (le reste de
+ * l'interface n'a pas de thème sombre) → verre clair et transparent dans les
+ * deux modes, halo blanc. Textes de plusieurs lignes (toasts, bannière) :
+ * voile local plus dense.
  */
-.topbar-glass, .topbar .topbar-icon.lg-glass, #community-filters.lg-glass, .filters-button.lg-glass, .notif-card.lg-glass, .install-banner.lg-glass {
-  --lg-tint: rgba(255, 255, 255, .88); --lg-native-tint: rgba(255, 255, 255, .6);
-  --lg-line: rgba(15, 23, 42, .1); --lg-edge: rgba(255, 255, 255, .6); --lg-edge-low: rgba(255, 255, 255, .08);
-  --lg-shadow: 0 10px 30px rgba(15, 23, 42, .14), 0 2px 6px rgba(15, 23, 42, .06);
+.topbar-glass, .topbar .topbar-icon.lg-glass, #community-filters.lg-glass, .filters-button.lg-glass, .profile-tabs.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .18); --lg-native-tint: rgba(255, 255, 255, .12);
+  --lg-line: rgba(255, 255, 255, .3); --lg-halo: rgba(255, 255, 255, .85);
+  --lg-shadow: 0 10px 30px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
   --lg-solid: #fff;
+}
+.notif-card.lg-glass, .install-banner.lg-glass, .m-toast.lg-glass, .ptr.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .62); --lg-native-tint: rgba(255, 255, 255, .5);
+  --lg-line: rgba(255, 255, 255, .4); --lg-halo: rgba(255, 255, 255, .8); --lg-solid: #fff;
+}
+
+/* Sur les visuels colorés (cartes, Découvrir) : texte et icônes blancs. */
+.post-visual-icon.lg-glass {
+  --lg-tint: rgba(10, 12, 20, .4); --lg-halo: rgba(0, 0, 0, .4); --lg-solid: rgba(10, 12, 20, .55);
+  --lg-line: rgba(255, 255, 255, .3); --lg-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+}
+.discover-text.lg-glass, .discover-side.lg-glass {
+  --lg-tint: rgba(10, 12, 20, .42); --lg-native-tint: rgba(10, 12, 20, .42); --lg-halo: rgba(0, 0, 0, .5);
+  --lg-line: rgba(255, 255, 255, .18); --lg-solid: #1d2030;
+  --lg-shadow: 0 12px 36px rgba(0, 0, 0, .35);
+}
+.discover-text.lg-glass { padding: 14px 16px; border-radius: 22px; }
+.discover-side.lg-glass { padding: 12px 6px; }
+
+/* Profil : barre d'onglets collée sous l'en-tête, en verre seulement collée. */
+#profile-view .profile-tabs.lg-glass {
+  position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 29;
 }
 
 /* En-tête : couche de verre derrière le contenu. Pas de backdrop-filter sur
@@ -140,7 +189,8 @@
 .topbar-glass { position: absolute; inset: 0; z-index: -1; pointer-events: none; transition: opacity .25s ease, background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
 .topbar-glass.is-flat { opacity: 0; }
 .topbar .topbar-inner { position: relative; }
-.topbar .topbar-icon.lg-glass { position: relative; }
+/* Icônes en encre foncée : le verre transparent laisse passer les visuels colorés (≥ 4,5:1). */
+.topbar .topbar-icon.lg-glass { position: relative; color: var(--v2-on-surface); }
 .topbar .topbar-icon.lg-glass:hover { background: var(--lg-tint); }
 .topbar .topbar-icon.lg-glass.is-flat:hover { background: var(--v2-surface-low); }
 /* La pastille de non-lus reste pleine, au-dessus du reflet. */
@@ -166,8 +216,8 @@ html:not(.lg-ready) .topbar { background: var(--v2-bg); }
   position: relative; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 -8px 30px rgba(0, 0, 0, .18);
 }
 .sheet::backdrop {
-  background: rgba(0, 0, 0, .32);
-  -webkit-backdrop-filter: blur(6px) saturate(140%); backdrop-filter: blur(6px) saturate(140%);
+  background: rgba(0, 0, 0, .26);
+  -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
 }
 
 /* Messagerie : en-tête et barre de saisie en verre, les messages défilent dessous. */
@@ -204,13 +254,15 @@ html:not(.lg-ready) .topbar { background: var(--v2-bg); }
   /* Pas d'enfoncement : seul le reflet change. */
   .lg-press { transition: background-color .25s ease, border-color .25s ease, box-shadow .25s ease; }
   .lg-press:active { transform: none; }
+  .lg-glass::before { transition: none; }
 }
 
 /* --- Repli : fond plein opaque, même forme et même ombre ------------------ */
 @media (prefers-reduced-transparency: reduce) {
   .lg-glass:not(.is-flat) { background: var(--lg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .lg-glass::before { display: none; }
   .sheet::backdrop { background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .lg-drop::after { background: var(--v2-primary-soft, #eff4ff); }
+  .lg-drop::after { background: var(--brand-soft); }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
   .lg-drop::after { background: #2a2e3d; }
@@ -235,7 +287,7 @@ html:not(.lg-ready) .topbar { background: var(--v2-bg); }
 
 /* --- Couche 3 : réfraction (Chromium, barre du bas uniquement) ------------ */
 .lg-refract .topbar-nav .topbar-nav-inner {
-  backdrop-filter: url(#lg-refract) blur(14px) saturate(180%);
+  backdrop-filter: url(#lg-refract) blur(16px) saturate(220%) brightness(1.08);
 }
 
 /* --- Barre à icônes seules (5 onglets) ------------------------------------ */
@@ -250,7 +302,7 @@ html:not(.lg-ready) .topbar { background: var(--v2-bg); }
 
 /* Découvrir : verre sombre par-dessus les offres plein écran. */
 body[data-view="discover"] .topbar-nav .topbar-nav-inner {
-  --lg-tint: rgba(10, 12, 20, .5); --lg-edge: rgba(255, 255, 255, .28); --lg-edge-low: rgba(255, 255, 255, .04);
+  --lg-tint: rgba(20, 22, 30, .28); --lg-halo: rgba(0, 0, 0, .55);
   --lg-line: rgba(255, 255, 255, .14); --lg-drop: rgba(255, 255, 255, .16); --lg-drop-edge: rgba(255, 255, 255, .4);
 }
 body[data-view="discover"] .topbar-nav .nav-button { color: rgba(235, 238, 248, .8); }

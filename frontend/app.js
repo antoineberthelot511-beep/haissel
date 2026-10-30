@@ -150,6 +150,7 @@ function setMessage(kind, message) {
   const info = kind === 'info' ? message : '';
   ui.authError.textContent = error;
   ui.authError.classList.toggle('hidden', !error);
+  if (error) window.HaisselMotion?.shake(ui.authError);
   ui.authInfo.textContent = info;
   ui.authInfo.classList.toggle('hidden', !info);
 }
@@ -224,9 +225,12 @@ function setActiveView(viewName) {
   });
   // Découvrir : barre du bas en version sombre (liquid-glass.css).
   document.body.dataset.view = viewName;
+  // Sens du glissement (motion.js) : ordre des onglets de la barre du bas.
+  window.HaisselMotion?.noteView(viewName);
   rememberView(viewName);
-  // Quitter Messages arrête l'interrogation de la conversation.
-  if (viewName !== 'messages') closeChat();
+  // Messages = la conversation avec l'équipe ; la quitter la ferme (interrogation au rythme normal).
+  if (viewName === 'messages' && state.user) openChat();
+  else closeChat();
   refreshUnread();
   if (viewName === 'notifications' && state.user) showActivity();
   if (viewName === 'home' && state.user) renderHomeLearnCard();
@@ -236,6 +240,7 @@ function setActiveView(viewName) {
   if (viewName === 'profile' && state.user) {
     if (isAdultMember()) loadMyOffers();
     loadSavedOffers();
+    loadTriedOffers();
   }
   window.scrollTo({ top: 0 });
 }
@@ -256,8 +261,7 @@ function rememberView(viewName) {
 
 function showLoggedOut() {
   if (notificationCenter) notificationCenter.stop();
-  clearInterval(chat.unreadTimer);
-  closeChat();
+  resetChat();
   state.user = null;
   state.links = [];
   state.learn = { loaded: false, opportunities: [] };
@@ -313,6 +317,7 @@ function applyPublishMode() {
     ? ['Ce lien vient de ', h('strong', null, 'mon propre compte éditeur'), ' et je respecte les conditions de la campagne.']
     : ['Ce lien mène à la ', h('strong', null, 'page officielle'), ', pas à mon lien affilié, et ma fiche respecte les conditions de la campagne.']));
   document.querySelectorAll('[data-campaign-only]').forEach((el) => { el.hidden = admin; });
+  document.querySelectorAll('[data-team-only]').forEach((el) => { el.hidden = !admin; });
   if (!state.community.editing) ui.publishFormTitle.textContent = admin ? 'Nouvelle offre' : 'Nouvelle fiche';
   document.getElementById('pub-step-1-label').textContent = admin ? 'Colle ton lien' : 'Lien officiel';
   document.getElementById('my-offers-label').textContent = admin ? 'Mes offres' : 'Mes fiches';
@@ -417,6 +422,7 @@ function showLoggedIn(user) {
   updateUserSummary();
   applyAgeRestrictions();
   renderMfaState();
+  renderProfileVisibility();
   // Comptes anterieurs a la declaration : la question passe avant tout.
   if (needsAgeAnswer()) openAgeGate();
   /*
@@ -430,7 +436,11 @@ function showLoggedIn(user) {
   loadLinks();
   // Première visite d'un membre connecté sur cet appareil : point de départ des 3 jours.
   if (!storageGet(INSTALL_KEYS.firstSeen)) storageSet(INSTALL_KEYS.firstSeen, String(Date.now()));
+  welcomeNewMember(user);
   renderInstallUi();
+  autoTuto.done = false;
+  autoTuto.tries = 0;
+  scheduleAutoTuto();
   if (notificationCenter) notificationCenter.start();
   startUnreadPolling();
   syncPush();
@@ -472,6 +482,9 @@ function closeAgeGate() {
   gate.hidden = true;
   document.body.classList.remove('age-gate-open');
   setGateInert(false);
+  // La feuille d'installation attendait peut-être la fin de la question.
+  autoTuto.tries = 0;
+  scheduleAutoTuto();
 }
 
 async function answerAgeGate(isAdultAnswer) {
@@ -698,7 +711,7 @@ async function loadLearn() {
     if (error.status === 401 || error.status === 403) return;
     for (const list of lists) {
       list.setAttribute('aria-busy', 'false');
-      list.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+      list.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
         h('p', null, `Impossible de charger le contenu : ${error.message}`),
         h('button', { className: 'secondary-button', type: 'button', onclick: loadLearn }, 'Réessayer')));
     }
@@ -725,6 +738,20 @@ const OFFER_STATUS_LABELS = {
   published: ['Publiée', 'published'],
   rejected: ['Refusée', 'rejected'],
 };
+
+/*
+ * Avatar de l'équipe (l'ours) : toujours rond, 128 px jusqu'à 64 px affichés,
+ * 256 px au-delà. Le logo « H » reste celui de l'application.
+ */
+function teamAvatar(size, className = '') {
+  const file = size <= 64 ? 'avatar-equipe-128.webp' : 'avatar-equipe-256.webp';
+  return h('img', { className: `team-avatar ${className}`.trim(), src: `/images/mascotte/${file}`, alt: 'Équipe Haissel', width: size, height: size, decoding: 'async' });
+}
+
+/* Ours de la mascotte (mascot.js) ; rien si le script manque. */
+function bear(name, size) {
+  return window.HaisselMascot ? window.HaisselMascot.mascot(name, { size }) : null;
+}
 
 function openDialog(dialog) {
   if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -836,7 +863,7 @@ function storyTimeLeft(offer) {
  * Catégorie inconnue (créée depuis la console) : couleur neutre.
  */
 const CATEGORY_COLORS = {
-  applications: ['#2563eb', '#60a5fa'],
+  applications: ['var(--brand)', 'var(--brand-light)'],
   jeux: ['#7c3aed', '#c084fc'],
   shopping: ['#db2777', '#f9a8d4'],
   services: ['#0d9488', '#5eead4'],
@@ -859,8 +886,9 @@ function categoryVisual(category, className, ...children) {
  */
 function postCard(offer) {
   const left = storyTimeLeft(offer);
+  // Pastille en verre posée sur le visuel coloré (liquid-glass.css).
   const visual = categoryVisual(offer.category, 'post-visual',
-    h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
+    h('span', { className: 'post-visual-icon lg-glass', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
     h('h3', { className: 'post-visual-title' }, offer.title),
     offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
   return h('article', { className: 'post-card' },
@@ -879,6 +907,7 @@ function postCard(offer) {
       h('span', { className: 'post-spacer' }),
       offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
     h('p', { className: 'post-todo' }, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+    benefitLine(offer),
     h('p', { className: 'post-meta' },
       offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
       left ? h('span', null, icon('i-clock', 'icon sm'), left) : null));
@@ -900,7 +929,8 @@ function discoverSlide(offer) {
       h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
       h('h2', { className: 'discover-title' }, offer.title),
       offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null),
-    h('div', { className: 'discover-text' },
+    // Panneau texte et colonne de boutons en verre sombre, posés sur l'image.
+    h('div', { className: 'discover-text lg-glass' },
       h('p', { className: 'discover-who' },
         storyAvatar(offer.author.username, 'story-avatar sm'),
         h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
@@ -908,7 +938,7 @@ function discoverSlide(offer) {
       h('p', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
       h('p', { className: 'discover-meta' },
         [offer.countries, offer.min_age ? `${offer.min_age} ans et +` : null, left].filter(Boolean).join(' · '))),
-    h('div', { className: 'discover-side' },
+    h('div', { className: 'discover-side lg-glass lg-pill' },
       save,
       offer.is_mine ? null : sideButton('Signaler', 'i-flag', () => openReport(offer)),
       offer.can_open ? sideButton('Voir', 'i-external', () => confirmLeave(offer)) : null));
@@ -917,8 +947,33 @@ function discoverSlide(offer) {
 function renderDiscover(items) {
   if (!ui.discoverFeed) return;
   const list = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
-  ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide)
-    : [h('section', { className: 'discover-slide is-empty' }, h('p', null, 'Rien à découvrir pour le moment.'))]));
+  ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide) : [discoverEmpty()]));
+}
+
+/*
+ * Découvrir vide : l'ours qui cherche (entrée douce puis léger balancement
+ * toutes les 4 s, coupé en mouvement réduit), sur le fond sombre de
+ * Découvrir ; « Actualiser » recharge les offres (petite roue en attendant).
+ */
+function discoverEmpty() {
+  const bearImg = bear('rien-a-decouvrir', 160);
+  bearImg?.classList.add('discover-bear');
+  return h('section', { className: 'discover-slide is-empty' },
+    h('div', { className: 'discover-empty' },
+      bearImg,
+      h('h2', { className: 'discover-empty-title' }, 'Rien à découvrir pour le moment'),
+      h('p', { className: 'discover-empty-text' }, 'Les nouvelles offres arrivent ici dès qu’elles sont validées.'),
+      h('button', {
+        className: 'secondary-button small-button discover-refresh', type: 'button',
+        onclick: () => { showDiscoverLoading(); state.community.loaded = false; loadCommunity(); },
+      }, icon('i-refresh', 'icon sm'), 'Actualiser')));
+}
+
+/* Chargement : petite roue sur le fond sombre (jamais d'écran noir vide). */
+function showDiscoverLoading() {
+  if (!ui.discoverFeed) return;
+  ui.discoverFeed.replaceChildren(h('section', { className: 'discover-slide is-empty', 'aria-busy': 'true' },
+    window.HaisselSpinner.spinner({ size: 32 })));
 }
 
 function storyBadge(offer) {
@@ -927,13 +982,31 @@ function storyBadge(offer) {
   return left ? h('span', { className: 'pill story', title: 'Une fiche campagne reste visible 24 h.' }, icon('i-clock', 'icon sm'), left) : null;
 }
 
+/*
+ * « Ce que tu y gagnes » (liens de l'équipe) : texte de l'annonceur saisi par
+ * l'équipe, affiché tel quel ; HAISSEL ne promet jamais de gain.
+ */
+function benefitLine(offer) {
+  if (!offer.member_benefit) return null;
+  return h('p', { className: 'offer-benefit' }, h('strong', null, 'Ce que tu y gagnes : '), offer.member_benefit);
+}
+
+/*
+ * Badge du type d'offre, partout où une offre apparaît (fil, Découvrir,
+ * stories, page de l'offre). Lien de l'équipe : « Lien affilié » visible,
+ * avec « En savoir plus » vers la page Transparence. Fiche d'un membre :
+ * « Fiche membre · lien officiel ».
+ */
 function kindBadge(offer) {
   if (offer.kind === 'campaign') {
-    return h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
-      icon('i-info', 'icon sm'), 'Fiche campagne');
+    return h('span', { className: 'kind-badge' },
+      h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
+        icon('i-info', 'icon sm'), 'Fiche membre · lien officiel'));
   }
-  return h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.' },
-    icon('i-link', 'icon sm'), 'Lien affilié');
+  return h('span', { className: 'kind-badge' },
+    h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.' },
+      icon('i-link', 'icon sm'), 'Lien affilié'),
+    h('a', { className: 'kind-more', href: 'transparence.html' }, 'En savoir plus'));
 }
 
 /*
@@ -963,7 +1036,8 @@ function communityCard(offer, { preview = false } = {}) {
       offer.domain ? h('p', { className: 'fc-domain' }, offer.domain) : null,
       h('p', { className: 'fc-todo' },
         icon('i-check-circle'),
-        h('span', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action))),
+        h('span', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action)),
+      benefitLine(offer)),
     h('div', { className: 'fc-actions' },
       h('button', {
         className: 'offer-link-button', type: 'button', disabled: preview,
@@ -1044,6 +1118,8 @@ function offerDetail(offer) {
         offer.min_age ? fact('Âge minimum', `${offer.min_age} ans`) : null,
         // Aucun montant inventé : seulement ce que l'auteur a saisi, avec la mise en garde.
         fact('Rémunération annoncée', offer.payout_text, 'indicatif, non garanti'),
+        // Lien de l'équipe : ce que l'ANNONCEUR donne au membre (jamais une promesse de HAISSEL).
+        fact('Ce que tu y gagnes', offer.member_benefit, 'donné par l’annonceur, selon ses conditions'),
         fact('Site', offer.domain))),
 
     h('section', { className: 'od-card', 'aria-labelledby': 'offer-todo-title' },
@@ -1138,9 +1214,9 @@ function readFiltersFromUrl() {
   state.community.pendingCategory = category || '';
 }
 
-/** Petit loader centré (suite du fil, résultats de Recherche). */
+/** Petite roue centrée (suite du fil, résultats de Recherche) : spinner.js. */
 function loaderRow() {
-  return h('div', { className: 'loader-row' }, h('div', { className: 'loader is-small', role: 'status', 'aria-label': 'Chargement' }));
+  return window.HaisselSpinner.spinnerRow({ size: 28 });
 }
 
 /** Retire l'écran de démarrage (boot.js) ; sans effet après la première fois. */
@@ -1183,10 +1259,11 @@ async function loadCommunity() {
     ui.communityList.replaceChildren(...(items.length
       ? items.map((offer) => gridTile(offer))
       : [query
-        ? h('div', { className: 'search-empty' },
+        ? h('div', { className: 'search-empty mascot-state' }, bear('aucun-resultat', 140),
           h('p', null, 'Aucun résultat'),
           h('button', { className: 'secondary-button', type: 'button', onclick: clearSearch }, 'Effacer les filtres'))
         : h('div', { className: 'panel-card' }, 'Aucune offre de la communauté pour le moment. Sois le premier à en publier une !')]));
+    if (items.length && ui.communityList.offsetParent) window.HaisselMotion?.cascade(ui.communityList);
 
     /*
      * Accueil : le fil complet, sans filtre. On ne le met à jour que lorsque
@@ -1200,18 +1277,22 @@ async function loadCommunity() {
       const feed = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
       ui.homeOffers.replaceChildren(...(feed.length
         ? feed.map((offer) => postCard(offer))
-        : [h('div', { className: 'panel-card' },
-          'Aucune offre pour le moment. Tu peux être le premier à en publier une.')]));
+        : [h('div', { className: 'panel-card mascot-state' }, bear('vide-dodo', 140),
+          h('p', null, 'Aucune offre pour le moment. Tu peux être le premier à en publier une.'))]));
+      // Premier rendu visible : entrée en cascade (8 éléments au plus, motion.js).
+      if (feed.length && ui.homeOffers.offsetParent) window.HaisselMotion?.cascade(ui.homeOffers);
     }
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.communityList.setAttribute('aria-busy', 'false');
-    ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+    ui.communityList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
       h('p', null, `Impossible de charger les offres : ${error.message}`),
       h('button', { className: 'secondary-button', type: 'button', onclick: loadCommunity }, 'Réessayer')));
+    // Découvrir : pas d'écran noir en cas d'erreur, l'état vide propose « Actualiser ».
+    if (!communityQuery()) renderDiscover([]);
     if (ui.homeOffers) {
-      ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
-        'Offres indisponibles pour le moment.'));
+      ui.homeOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
+        h('p', null, 'Offres indisponibles pour le moment.')));
     }
   } finally {
     // Premier rendu de l'Accueil (stories et fil, état vide ou erreur).
@@ -1269,10 +1350,15 @@ function openSheet(dialog) {
   if (dialog.open) return;
   const panel = dialog.querySelector('.sheet-panel');
   sheets.get(dialog).closing = false;
+  // Focus initial sans anneau : il n'apparaît qu'après une touche du clavier dans la feuille.
+  dialog.dataset.noRing = '';
+  dialog.addEventListener('keydown', () => { delete dialog.dataset.noRing; }, { once: true });
   dialog.showModal();
   panel.style.transform = '';
+  dialog.style.setProperty('--sheet-fade', '1');
   if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
-  else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  // Montée avec ressort (même courbe que le Liquid Glass) ; la fermeture est plus rapide.
+  else panel.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 350, easing: 'cubic-bezier(.34, 1.2, .55, 1)' });
 }
 
 function closeSheet(dialog, { apply = false } = {}) {
@@ -1290,44 +1376,70 @@ function closeSheet(dialog, { apply = false } = {}) {
   const animation = reducedMotion()
     ? panel.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
     : panel.animate([{ transform: panel.style.transform || 'none' }, { transform: 'translateY(100%)' }],
-      { duration: 250, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+      { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
   animation.finished.then(() => { done(); animation.cancel(); }, done);
 }
 
+/*
+ * Geste commun à toutes les feuilles (sheet-gesture.js) : glisser vers le bas
+ * depuis n'importe où (poignée et titre sans défilement natif, touch-action:
+ * none) ; la direction est décidée au premier mouvement, un balayage
+ * horizontal (carrousel du tuto) ne ferme rien. La feuille suit le doigt, le
+ * fond s'éclaircit ; au lâcher : fermeture (25 % ou lancer) ou retour avec
+ * ressort. Le fond assombri et Échap ferment aussi.
+ */
 function bindSheet(dialog, { beforeClose = null, onClose = null } = {}) {
   const entry = { closing: false, drag: null, beforeClose, onClose };
   sheets.set(dialog, entry);
   const panel = dialog.querySelector('.sheet-panel');
+  const Gesture = window.HaisselSheetGesture;
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeSheet(dialog); });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) closeSheet(dialog); });
   dialog.querySelectorAll('[data-close-sheet]').forEach((button) => button.addEventListener('click', () => closeSheet(dialog)));
+  const paintDrag = (dy) => {
+    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+    dialog.style.setProperty('--sheet-fade', String(Gesture.backdropOpacity(dy, panel.offsetHeight)));
+  };
   panel.addEventListener('pointerdown', (event) => {
     // Les contrôles natifs gardent leur comportement (roue iOS, menu Android).
-    if (event.target.closest('select, input, button, label, a') || event.button > 0) return;
-    entry.drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0, vy: 0 };
-    panel.setPointerCapture(event.pointerId);
+    if (event.target.closest('select, input, textarea, label, a') || event.button > 0 || entry.closing) return;
+    // Contenu qui défile : on ne ferme que depuis le haut de la feuille.
+    if (panel.scrollTop > 0 && !event.target.closest('.sheet-grabber, .sheet-title')) return;
+    const drag = Gesture.createSheetDrag({ height: panel.offsetHeight });
+    drag.start(event.clientX, event.clientY, event.timeStamp);
+    entry.drag = { id: event.pointerId, drag, captured: false };
   });
   panel.addEventListener('pointermove', (event) => {
-    const drag = entry.drag;
-    if (!drag || drag.id !== event.pointerId) return;
-    const dy = Math.max(0, event.clientY - drag.y);
-    const dt = Math.max(1, event.timeStamp - drag.t);
-    drag.vy = (dy - drag.dy) / dt;
-    drag.dy = dy;
-    drag.t = event.timeStamp;
-    panel.style.transform = dy ? `translateY(${dy}px)` : '';
+    const current = entry.drag;
+    if (!current || current.id !== event.pointerId) return;
+    const { axis, dy } = current.drag.move(event.clientX, event.clientY, event.timeStamp);
+    if (axis === 'other') { entry.drag = null; return; }
+    if (axis !== 'down') return;
+    if (!current.captured) {
+      current.captured = true;
+      try { panel.setPointerCapture(event.pointerId); } catch (error) { /* pointeur déjà relâché */ }
+    }
+    paintDrag(dy);
   });
+  // Le clic qui suit un glissement ne doit pas toucher un bouton (« Suivant »…).
+  panel.addEventListener('click', (event) => {
+    if (!entry.justDragged) return;
+    entry.justDragged = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
   const release = (event) => {
-    const drag = entry.drag;
-    if (!drag || drag.id !== event.pointerId) return;
+    const current = entry.drag;
+    if (!current || current.id !== event.pointerId) return;
     entry.drag = null;
-    const decision = event.type === 'pointercancel' ? 'restore'
-      : window.HaisselStories.decideRelease('dismiss', { dy: drag.dy, vy: drag.vy, height: panel.offsetHeight });
+    const decision = event.type === 'pointercancel' && current.drag.dy === 0 ? 'ignore' : current.drag.end();
+    if (decision === 'ignore') return;
+    entry.justDragged = current.drag.dy > 0;
+    window.setTimeout(() => { entry.justDragged = false; }, 0);
     if (decision === 'close') { closeSheet(dialog); return; }
-    if (!drag.dy) return;
     const from = panel.style.transform;
-    panel.style.transform = '';
-    if (!reducedMotion()) panel.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+    paintDrag(0);
+    if (from && !reducedMotion()) panel.animate([{ transform: from }, { transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
   };
   panel.addEventListener('pointerup', release);
   panel.addEventListener('pointercancel', release);
@@ -1393,7 +1505,7 @@ async function loadActivity() {
     } catch (error) {
       if (error.status === 401 || error.status === 403) return;
       if (!activity.loaded && document.body.dataset.view === 'notifications') {
-        ui.activityList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+        ui.activityList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
           h('p', null, 'Impossible d’afficher ton activité pour le moment.'),
           h('button', { className: 'secondary-button', type: 'button', onclick: loadActivity }, 'Réessayer')));
       }
@@ -1430,7 +1542,9 @@ function activityRow(item, seenAt) {
   return h('li', null, h(opens ? 'button' : 'div', {
     className: `activity-row${unread ? ' is-unread' : ''}`, ...(opens ? { type: 'button', onclick: () => openActivityItem(item) } : {}),
   },
-  h('span', { className: `activity-icon tone-${info.tone}`, 'aria-hidden': 'true' }, icon(info.icon)),
+  item.type === 'team_message'
+    ? h('span', { className: 'activity-icon is-team' }, teamAvatar(40))
+    : h('span', { className: `activity-icon tone-${info.tone}`, 'aria-hidden': 'true' }, icon(info.icon)),
   h('span', { className: 'activity-text' },
     h('span', { className: 'activity-phrase' }, info.text),
     h('time', { className: 'activity-time', datetime: item.at }, window.HaisselActivity.relativeTime(item.at))),
@@ -1443,8 +1557,7 @@ function renderActivity() {
     return;
   }
   if (!activity.items.length) {
-    ui.activityList.replaceChildren(h('div', { className: 'activity-empty' },
-      h('span', { className: 'activity-empty-icon', 'aria-hidden': 'true' }, icon('i-bell', 'icon lg')),
+    ui.activityList.replaceChildren(h('div', { className: 'activity-empty mascot-state' }, bear('vide-dodo', 140),
       h('p', null, 'Rien de nouveau pour l’instant.')));
     return;
   }
@@ -1529,6 +1642,28 @@ async function renderNotifSetting() {
     : 'Désactivées. Active-les pour que HAISSEL te prévienne des nouveautés.';
 }
 
+/* Réglages : « Profil visible par les membres » (désactivé par défaut). */
+function renderProfileVisibility() {
+  const toggle = document.getElementById('profile-public-switch');
+  if (toggle && state.user) toggle.checked = Boolean(state.user.profile_public);
+}
+
+async function handleProfileVisibility(event) {
+  const toggle = event.target;
+  const wanted = toggle.checked;
+  toggle.disabled = true;
+  try {
+    const data = await api('/api/auth/me/profile-visibility', { method: 'POST', body: { public: wanted } });
+    state.user.profile_public = data.profile_public;
+  } catch (error) {
+    toggle.checked = !wanted;
+    window.HaisselMotion?.toast(error.message, { check: false });
+  } finally {
+    toggle.disabled = false;
+    renderProfileVisibility();
+  }
+}
+
 async function handleNotifSwitch() {
   // La permission n'est demandée qu'ici, au toucher de l'interrupteur.
   const wanted = ui.notifSwitch.checked;
@@ -1538,6 +1673,14 @@ async function handleNotifSwitch() {
     : await window.HaisselPush.disable(pushDeps());
   await renderNotifSetting();
   if (result === 'error') ui.notifHelp.textContent = 'Activation impossible pour le moment. Réessaie dans un instant.';
+  else if (wanted && ui.notifSwitch.checked) window.HaisselMotion?.toast('Notifications activées', { mascot: 'notifications' });
+}
+
+/* Feuille « Comment faire ? » : le carrousel repart de la première étape. */
+let tuto = null;
+function openHowto() {
+  openSheet(ui.howtoSheet);
+  if (tuto) tuto.reset();
 }
 
 // ---------------------------------------------------------------------------
@@ -1585,8 +1728,8 @@ async function installBannerMode() {
 
 async function renderInstallUi() {
   const current = installState();
-  ui.installRow.hidden = current !== 'prompt' && current !== 'ios-safari';
-  ui.installHelp.hidden = current !== 'ios-other';
+  // Ligne toujours visible ; une fois installée, elle ouvre quand même le tuto (pour aider un ami).
+  ui.installRowLabel.textContent = current === 'installed' ? 'Application installée ✓' : 'Installer l’app sur ton téléphone';
   const mode = state.user ? await installBannerMode() : null;
   ui.installBanner.hidden = !mode;
   ui.installBanner.dataset.mode = mode || '';
@@ -1601,11 +1744,82 @@ async function renderInstallUi() {
   }
 }
 
-/** Ligne de Réglages ou bouton « Installer » : invite Android, ou feuille « Comment faire ? » sur iPhone. */
+/*
+ * Feuille d'installation adaptée à l'appareil (install.js, tutoKind) :
+ * 'ios' → carrousel « Comment faire ? » ; 'android' → invite native ;
+ * 'safari' → « Ouvre HAISSEL dans Safari » et « Copier le lien ».
+ */
+let installSheetKind = null;
+
+function openInstallGuide(kind) {
+  if (kind !== 'android' && kind !== 'safari') {
+    openHowto();
+    return;
+  }
+  installSheetKind = kind;
+  ui.installSheetStatus.textContent = '';
+  if (kind === 'android') {
+    ui.installSheetTitle.textContent = 'Installe HAISSEL';
+    ui.installSheetText.textContent = 'Ajoute HAISSEL à ton écran d’accueil : il s’ouvre comme une application et peut te prévenir des nouveautés.';
+    ui.installSheetAction.textContent = 'Installer';
+  } else {
+    ui.installSheetTitle.textContent = 'Ouvre HAISSEL dans Safari';
+    ui.installSheetText.textContent = 'Ouvre HAISSEL dans Safari pour l’installer : seul Safari peut l’ajouter à l’écran d’accueil de l’iPhone.';
+    ui.installSheetAction.textContent = 'Copier le lien';
+  }
+  openSheet(ui.installSheet);
+}
+
+async function handleInstallSheetAction() {
+  if (installSheetKind === 'safari') {
+    const link = `${window.location.origin}/app`;
+    try {
+      await navigator.clipboard.writeText(link);
+      ui.installSheetStatus.textContent = 'Lien copié : colle-le dans Safari.';
+    } catch (error) {
+      ui.installSheetStatus.textContent = `Copie impossible : ${link}`;
+    }
+    return;
+  }
+  await runInstall();
+  closeSheet(ui.installSheet);
+}
+
+/* Feuille fermée (quelle que soit l'étape) : « vue » sur le compte, plus d'ouverture automatique. */
+function markInstallTutoSeen() {
+  if (!state.user || state.user.install_tuto_seen) return;
+  state.user.install_tuto_seen = true;
+  api('/api/auth/install-tuto/seen', { method: 'POST' }).catch(() => {});
+}
+
+/*
+ * Ouverture automatique après la première connexion du compte, seulement si
+ * elle est utile sur cet appareil. Jamais par-dessus l'écran de chargement ni
+ * la question de majorité : on attend qu'ils soient partis.
+ */
+const autoTuto = { timer: 0, done: false, tries: 0 };
+
+function scheduleAutoTuto() {
+  clearTimeout(autoTuto.timer);
+  if (autoTuto.done || !state.user) return;
+  const kind = window.HaisselInstall.autoTutoKind({ seen: Boolean(state.user.install_tuto_seen), state: installState() });
+  if (!kind) return;
+  const gate = document.getElementById('age-gate');
+  const blocked = document.getElementById('boot-screen') || (gate && !gate.hidden) || document.querySelector('dialog[open]');
+  if (blocked) {
+    autoTuto.tries += 1;
+    if (autoTuto.tries < 200) autoTuto.timer = setTimeout(scheduleAutoTuto, 300);
+    return;
+  }
+  autoTuto.done = true;
+  openInstallGuide(kind);
+}
+
+/** Bouton « Installer » de la bannière : invite Android, ou feuille « Comment faire ? » sur iPhone. */
 async function runInstall() {
   const current = installState();
   if (current === 'ios-safari') {
-    openSheet(ui.howtoSheet);
+    openHowto();
     return;
   }
   const event = window.HaisselInstall.deferred;
@@ -1779,18 +1993,29 @@ function storyCard(offer) {
       h('p', null, offer.tips)) : null);
 }
 
+/* Menu « … » : ouvert depuis le point touché, fermé en 120 ms (motion.js). */
 function storyMenu(offer) {
+  const motion = window.HaisselMotion;
+  const hide = () => {
+    toggle.setAttribute('aria-expanded', 'false');
+    if (motion) motion.closeMenu(menu, () => menu.classList.add('hidden'));
+    else menu.classList.add('hidden');
+  };
   const menu = h('div', { className: 'sv-menu lg-glass hidden', role: 'menu' },
     h('button', {
       type: 'button', role: 'menuitem',
       // Le lecteur reste en pause tant qu'une fenêtre est ouverte (voir tickStory).
-      onclick: () => { menu.classList.add('hidden'); pauseStory(false); openReport(offer); },
+      onclick: () => { hide(); pauseStory(false); openReport(offer); },
     }, icon('i-flag', 'icon sm'), 'Signaler'));
   const toggle = h('button', {
     className: 'sv-round', type: 'button', 'aria-label': 'Plus d’actions', 'aria-haspopup': 'menu',
-    onclick: () => {
-      const open = menu.classList.toggle('hidden') === false;
-      toggle.setAttribute('aria-expanded', String(open));
+    onclick: (event) => {
+      const open = menu.classList.contains('hidden');
+      if (open) {
+        menu.classList.remove('hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+        motion?.openMenu(menu, { x: event.clientX, y: event.clientY });
+      } else hide();
       pauseStory(open);
     },
   }, '…');
@@ -2117,6 +2342,11 @@ function openStoryViewer(groups, g, i, fromElement = null) {
   pauseStory(false);
   paintStory();
 
+  // L'anneau touché tourne le temps de l'ouverture (motion.css).
+  if (fromElement?.classList.contains('story-ring')) {
+    fromElement.classList.add('is-loading');
+    setTimeout(() => fromElement.classList.remove('is-loading'), 450);
+  }
   const rect = fromElement?.getBoundingClientRect();
   if (rect && rect.width && !reducedMotion()) {
     viewer.face.animate([
@@ -2172,102 +2402,266 @@ function closeStoryViewer() {
 }
 
 // ---------------------------------------------------------------------------
-// Messages : conversation avec l'équipe
+// Messages : liste des conversations et conversation avec l'équipe
 // ---------------------------------------------------------------------------
 
 /*
- * Une seule conversation, avec l'équipe. Texte brut affiché par textContent
- * (h() crée des nœuds texte) : rien n'est interprété, aucun lien cliquable.
- * Pas de flux temps réel sur Vercel : interrogation toutes les 15 s tant
- * que la conversation est ouverte ; pastille vérifiée à chaque changement de
- * vue et toutes les 60 s quand la page est visible.
+ * Conversation avec l'équipe. Texte brut affiché par textContent (h() crée
+ * des nœuds texte) : rien n'est interprété, aucun lien cliquable.
+ *
+ * Pas de flux temps réel sur Vercel : interrogation toutes les 4 s quand la
+ * conversation est ouverte et visible, toutes les 60 s sinon (pastille),
+ * arrêtée quand l'onglet est caché (HaisselChat.pollDelay).
+ *
+ * La conversation n'est jamais redessinée en entier : chaque ligne a une clé
+ * stable (layoutThread) ; on crée seulement les nouvelles et on met à jour
+ * les autres sur place. Les conversations déjà ouvertes restent en mémoire
+ * (chatCache) : réouverture instantanée, puis rafraîchissement.
  */
-const CHAT_POLL_MS = 15000;
-const UNREAD_POLL_MS = 60000;
 // Champ de saisie : 5 lignes au plus, puis il défile.
 const CHAT_MAX_LINES = 5;
-const chat = { timer: 0, unreadTimer: 0, signature: '', viewport: null, sending: false, fullHeight: 0 };
+const LONG_PRESS_MS = 450;
+// Distance au bas de la liste sous laquelle on suit les nouveaux messages.
+const CHAT_STICK_PX = 80;
+const chat = { pollTimer: 0, viewport: null, fullHeight: 0, open: false, unread: 0 };
+const chatCache = new Map();
+const NO_MESSAGE_TEXT = 'Pas encore de message. Pose ta question, l’équipe te répond ici.';
 
-function paintUnread(count) {
-  ui.navMessagesBadge.hidden = !count;
-  ui.teamThreadDot.hidden = !count;
-  ui.teamThreadOpen.classList.toggle('is-unread', Boolean(count));
-  ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
+/** Conversation en mémoire : messages (serveur + envois optimistes) et lignes affichées, par clé. */
+function teamThread() {
+  let entry = chatCache.get('team');
+  if (!entry) {
+    entry = {
+      loaded: false,
+      nodes: new Map(),
+      store: window.HaisselChat.createThreadStore({
+        send: async (content) => (await api('/api/messages/team', { method: 'POST', body: { content } })).message,
+      }),
+    };
+    chatCache.set('team', entry);
+  }
+  return entry;
 }
 
-/** Ligne de la liste : aperçu du dernier message (textContent) et heure. */
-function paintThreadPreview(last) {
-  if (!last) return;
-  ui.teamThreadPreview.textContent = `${last.from_team ? '' : 'Toi : '}${last.content}`;
-  ui.teamThreadTime.textContent = window.HaisselChat.listTimeLabel(last.created_at);
-  ui.teamThreadTime.setAttribute('datetime', last.created_at);
+function resetChat() {
+  stopPolling();
+  closeChat();
+  chatCache.clear();
+  ui.chatMessages.replaceChildren();
+}
+
+// --- Pastille de non-lus (icône de l'onglet Messages) ------------------------
+
+function paintUnread(count) {
+  chat.unread = count;
+  ui.navMessagesBadge.hidden = !count;
+  ui.navMessagesBadge.closest('button')?.setAttribute('aria-label', count ? `Messages (${count} non lu${count > 1 ? 's' : ''})` : 'Messages');
 }
 
 async function refreshUnread() {
   if (!state.user) return;
   try {
     const data = await api('/api/messages/unread');
-    paintUnread(data.unread);
-    paintThreadPreview(data.last);
+    // Conversation ouverte et visible : ses réponses sont déjà lues.
+    paintUnread(chat.open && document.visibilityState === 'visible' ? 0 : data.unread);
   } catch (error) { /* pastille seulement : on réessaiera */ }
   // Même rythme pour la cloche (Activité).
   loadActivity();
 }
 
-function startUnreadPolling() {
-  clearInterval(chat.unreadTimer);
-  refreshUnread();
-  chat.unreadTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshUnread(); }, UNREAD_POLL_MS);
+// --- Interrogation ----------------------------------------------------------
+
+function stopPolling() {
+  clearTimeout(chat.pollTimer);
+  chat.pollTimer = 0;
 }
 
-/* Lignes de la conversation (chat-thread.js) : texte toujours via h(), donc textContent. */
-function chatRow(row) {
-  if (row.type === 'stamp') {
-    return h('p', { className: 'chat-stamp' }, h('time', { datetime: row.at }, window.HaisselChat.stampLabel(row.at)));
+function schedulePoll() {
+  stopPolling();
+  if (!state.user) return;
+  const delay = window.HaisselChat.pollDelay({ open: chat.open, visible: document.visibilityState === 'visible' });
+  if (delay !== null) chat.pollTimer = setTimeout(pollTick, delay);
+}
+
+async function pollTick() {
+  stopPolling();
+  if (chat.open) await loadChat();
+  else await refreshUnread();
+  schedulePoll();
+}
+
+function startUnreadPolling() {
+  refreshUnread();
+  schedulePoll();
+}
+
+// --- Conversation : lignes à clé, mises à jour sur place --------------------
+
+function chatRowNode(row) {
+  if (row.type === 'day' || row.type === 'stamp') {
+    const label = row.type === 'day' ? window.HaisselChat.dayLabel(row.at) : window.HaisselChat.hourLabel(row.at);
+    return h('p', { className: row.type === 'day' ? 'chat-day' : 'chat-stamp' }, h('time', { datetime: row.at }, label));
   }
-  const classes = ['bubble', row.mine ? 'from-me' : 'from-team'];
-  if (row.groupStart) classes.push('group-start');
-  if (row.tail) classes.push('tail');
-  const bubble = h('div', { className: classes.join(' '), title: new Date(row.message.created_at).toLocaleString('fr-FR') },
+  return chatRow(row);
+}
+
+/* Une bulle (texte toujours via h(), donc textContent) et, pour mes messages, son état d'envoi. */
+function chatRow(row) {
+  const bubble = h('div', { className: `bubble ${row.mine ? 'from-me' : 'from-team'}` },
     h('span', { className: 'visually-hidden' }, row.mine ? 'Toi : ' : 'Équipe Haissel : '),
     h('p', null, row.message.content));
-  if (!row.sent) return bubble;
-  return h('div', { className: 'bubble-wrap from-me' }, bubble, h('span', { className: 'chat-receipt' }, 'Envoyé'));
+  const node = h('div', { className: `bubble-row ${row.mine ? 'from-me' : 'from-team'}` }, bubble);
+  node.dataset.key = row.key;
+  if (row.mine) node.append(h('span', { className: 'chat-receipt', 'aria-live': 'polite' }));
+  updateChatRow(node, row);
+  return node;
 }
 
-function scrollChatToEnd() {
-  ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
-}
+const RECEIPTS = { sending: 'Envoi…', failed: 'Toucher pour réessayer' };
 
-function renderChat(messages) {
-  if (!messages.length) {
-    chat.signature = '';
-    ui.chatMessages.replaceChildren(h('p', { className: 'chat-empty' }, 'Pose ta question : l’équipe te répond ici.'));
-    return;
+function updateChatRow(node, row) {
+  if (row.type !== 'bubble') return;
+  const bubble = node.firstChild;
+  bubble.classList.toggle('group-start', row.groupStart);
+  bubble.classList.toggle('tail', row.tail);
+  bubble.title = new Date(row.message.created_at).toLocaleString('fr-FR');
+  if (!row.mine) return;
+  const status = row.status || (row.sent ? 'sent' : '');
+  if (node.dataset.status === status) return;
+  node.dataset.status = status;
+  node.classList.toggle('is-failed', status === 'failed');
+  node.classList.toggle('is-sending', status === 'sending');
+  const receipt = node.querySelector('.chat-receipt');
+  receipt.textContent = status === 'sent' ? 'Envoyé' : RECEIPTS[status] || '';
+  receipt.hidden = !status;
+  node.querySelector('.bubble-alert')?.remove();
+  if (status === 'failed') {
+    // Point d'exclamation rouge collé à la bulle : toute la ligne réessaie l'envoi.
+    bubble.append(h('button', { className: 'bubble-alert', type: 'button', 'aria-label': 'Message non envoyé. Réessayer' }, '!'));
   }
-  // Rien de neuf : on ne touche pas au DOM (pas de saut de défilement).
-  const last = messages[messages.length - 1];
-  const signature = `${messages.length}:${last.id}`;
-  if (signature === chat.signature) return;
-  const atBottom = ui.chatMessages.scrollHeight - ui.chatMessages.scrollTop - ui.chatMessages.clientHeight < 60;
-  const grew = chat.signature !== '';
-  chat.signature = signature;
-  ui.chatMessages.replaceChildren(...window.HaisselChat.layoutThread(messages).map(chatRow));
-  if (atBottom || !grew || !last.from_team) scrollChatToEnd();
-  paintThreadPreview(last);
+}
+
+/** Premier élément visible : repère pour que rien ne saute quand des lignes s'ajoutent au-dessus. */
+function firstVisibleRow(list) {
+  const top = list.getBoundingClientRect().top;
+  return [...list.children].find((node) => node.getBoundingClientRect().bottom > top) || null;
+}
+
+/*
+ * Rapproche le DOM de la liste calculée : lignes disparues retirées, nouvelles
+ * créées et insérées à leur place, existantes seulement mises à jour.
+ * Renvoie les lignes créées et si l'on était en bas avant.
+ */
+function renderChat() {
+  const entry = teamThread();
+  const list = ui.chatMessages;
+  const messages = entry.store.messages();
+  const empty = list.querySelector('.chat-empty:not(.is-leaving)');
+  // Ours « aucun message » : conversation chargée et vraiment vide (0 message), rien d'autre.
+  if (window.HaisselChat.showEmptyState(messages, entry.loaded)) {
+    if (!empty) {
+      list.replaceChildren(h('div', { className: 'chat-empty mascot-state' }, bear('aucun-message', 120), h('p', null, NO_MESSAGE_TEXT)));
+      entry.nodes.clear();
+    }
+    return { created: [], atBottom: true };
+  }
+  if (!messages.length) return { created: [], atBottom: true };
+  // Premier message (même optimiste) : l'ours s'efface aussitôt en 150 ms.
+  if (empty) {
+    empty.classList.add('is-leaving');
+    window.setTimeout(() => empty.remove(), reducedMotion() ? 0 : 150);
+  }
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX;
+  const anchor = atBottom ? null : firstVisibleRow(list);
+  const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
+
+  const rows = window.HaisselChat.layoutThread(messages);
+  const keep = new Set(rows.map((row) => row.key));
+  for (const [key, node] of entry.nodes) {
+    if (!keep.has(key)) { node.remove(); entry.nodes.delete(key); }
+  }
+  const created = [];
+  let previous = null;
+  rows.forEach((row) => {
+    let node = entry.nodes.get(row.key);
+    if (node) updateChatRow(node, row);
+    else {
+      node = chatRowNode(row);
+      entry.nodes.set(row.key, node);
+      created.push({ row, node });
+    }
+    const expected = previous ? previous.nextSibling : list.firstChild;
+    if (node !== expected) list.insertBefore(node, expected);
+    previous = node;
+  });
+  // Ancrage : le message qu'on lisait reste à la même hauteur.
+  if (anchor && anchor.isConnected) {
+    const delta = anchor.getBoundingClientRect().top - anchorTop;
+    if (Math.abs(delta) > 1) list.scrollTop += delta;
+  }
+  return { created, atBottom };
+}
+
+function scrollChatToEnd(smooth = false) {
+  const list = ui.chatMessages;
+  if (smooth && !reducedMotion()) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+  else list.scrollTop = list.scrollHeight;
+  ui.chatNew.hidden = true;
 }
 
 async function loadChat() {
+  const entry = teamThread();
   try {
     const data = await api('/api/messages/team');
-    renderChat(data.messages || []);
+    const added = entry.store.applyServer(data.messages || []);
+    const first = !entry.loaded;
+    entry.loaded = true;
+    const { created, atBottom } = renderChat();
     paintUnread(0);
+    if (first) { scrollChatToEnd(); return; }
+    // Nouveaux messages : la bulle apparaît depuis son coin (motion.css).
+    created.forEach(({ row, node }) => { if (row.type === 'bubble') node.firstChild.classList.add('m-new'); });
+    if (atBottom) scrollChatToEnd(true);
+    else if (added.length) ui.chatNew.hidden = false;
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.chatError.textContent = error.message;
     ui.chatError.classList.remove('hidden');
   }
 }
+
+/*
+ * Envoi optimiste : la bulle apparaît tout de suite (« Envoi… »), le champ
+ * se vide, puis « Envoyé ». En cas d'échec : point d'exclamation rouge et
+ * « Toucher pour réessayer ». Les envois partent dans l'ordre (createThreadStore).
+ */
+function sendChat() {
+  const content = ui.chatInput.value.trim();
+  if (!content) return;
+  ui.chatError.classList.add('hidden');
+  ui.chatInput.value = '';
+  fitChatInput();
+  const { done } = teamThread().store.post(content);
+  showSent(done);
+  ui.chatInput.focus({ preventScroll: true });
+}
+
+function retryChat(key) {
+  const done = teamThread().store.retry(key);
+  if (done) showSent(done);
+}
+
+function showSent(done) {
+  const { created } = renderChat();
+  // Montée depuis la barre de saisie (motion.css, .m-send).
+  created.forEach(({ row, node }) => { if (row.type === 'bubble') node.firstChild.classList.add('m-send'); });
+  scrollChatToEnd(true);
+  done.then(() => {
+    renderChat();
+  });
+}
+
+// --- Ouverture, fermeture, gestes -------------------------------------------
 
 /*
  * Clavier iOS : la page ne rétrécit pas, seul visualViewport change. La
@@ -2277,8 +2671,6 @@ async function loadChat() {
 function fitChatToViewport() {
   const vv = window.visualViewport;
   if (!vv || ui.teamThread.hidden) return;
-  ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop}px`);
-  ui.teamThread.style.setProperty('--chat-height', `${vv.height}px`);
   /*
    * Clavier ouvert : la zone sûre du bas est déjà couverte par le clavier.
    * Le seuil compare à la plus grande hauteur vue : depuis l'écran d'accueil
@@ -2288,9 +2680,19 @@ function fitChatToViewport() {
   const open = chat.fullHeight - vv.height > 120;
   const opened = open && !ui.teamThread.classList.contains('keyboard-open');
   ui.teamThread.classList.toggle('keyboard-open', open);
+  /*
+   * Entre l'en-tête de l'app et la barre du bas (qui garde la pastille) ;
+   * clavier ouvert, la barre du bas est sous le clavier : collée au clavier.
+   */
+  const header = document.querySelector('.topbar');
+  const nav = document.querySelector('.topbar-nav');
+  const top = Math.max(0, header ? header.getBoundingClientRect().bottom : 0);
+  const navHeight = !open && nav && nav.getClientRects().length ? Math.max(0, window.innerHeight - nav.getBoundingClientRect().top) : 0;
+  ui.teamThread.style.setProperty('--chat-top', `${vv.offsetTop + top}px`);
+  ui.teamThread.style.setProperty('--chat-height', `${Math.max(200, vv.height - top - navHeight)}px`);
   const list = ui.chatMessages;
   // À l'ouverture du clavier : dernier message. Sinon, on reste en bas si on y était.
-  if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < 80) scrollChatToEnd();
+  if (opened || list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX) scrollChatToEnd();
 }
 
 /* Hauteur de la barre de saisie (superposée) : marge du bas de la liste. */
@@ -2325,56 +2727,162 @@ function fitChatInput() {
   const extra = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
   input.style.height = '';
   input.style.height = `${Math.min(input.scrollHeight + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth), line * CHAT_MAX_LINES + extra)}px`;
-  if (!chat.sending) ui.chatSend.disabled = !input.value.trim();
+  ui.chatSend.disabled = !input.value.trim();
 }
 
+/*
+ * Côté membre, l'onglet Messages est directement la conversation avec
+ * l'équipe : seul interlocuteur possible. Elle s'affiche à l'entrée dans
+ * l'onglet (déjà en mémoire : instantané) et se ferme quand on le quitte.
+ */
 function openChat() {
-  ui.messagesInbox.hidden = true;
+  if (chat.open) return;
+  chat.open = true;
   ui.teamThread.hidden = false;
   document.body.classList.add('chat-open');
   ui.chatError.classList.add('hidden');
-  chat.signature = '';
   fitChatInput();
   watchChatForm();
   watchViewport(true);
-  loadChat();
-  clearInterval(chat.timer);
-  chat.timer = setInterval(loadChat, CHAT_POLL_MS);
-  ui.chatInput.focus({ preventScroll: true });
+  renderChat();
+  scrollChatToEnd();
+  pollTick();
 }
 
 function closeChat() {
-  clearInterval(chat.timer);
-  chat.timer = 0;
-  if (!ui.teamThread) return;
+  if (!chat.open) return;
+  chat.open = false;
+  closeBubbleMenu();
+  ui.chatNew.hidden = true;
   watchViewport(false);
   ui.teamThread.hidden = true;
-  ui.messagesInbox.hidden = false;
   document.body.classList.remove('chat-open');
+  schedulePoll();
 }
 
-async function sendChat() {
-  const content = ui.chatInput.value.trim();
-  if (!content || chat.sending) return;
-  ui.chatError.classList.add('hidden');
-  chat.sending = true;
-  ui.chatSend.disabled = true;
-  ui.chatSend.setAttribute('aria-busy', 'true');
-  try {
-    await api('/api/messages/team', { method: 'POST', body: { content } });
-    ui.chatInput.value = '';
-    fitChatInput();
-    await loadChat();
-    scrollChatToEnd();
-  } catch (error) {
-    ui.chatError.textContent = error.message;
-    ui.chatError.classList.remove('hidden');
-  } finally {
-    chat.sending = false;
-    ui.chatSend.setAttribute('aria-busy', 'false');
-    fitChatInput();
-    ui.chatInput.focus({ preventScroll: true });
-  }
+/*
+ * Appui long : timer de 450 ms annulé si le doigt bouge de plus de 10 px.
+ * onPress(point) ; le clic qui suit un appui long est ignoré. Le clic droit
+ * (ordinateur) fait la même chose.
+ */
+function onLongPress(target, selector, onPress) {
+  let press = null;
+  const cancel = () => {
+    if (!press) return;
+    clearTimeout(press.timer);
+    press.el.classList.remove('is-pressed');
+    press = null;
+  };
+  target.addEventListener('pointerdown', (event) => {
+    delete target.dataset.longPressed;
+    const el = event.target.closest(selector);
+    if (!el || event.button > 0) return;
+    cancel();
+    el.classList.add('is-pressed');
+    const point = { x: event.clientX, y: event.clientY };
+    press = { el, point, fired: false, timer: setTimeout(() => {
+      press.fired = true;
+      press.el.classList.remove('is-pressed');
+      target.dataset.longPressed = '1';
+      onPress(el, point);
+    }, LONG_PRESS_MS) };
+  });
+  target.addEventListener('pointermove', (event) => {
+    if (press && !press.fired && Math.hypot(event.clientX - press.point.x, event.clientY - press.point.y) > 10) cancel();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => target.addEventListener(type, () => {
+    if (press && !press.fired) cancel();
+    else if (press) press = null;
+  }));
+  target.addEventListener('click', (event) => {
+    if (!target.dataset.longPressed) return;
+    delete target.dataset.longPressed;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+  target.addEventListener('contextmenu', (event) => {
+    const el = event.target.closest(selector);
+    if (!el) return;
+    event.preventDefault();
+    cancel();
+    onPress(el, { x: event.clientX, y: event.clientY });
+  });
+}
+
+// --- Appui long sur une bulle : Copier --------------------------------------
+
+let bubbleMenu = null;
+
+function openBubbleMenu(bubble) {
+  closeBubbleMenu();
+  const row = bubble.closest('.bubble-row');
+  const text = bubble.querySelector('p')?.textContent || '';
+  const backdrop = h('div', { className: 'bubble-backdrop' });
+  const menu = h('div', { className: 'bubble-menu lg-glass', role: 'menu', 'aria-label': 'Actions du message' },
+    h('button', {
+      type: 'button', role: 'menuitem',
+      onclick: async () => {
+        closeBubbleMenu();
+        try {
+          await navigator.clipboard.writeText(text);
+          window.HaisselMotion?.toast('Message copié');
+        } catch (error) {
+          window.HaisselMotion?.toast('Copie impossible sur ce navigateur', { check: false });
+        }
+      },
+    }, 'Copier'));
+  backdrop.addEventListener('click', closeBubbleMenu);
+  ui.teamThread.append(backdrop, menu);
+  row.classList.add('is-focused');
+  bubble.classList.add('is-lifted');
+  // Sous la bulle, ou au-dessus s'il n'y a pas la place.
+  const rect = bubble.getBoundingClientRect();
+  const host = ui.teamThread.getBoundingClientRect();
+  const below = rect.bottom + 8 + 52 < host.bottom - ui.chatForm.offsetHeight;
+  menu.style.top = `${(below ? rect.bottom + 8 : rect.top - 8 - 52) - host.top}px`;
+  if (row.classList.contains('from-me')) menu.style.right = `${host.right - rect.right}px`;
+  else menu.style.left = `${rect.left - host.left}px`;
+  bubbleMenu = { backdrop, menu, row, bubble };
+  window.HaisselMotion?.openMenu(menu, { x: row.classList.contains('from-me') ? rect.right : rect.left, y: below ? rect.bottom : rect.top });
+  menu.querySelector('button').focus({ preventScroll: true });
+}
+
+function closeBubbleMenu() {
+  if (!bubbleMenu) return;
+  const { backdrop, menu, row, bubble } = bubbleMenu;
+  bubbleMenu = null;
+  bubble.classList.remove('is-lifted');
+  backdrop.classList.add('is-leaving');
+  const done = () => { backdrop.remove(); menu.remove(); row.classList.remove('is-focused'); };
+  if (window.HaisselMotion) window.HaisselMotion.closeMenu(menu, done);
+  else done();
+}
+
+function bindMessages() {
+  onLongPress(ui.chatMessages, '.bubble', openBubbleMenu);
+  ui.chatMessages.addEventListener('click', (event) => {
+    const row = event.target.closest('.bubble-row.is-failed');
+    if (row) retryChat(row.dataset.key);
+  });
+  ui.chatMessages.addEventListener('scroll', () => {
+    const list = ui.chatMessages;
+    if (!ui.chatNew.hidden && list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX) ui.chatNew.hidden = true;
+  }, { passive: true });
+  ui.chatNew.addEventListener('click', () => scrollChatToEnd(true));
+  ui.teamThread.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeBubbleMenu(); });
+  ui.chatSend.addEventListener('click', sendChat);
+  ui.chatInput.addEventListener('input', fitChatInput);
+  // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
+  const touchInput = window.matchMedia('(hover: none) and (pointer: coarse)');
+  ui.chatInput.addEventListener('keydown', (event) => {
+    if (window.HaisselChat.enterSends(event, touchInput.matches)) { event.preventDefault(); sendChat(); }
+  });
+  // Onglet caché : plus d'interrogation ; au retour, tout de suite.
+  document.addEventListener('visibilitychange', () => {
+    if (!state.user) return;
+    if (document.visibilityState === 'visible') pollTick();
+    else stopPolling();
+  });
 }
 
 let communityTimer;
@@ -2437,7 +2945,15 @@ async function openMember(username) {
     const [{ profile }, offers] = await Promise.all([
       api(`/api/community/members/${encodeURIComponent(username)}`),
       api(`/api/community/offers?author=${encodeURIComponent(username)}`),
-    ]);
+    ]).catch((error) => {
+      // Profil privé (par défaut) : seuls le membre et l'équipe le voient.
+      if (error.status === 403) {
+        ui.memberMeta.textContent = 'Ce profil est privé. Ses fiches publiées restent visibles dans le fil.';
+        return [{ profile: null }, null];
+      }
+      throw error;
+    });
+    if (!profile) return;
     ui.memberMeta.textContent = `Membre depuis le ${formatDate(profile.member_since)} · ${profile.published_offers} offre${profile.published_offers > 1 ? 's' : ''} publiée${profile.published_offers > 1 ? 's' : ''}`;
     ui.memberOffers.replaceChildren(...(offers.items.length
       ? offers.items.map((offer) => communityCard(offer))
@@ -2468,6 +2984,13 @@ function readPublishForm() {
   if (!isAdminUser()) {
     values.campaign_name = ui.pubCampaignName.value.trim();
     values.tips = ui.pubTips.value.trim() || null;
+  } else {
+    // Offre de l'équipe : règles de la campagne et suivi.
+    values.incentive_allowed = document.getElementById('pub-incentive').checked;
+    values.member_benefit = document.getElementById('pub-member-benefit').value.trim() || null;
+    values.payout_note = document.getElementById('pub-payout-note').value.trim() || null;
+    values.campaign_rules_url = document.getElementById('pub-rules-url').value.trim() || null;
+    values.subid_param = document.getElementById('pub-subid-param').value.trim() || null;
   }
   /*
    * La rémunération n'est plus saisie. Le serveur réécrit tous les champs
@@ -2561,6 +3084,9 @@ function syncOtherFields() {
   ui.pubConditionsCount.textContent = `${[...ui.pubConditionsOther.value].length}/${Math.max(0, room)}`;
 }
 
+// Âges proposés pour une offre de l'équipe (adult.service.js, TEAM_OFFER_AGES).
+const TEAM_OFFER_AGES = [13, 15, 16, 18];
+
 function onChoiceChange() {
   syncOtherFields();
   updatePublishPreview();
@@ -2575,9 +3101,11 @@ function renderPublishChoices() {
   ui.pubActionChips.replaceChildren(...[...PUB_ACTIONS, OTHER].map((value) => choiceChip({
     type: 'radio', name: 'pub-action', value, label: value === OTHER ? 'Autre…' : value, onchange: onChoiceChange,
   })));
-  ui.pubAgeChips.replaceChildren(
-    choiceChip({ type: 'radio', name: 'pub-age', value: '', label: 'Pas d’âge précisé', checked: true, onchange: onChoiceChange }),
-    choiceChip({ type: 'radio', name: 'pub-age', value: '18', label: '18 ans et +', onchange: onChoiceChange }));
+  // Offre de l'équipe : âge minimum obligatoire (13, 15, 16 ou 18, 18 par défaut). Fiche : facultatif.
+  ui.pubAgeChips.replaceChildren(...(isAdminUser()
+    ? TEAM_OFFER_AGES.map((age) => choiceChip({ type: 'radio', name: 'pub-age', value: String(age), label: `${age} ans et +`, checked: age === 18, onchange: onChoiceChange }))
+    : [choiceChip({ type: 'radio', name: 'pub-age', value: '', label: 'Pas d’âge précisé', checked: true, onchange: onChoiceChange }),
+      choiceChip({ type: 'radio', name: 'pub-age', value: '18', label: '18 ans et +', onchange: onChoiceChange })]));
   ui.pubConditionChips.replaceChildren(...[...PUB_CONDITIONS, OTHER].map((value) => choiceChip({
     type: 'checkbox', name: 'pub-condition', value, label: value === OTHER ? 'Autre' : value, onchange: onChoiceChange,
   })));
@@ -2610,7 +3138,7 @@ function fillPublishChoices(offer) {
   if (action && !known) ui.pubActionOther.value = action;
 
   const age = offer.min_age;
-  if (age !== null && age !== undefined && age !== 18) {
+  if (age !== null && age !== undefined && !ui.pubAgeChips.querySelector(`input[value="${Number(age)}"]`)) {
     // Âge fixé autrement par le passé : on le garde, proposé comme 3e choix.
     ui.pubAgeChips.append(choiceChip({ type: 'radio', name: 'pub-age', value: String(age), label: `${age} ans et + (actuel)`, onchange: onChoiceChange }));
   }
@@ -2778,6 +3306,11 @@ function startOfferEdit(offer) {
   ui.pubDescription.value = offer.description;
   ui.pubCategory.value = offer.category;
   state.community.editingPayout = offer.payout_text || null;
+  document.getElementById('pub-incentive').checked = Boolean(offer.incentive_allowed);
+  document.getElementById('pub-member-benefit').value = offer.member_benefit || '';
+  document.getElementById('pub-payout-note').value = offer.payout_note || '';
+  document.getElementById('pub-rules-url').value = offer.campaign_rules_url || '';
+  document.getElementById('pub-subid-param').value = offer.subid_param || '';
   fillPublishChoices(offer);
   ui.pubRights.checked = false;
   syncCategoryTiles();
@@ -2820,6 +3353,7 @@ async function renewMyOffer(offer) {
   try {
     const data = await api(`/api/community/offers/${encodeURIComponent(offer.id)}/renew`, { method: 'POST' });
     myOffersFeedback('info', data.message);
+    window.HaisselMotion?.toast('Ta story est de nouveau en ligne pour 24 h', { mascot: 'story-selfie' });
     loadMyOffers();
     state.community.loaded = false;
   } catch (error) {
@@ -2877,8 +3411,10 @@ function myOfferTile(offer) {
     className: `grid-cell${expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `${offer.title} : ${label}. Gérer cette fiche`,
     'data-offer-id': String(offer.id),
     onclick: () => {
+      const pose = { published: expired ? null : 'fiche-validee', rejected: 'fiche-refusee' }[offer.status];
       ui.myOfferDetail.replaceChildren(
         h('button', { className: 'text-button my-offer-detail-close', type: 'button', onclick: () => { ui.myOfferDetail.hidden = true; } }, icon('i-close', 'icon sm'), 'Fermer'),
+        pose ? bear(pose, 88) : null,
         myOfferCard(offer));
       ui.myOfferDetail.hidden = false;
       ui.myOfferDetail.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -2897,15 +3433,33 @@ async function loadSavedOffers() {
     const data = await api('/api/community/offers?saved=1');
     const items = data.items || [];
     ui.savedCount.textContent = `(${items.length})`;
-    ui.statSaved.textContent = String(items.length);
+    window.HaisselMotion ? window.HaisselMotion.setCount(ui.statSaved, items.length) : (ui.statSaved.textContent = String(items.length));
     ui.savedOffers.setAttribute('aria-busy', 'false');
     ui.savedOffers.replaceChildren(...(items.length
       ? items.map((offer) => gridTile(offer))
-      : [h('div', { className: 'panel-card' }, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.')]));
+      : [h('div', { className: 'panel-card mascot-state' }, bear('vide-dodo', 120), h('p', null, 'Aucune offre sauvegardée. Touche le signet d’une offre pour la retrouver ici.'))]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.savedOffers.setAttribute('aria-busy', 'false');
-    ui.savedOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, `Impossible de charger tes offres sauvegardées : ${error.message}`));
+    ui.savedOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120), `Impossible de charger tes offres sauvegardées : ${error.message}`));
+  }
+}
+
+/* Offres essayées : liens de l'équipe que le membre a ouverts (privé, aucun montant). */
+async function loadTriedOffers() {
+  const grid = document.getElementById('tried-offers');
+  if (!grid) return;
+  grid.setAttribute('aria-busy', 'true');
+  if (!grid.childElementCount) grid.replaceChildren(h('div', { className: 'panel-card' }, 'Chargement…'));
+  try {
+    const items = (await api('/api/community/offers/tried')).items || [];
+    grid.replaceChildren(...(items.length ? items.map((offer) => gridTile(offer))
+      : [h('div', { className: 'panel-card' }, 'Tu n’as encore ouvert aucun lien de l’équipe.')]));
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) return;
+    grid.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, 'Impossible d’afficher tes offres essayées.'));
+  } finally {
+    grid.setAttribute('aria-busy', 'false');
   }
 }
 
@@ -2918,14 +3472,17 @@ async function loadMyOffers() {
     renderCategoryTiles();
     ui.myOffers.setAttribute('aria-busy', 'false');
     ui.myOffersCount.textContent = `(${data.items.length})`;
-    ui.statPublished.textContent = String(data.items.filter((offer) => offer.status === 'published' && !offer.expired).length);
+    const published = data.items.filter((offer) => offer.status === 'published' && !offer.expired).length;
+    // Compte de 0 à la valeur à la première apparition (motion.js).
+    if (window.HaisselMotion) window.HaisselMotion.setCount(ui.statPublished, published);
+    else ui.statPublished.textContent = String(published);
     ui.myOfferDetail.hidden = true;
     ui.myOffers.replaceChildren(...(data.items.length ? data.items.map(myOfferTile)
-      : [h('div', { className: 'panel-card' }, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.')]));
+      : [h('div', { className: 'panel-card mascot-state' }, bear('vide-dodo', 120), h('p', null, 'Tu n’as encore publié aucune offre. Le parcours MyLead (rubrique Apprendre) t’explique comment obtenir ton lien.'))]));
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
     ui.myOffers.setAttribute('aria-busy', 'false');
-    ui.myOffers.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' }, `Impossible de charger tes offres : ${error.message}`));
+    ui.myOffers.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120), `Impossible de charger tes offres : ${error.message}`));
   }
 }
 
@@ -2957,6 +3514,7 @@ async function handlePublish(event) {
     resetPublishForm();
     resetTurnstile(ui.publishForm);
     publishFeedback('info', data.offer?.status === 'published' ? 'Ton offre est publiée.' : data.message);
+    window.HaisselMotion?.toast(editing ? 'Fiche modifiée' : 'Fiche envoyée à l’équipe', { mascot: 'bravo' });
     ui.publishSuccess.focus?.();
     loadMyOffers();
   } catch (error) {
@@ -2995,7 +3553,7 @@ async function loadLinks() {
     if (error.status !== 401 && error.status !== 403) {
       widgetItems(ui.homeLinks, [], 'Liens indisponibles pour le moment.');
       ui.linksList.setAttribute('aria-busy', 'false');
-      ui.linksList.replaceChildren(h('div', { className: 'panel-card is-error', role: 'alert' },
+      ui.linksList.replaceChildren(h('div', { className: 'panel-card is-error mascot-state', role: 'alert' }, bear('oups-erreur', 120),
         h('p', null, `Impossible de charger les liens : ${error.message}`),
         h('button', { className: 'secondary-button', type: 'button', onclick: loadLinks }, 'Réessayer')));
     }
@@ -3077,7 +3635,7 @@ function resetTurnstile(form) {
 }
 
 // ---------------------------------------------------------------------------
-// Double authentification (facultative pour les membres)
+// Double authentification (réservée aux administrateurs ; un membre qui l'avait activée peut la désactiver)
 // ---------------------------------------------------------------------------
 
 /*
@@ -3114,6 +3672,14 @@ function renderMfaState() {
   if (!box || !state.user) return;
   const pill = document.getElementById('mfa-state-pill');
   const active = Boolean(state.user.mfa_enabled);
+  const isAdmin = String(state.user.role || '').toUpperCase() === 'ADMIN';
+  /*
+   * Réservée aux administrateurs. Un membre qui l'avait activée avant ne voit
+   * que « Désactiver » ; les autres membres ne voient pas le bloc.
+   */
+  box.hidden = !isAdmin && !active;
+  if (box.hidden) return;
+  document.getElementById('mfa-member-note').classList.toggle('hidden', isAdmin);
 
   pill.textContent = active ? 'Activée' : 'Non activée';
   pill.className = active ? 'pill ok' : 'pill';
@@ -3301,6 +3867,18 @@ async function handleRegister(event) {
   }
   body.is_adult = choice.value === 'yes';
 
+  // Condition d'âge de l'inscription (15 ans ou accord d'un parent) : case obligatoire.
+  const termsBox = document.getElementById('register-age-terms');
+  const termsError = document.getElementById('err-register-age-terms');
+  termsError.classList.add('hidden');
+  if (!termsBox.checked) {
+    termsError.textContent = 'Coche la case pour confirmer que tu as 15 ans ou plus, ou l’accord d’un parent.';
+    termsError.classList.remove('hidden');
+    termsBox.focus();
+    return;
+  }
+  body.age_terms_accepted = true;
+
   if (!attachTurnstile(form, body)) {
     setMessage('error', 'Valide la vérification anti-robot avant de continuer.');
     return;
@@ -3415,6 +3993,20 @@ async function handlePasswordChange(event) {
   }
 }
 
+/* Écran « À bientôt » : 1,5 s après la déconnexion, puis la page de connexion. */
+const GOODBYE_MS = 1500;
+
+function sayGoodbye() {
+  const screen = h('div', { className: 'goodbye-screen', role: 'status' }, bear('au-revoir', 160), h('p', null, 'À bientôt !'));
+  document.body.append(screen);
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      screen.classList.add('is-leaving');
+      window.setTimeout(() => { screen.remove(); resolve(); }, 220);
+    }, GOODBYE_MS);
+  });
+}
+
 async function handleLogout() {
   try {
     await api('/api/auth/logout', { method: 'POST' });
@@ -3424,6 +4016,31 @@ async function handleLogout() {
   state.csrf = '';
   showLoggedOut();
   showAuthForm('login-form');
+  await sayGoodbye();
+}
+
+/*
+ * Première ouverture après l'inscription (compte de moins de 7 jours, jamais
+ * accueilli sur cet appareil) : toast « Bienvenue » avec l'ours.
+ */
+const WELCOME_KEY = 'haissel-welcomed';
+
+function welcomeNewMember(user) {
+  if (storageGet(WELCOME_KEY)) return;
+  storageSet(WELCOME_KEY, '1');
+  const created = Date.parse(user.created_at || '');
+  if (!created || Date.now() - created > 7 * 24 * 3600 * 1000) return;
+  window.HaisselMotion?.toast(`Bienvenue sur HAISSEL, ${user.display_name || user.username} !`, { mascot: 'bienvenue', duration: 4000 });
+}
+
+/* Hors ligne : bandeau avec l'ours tant que navigator.onLine est faux. */
+function watchOnline() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  const paint = () => { banner.hidden = navigator.onLine !== false; };
+  window.addEventListener('online', paint);
+  window.addEventListener('offline', paint);
+  paint();
 }
 
 async function handleLogoutAll() {
@@ -3554,12 +4171,12 @@ document.addEventListener('DOMContentLoaded', () => {
     referralRate: 'referral-rate', referralAge: 'referral-age', referralBox: 'referral-box',
     homeName: 'home-name', homeUsername: 'home-username', homeCreated: 'home-created',
     homeLinks: 'home-links', homeLearn: 'home-learn',
-    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', teamThreadDot: 'team-thread-dot', teamThreadPreview: 'team-thread-preview', teamThreadTime: 'team-thread-time', teamThreadOpen: 'team-thread-open', chatSend: 'chat-send', messagesInbox: 'messages-inbox', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
+    homeOffers: 'home-offers', navMessagesBadge: 'nav-messages-badge', chatSend: 'chat-send', teamThread: 'team-thread', chatMessages: 'chat-messages', chatError: 'chat-error', chatForm: 'chat-form', chatInput: 'chat-input', chatNew: 'chat-new', navAvatar: 'nav-avatar', discoverFeed: 'discover-feed', homeStories: 'home-stories', topbarAvatar: 'topbar-avatar', offerDetail: 'offer-detail',
     homeLearnCard: 'home-learn-card', homeLearnStep: 'home-learn-step',
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
-    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installHelp: 'install-help', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
+    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installRowLabel: 'install-row-label', installSheet: 'install-sheet', installSheetTitle: 'install-sheet-title', installSheetText: 'install-sheet-text', installSheetStatus: 'install-sheet-status', installSheetAction: 'install-sheet-action', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -3617,7 +4234,12 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', () => showAuthForm(`${button.dataset.form}-form`));
   });
   document.querySelectorAll('[data-view]').forEach((button) => {
-    button.addEventListener('click', () => setActiveView(button.dataset.view));
+    // View Transitions si disponibles (motion.js), sinon fondu et glissement en CSS.
+    button.addEventListener('click', () => {
+      const view = button.dataset.view;
+      if (window.HaisselMotion) window.HaisselMotion.navigate(view, () => setActiveView(view));
+      else setActiveView(view);
+    });
   });
   document.querySelectorAll('[data-back-to-login]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -3671,13 +4293,46 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('filters-reset').addEventListener('click', () => setFilterFields({}));
   bindFiltersSheet();
   // Réglages : notifications sur cet appareil.
-  bindSheet(ui.howtoSheet, { onClose: () => ui.notifHowto.focus({ preventScroll: true }) });
-  ui.notifHowto.addEventListener('click', () => openSheet(ui.howtoSheet));
-  ui.installRow.addEventListener('click', runInstall);
+  bindSheet(ui.howtoSheet, {
+    onClose: () => {
+      markInstallTutoSeen();
+      if (!ui.notifHowto.hidden) ui.notifHowto.focus({ preventScroll: true });
+    },
+  });
+  ui.notifHowto.addEventListener('click', openHowto);
+  // Tirer pour rafraîchir : Accueil, tout en haut de page, aucune feuille ni story ouverte.
+  window.HaisselMotion?.pullToRefresh({
+    isActive: () => Boolean(state.user) && document.body.dataset.view === 'home'
+      && !document.querySelector('dialog[open]') && !document.body.classList.contains('story-open'),
+    onRefresh: () => loadCommunity(),
+  });
+  /*
+   * Feuilles d'installation rangées dans la vue Profil : rattachées au <body>
+   * pour s'afficher aussi quand le tuto s'ouvre tout seul depuis une autre vue
+   * (un ancêtre masqué cacherait même une fenêtre modale).
+   */
+  document.body.append(ui.howtoSheet, ui.installSheet);
+  tuto = window.HaisselTuto.mount({
+    track: document.getElementById('tuto-track'),
+    dots: document.getElementById('tuto-dots'),
+    next: document.getElementById('tuto-next'),
+    prev: document.getElementById('tuto-prev'),
+    caption: document.getElementById('tuto-caption'),
+    onDone: () => closeSheet(ui.howtoSheet),
+  });
+  ui.installRow.addEventListener('click', () => openInstallGuide(window.HaisselInstall.tutoKind(installState()) || 'ios'));
+  ui.installSheetAction.addEventListener('click', handleInstallSheetAction);
+  bindSheet(ui.installSheet, { onClose: markInstallTutoSeen });
   ui.installBannerAction.addEventListener('click', handleInstallBannerAction);
   ui.installBannerClose.addEventListener('click', closeInstallBanner);
-  window.addEventListener('haissel-install-change', () => { if (state.user) renderInstallUi(); });
+  window.addEventListener('haissel-install-change', () => {
+    if (!state.user) return;
+    renderInstallUi();
+    // Android : l'invite peut arriver après la connexion.
+    scheduleAutoTuto();
+  });
   ui.notifSwitch.addEventListener('change', handleNotifSwitch);
+  document.getElementById('profile-public-switch').addEventListener('change', handleProfileVisibility);
   window.addEventListener('hashchange', openViewFromHash);
   // Retour sur l'application (réglages du téléphone modifiés entre-temps).
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.user) renderNotifSetting(); });
@@ -3685,15 +4340,8 @@ document.addEventListener('DOMContentLoaded', () => {
   readFiltersFromUrl();
   ui.reportForm.addEventListener('submit', handleReport);
   // Messages
-  document.querySelectorAll('[data-open-thread]').forEach((button) => button.addEventListener('click', openChat));
-  document.getElementById('chat-back').addEventListener('click', closeChat);
-  ui.chatSend.addEventListener('click', sendChat);
-  ui.chatInput.addEventListener('input', fitChatInput);
-  // Mobile : Entrée = saut de ligne, envoi par le bouton. Ordinateur : Entrée envoie.
-  const touchInput = window.matchMedia('(hover: none) and (pointer: coarse)');
-  ui.chatInput.addEventListener('keydown', (event) => {
-    if (window.HaisselChat.enterSends(event, touchInput.matches)) { event.preventDefault(); sendChat(); }
-  });
+  bindMessages();
+  watchOnline();
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });

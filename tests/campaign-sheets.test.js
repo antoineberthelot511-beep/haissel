@@ -104,7 +104,7 @@ describe('fiches campagne des membres', () => {
 describe('liens affiliés de l équipe', () => {
   test('un ADMIN publie un lien affilié', async () => {
     const res = await request(app).post('/api/community/offers').set(auth(admin))
-      .send(sheet({ url: 'https://mylead.global/stl/equipe42', campaign_name: undefined, tips: undefined }));
+      .send(sheet({ url: 'https://mylead.global/stl/equipe42', campaign_name: undefined, tips: undefined, min_age: 18 }));
     expect(res.status).toBe(201);
     expect(res.body.data.offer.kind).toBe('affiliate');
   });

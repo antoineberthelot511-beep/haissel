@@ -38,6 +38,11 @@ function purgeLegacyStorage() {
 const $ = (id) => document.getElementById(id);
 
 /** Création d'élément sûre : les chaînes deviennent des nœuds texte. */
+/* Ours de la mascotte (mascot.js) ; rien si le script manque. */
+function bear(name, size) {
+  return window.HaisselMascot ? window.HaisselMascot.mascot(name, { size }) : null;
+}
+
 function h(tag, attrs, ...children) {
   const element = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
@@ -385,7 +390,7 @@ async function handleLogout() {
 // Navigation
 // ---------------------------------------------------------------------------
 
-const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'inbox', 'categories',
+const SECTIONS = ['dashboard', 'links', 'clicks', 'users', 'notifications', 'moderation', 'inbox', 'contact', 'categories',
   'content', 'opportunities', 'referral'];
 
 // « #messages » : lien des notifications Web Push de l'équipe (sw.js).
@@ -1048,7 +1053,9 @@ async function loadModeration() {
   const list = $('moderation-list');
   list.replaceChildren(...(data.items.length
     ? data.items.map(moderationCard)
-    : [h('p', { className: 'empty panel' }, 'Aucune offre dans cette liste.')]));
+    : [state.moderationFilter === 'pending'
+      ? h('div', { className: 'empty panel mascot-state' }, bear('admin-moderation', 140), h('p', null, 'Tout est traité.'))
+      : h('p', { className: 'empty panel' }, 'Aucune offre dans cette liste.')]));
 }
 
 // ---------------------------------------------------------------------------
@@ -1240,7 +1247,7 @@ async function loadInbox() {
     item.unread ? badge(`${item.unread} non lu${item.unread > 1 ? 's' : ''}`, 'bad') : null,
     h('span', { className: 'muted' }, `${item.last_from_team ? 'Équipe : ' : ''}${item.preview}`),
     h('small', { className: 'muted' }, date(item.last_message_at)))))
-    : [h('li', { className: 'empty' }, 'Aucune conversation pour le moment.')]));
+    : [h('li', { className: 'empty mascot-state' }, bear('admin-support', 120), h('p', null, 'Aucune conversation pour le moment.'))]));
   if (state.inboxOpen) await openInboxThread(state.inboxOpen, { refreshList: false });
 }
 
@@ -1264,15 +1271,96 @@ async function openInboxThread(id, { refreshList = true } = {}) {
       else handleError(error);
     }
   });
-  const messages = h('div', { className: 'inbox-messages' }, ...data.messages.map((message) => h('div', {
+  // Conversation sans aucun message : l'ours « aucun message » ; dès qu'un message existe, rien.
+  const messages = h('div', { className: 'inbox-messages' }, ...(data.messages.length ? [] : [
+    h('div', { className: 'empty mascot-state' }, bear('aucun-message', 120), h('p', null, 'Pas encore de message dans cette conversation.')),
+  ]), ...data.messages.map((message) => h('div', {
     className: `inbox-bubble ${message.from_team ? 'team' : 'member'}`,
-  }, h('p', null, message.content), h('small', { className: 'muted' }, `${message.from_team ? 'Équipe' : `@${data.username}`} · ${date(message.created_at)}`))));
+  }, h('p', null, message.content), h('small', { className: 'muted' },
+    // Côté équipe : l'avatar de l'équipe (l'ours), comme dans l'application.
+    message.from_team ? h('img', { className: 'team-avatar', src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe Haissel', width: 20, height: 20 }) : null,
+    `${message.from_team ? 'Équipe' : `@${data.username}`} · ${date(message.created_at)}`))));
   $('inbox-thread').replaceChildren(h('h2', null, `@${data.username}`), messages, form);
   messages.scrollTop = messages.scrollHeight;
   if (refreshList) await loadInbox();
 }
 
+// ---------------------------------------------------------------------------
+// Contact : demandes du formulaire /contact (affichées en textContent via h)
+// ---------------------------------------------------------------------------
+state.contactOpen = null;
+
+async function loadContact() {
+  const data = await api('/api/admin/contact');
+  state.contactItems = data.items;
+  $('contact-list').replaceChildren(...(data.items.length ? data.items.map((item) => h('li', null,
+    h('button', {
+      className: `inbox-item${item.handled_at ? '' : ' unread'}${state.contactOpen === item.id ? ' active' : ''}`, type: 'button',
+      onclick: () => openContact(item.id),
+    },
+    h('strong', null, item.subject_label),
+    item.handled_at ? badge('Traitée', 'ok') : badge('À traiter', 'bad'),
+    h('span', { className: 'muted' }, item.message.slice(0, 120)),
+    h('small', { className: 'muted' }, date(item.created_at)))))
+    : [h('li', { className: 'empty' }, 'Aucune demande pour le moment.')]));
+  if (state.contactOpen) openContact(state.contactOpen, { refreshList: false });
+}
+
+function openContact(id, { refreshList = true } = {}) {
+  state.contactOpen = id;
+  const item = (state.contactItems || []).find((row) => row.id === id);
+  if (!item) return;
+  const from = item.username ? `@${item.username}${item.account_email ? ` (${item.account_email})` : ''}` : 'Visiteur sans compte';
+  const button = h('button', { className: 'btn primary', type: 'button', disabled: Boolean(item.handled_at) },
+    item.handled_at ? `Traitée le ${date(item.handled_at)}` : 'Marquer comme traité');
+  button.addEventListener('click', async () => {
+    try {
+      await api(`/api/admin/contact/${encodeURIComponent(id)}/handled`, { method: 'POST', body: '{}' });
+      toast('Demande marquée comme traitée.');
+      await loadContact();
+    } catch (error) {
+      handleError(error);
+    }
+  });
+  $('contact-detail').replaceChildren(
+    h('h2', null, item.subject_label),
+    h('p', { className: 'muted' }, `${from} · ${date(item.created_at)}`),
+    h('p', null, `Répondre à : ${item.reply_email || (item.username ? 'onglet Messages du membre' : '—')}`),
+    h('p', { className: 'contact-message' }, item.message),
+    button);
+  if (refreshList) loadContact().catch(handleError);
+}
+
+// ---------------------------------------------------------------------------
+// Revenus (liens de l'équipe)
+// ---------------------------------------------------------------------------
+
+const euros = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;
+
+async function loadRevenue() {
+  const month = $('revenue-month').value;
+  const query = month ? `?month=${encodeURIComponent(month)}` : '';
+  $('revenue-csv').href = `/api/admin/revenue?format=csv${month ? `&month=${encodeURIComponent(month)}` : ''}`;
+  const data = await api(`/api/admin/revenue${query}`);
+  const { totals } = data;
+  $('revenue-totals').replaceChildren(
+    ...[['Clics suivis', num(totals.clicks)], ['Conversions', num(totals.conversions)], ['Validées', num(totals.approved)], ['Gains estimés', euros(totals.estimated_cents)]]
+      .map(([label, value]) => h('div', { className: 'stat-card' }, h('span', null, label), h('strong', null, value))));
+  renderTable('revenue-table', [
+    { label: 'Mois', render: (r) => r.month },
+    { label: 'Offre', render: (r) => h('strong', null, r.title) },
+    { label: 'Clics', render: (r) => num(r.clicks) },
+    { label: 'En attente', render: (r) => num(r.pending) },
+    { label: 'Validées', render: (r) => num(r.approved) },
+    { label: 'Refusées', render: (r) => num(r.rejected) },
+    { label: 'À vérifier', render: (r) => (r.to_review ? badge(String(r.to_review), 'bad') : '0') },
+    { label: 'Taux', render: (r) => `${String(r.conversion_rate).replace('.', ',')} %` },
+    { label: 'Gains estimés', render: (r) => euros(r.estimated_cents) },
+  ], data.items, 'Aucun clic suivi pour le moment.');
+}
+
 const LOADERS = {
+  revenue: loadRevenue,
   dashboard: loadDashboard,
   links: loadLinks,
   clicks: loadClicks,
@@ -1283,6 +1371,7 @@ const LOADERS = {
   referral: loadReferral,
   moderation: loadModeration,
   inbox: loadInbox,
+  contact: loadContact,
   categories: loadCategories,
 };
 
@@ -1334,6 +1423,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  $('revenue-month')?.addEventListener('change', () => loadRevenue().catch(handleError));
   purgeLegacyStorage();
   // Widget anti-robot : clé PUBLIQUE de /api/auth/config ; sans clé, rien ne change.
   try {

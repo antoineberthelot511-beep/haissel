@@ -25,6 +25,7 @@ const pushRouter = require('./routes/push.routes');
 const webhookRouter = require('./routes/webhook.routes');
 const realtimeRouter = require('./routes/realtime.routes');
 const internalRouter = require('./routes/internal.routes');
+const contactRouter = require('./routes/contact.routes');
 const realtime = require('./services/realtime.service');
 const { startRetentionJob } = require('./services/retention.service');
 
@@ -190,6 +191,11 @@ app.get(['/app', '/mes-affilies'], (req, res) => {
   res.sendFile(userPagePath);
 });
 
+// Formulaire de contact : public, sans connexion.
+app.get('/contact', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'contact.html'));
+});
+
 // Polices auto-hébergées (aucune requête vers Google Fonts, voir frontend/fonts.css).
 const FONT_PACKAGES = {
   anton: '@fontsource/anton',
@@ -285,6 +291,7 @@ app.use('/api/learn', learnRouter);
 app.use('/api/community', communityRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/push', pushRouter);
+app.use('/api/contact', contactRouter);
 app.use('/api/admin', adminRouter);
 // Flux temps réel (SSE) et accusés d'affichage des notifications admin.
 app.use('/api/notifications', realtimeRouter);

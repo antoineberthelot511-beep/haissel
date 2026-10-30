@@ -16,13 +16,13 @@
 
 :root {
   /* Marque (bleu) */
-  --v2-primary: #1d4ed8;            /* texte et liens : 6,7:1 sur blanc */
-  --v2-primary-strong: #1e40af;
-  --v2-primary-container: #2563eb;  /* fonds des boutons principaux */
-  --v2-on-primary: #ffffff;
-  --v2-primary-fixed: #dbeafe;
-  --v2-primary-soft: #eff4ff;
-  --v2-on-primary-fixed: #1e3a8a;
+  --v2-primary: var(--brand);       /* texte et liens : 5,5:1 sur blanc (brand.css) */
+  --v2-primary-strong: var(--brand-strong);
+  --v2-primary-container: var(--brand);  /* fonds des boutons principaux */
+  --v2-on-primary: var(--brand-on);
+  --v2-primary-fixed: var(--brand-fixed);
+  --v2-primary-soft: var(--brand-soft);
+  --v2-on-primary-fixed: var(--brand-ink);
 
   /* Surfaces */
   --v2-bg: #f7f8fc;
@@ -68,11 +68,11 @@
   /* Profondeur */
   --v2-shadow-1: 0 4px 20px -2px rgba(37, 56, 120, .07);
   --v2-shadow-2: 0 10px 30px -4px rgba(37, 56, 120, .12);
-  --v2-shadow-3: 0 12px 28px -6px rgba(37, 99, 235, .4);
+  --v2-shadow-3: 0 12px 28px -6px rgba(var(--brand-rgb), .4);
   --v2-shadow-dock: 0 12px 36px -6px rgba(26, 27, 34, .16);
 
   --v2-font: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
-  --v2-focus: #f59e0b;
+  --v2-focus: var(--brand);
   /* Barre du bas flottante : hauteur visible + écart au bord (hors zone sûre).
      Tout contenu garde en dessous cette hauteur + la zone sûre + 16 px. */
   --v2-nav-height: calc(64px + .5rem);
@@ -99,7 +99,7 @@ a:hover { color: var(--v2-primary-strong); }
 :focus-visible { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
 .skip-link { display: inline-flex; align-items: center; min-height: 44px; border-radius: var(--v2-r-full); }
 
-.icon { width: 20px; height: 20px; stroke-width: 1.9; }
+.icon { width: 20px; height: 20px; }
 .icon.sm { width: 16px; height: 16px; }
 .icon.lg { width: 24px; height: 24px; }
 
@@ -126,16 +126,18 @@ body:has(#app-screen:not(.hidden)) .app-shell { padding-bottom: var(--v2-dock-sp
   border-bottom: 1px solid var(--v2-outline); box-shadow: 0 1px 8px rgba(0, 0, 0, .04);
   color: var(--v2-on-surface); font-family: var(--v2-font);
 }
+/* Hauteur fixe dès le premier rendu (64 px + zone sûre) : aucun saut quand
+   les boutons du membre apparaissent ou que le verre s'allume. */
 .topbar .topbar-inner {
-  max-width: 720px; margin: 0 auto; min-height: 64px;
+  max-width: 720px; margin: 0 auto; height: 64px; box-sizing: border-box;
   padding: 0 var(--v2-margin); gap: var(--v2-sm); flex-wrap: nowrap;
 }
 .topbar .wordmark, .topbar .wordmark:hover { color: var(--v2-on-surface); gap: 10px; min-height: 44px; }
 .wordmark-logo, .auth-card-head .wordmark-logo, .splash-logo {
   display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 11px;
-  background: linear-gradient(135deg, #3b82f6, var(--v2-primary-strong)); color: #fff;
+  background: linear-gradient(135deg, var(--brand-light), var(--v2-primary-strong)); color: #fff;
   font-family: var(--v2-font); font-weight: 800; font-size: 17px; letter-spacing: 0;
-  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, .45);
+  box-shadow: 0 4px 12px -2px rgba(var(--brand-rgb), .45);
 }
 .topbar .wordmark-text { font-family: var(--v2-font); font-weight: 800; font-size: 18px; letter-spacing: -.01em; }
 .topbar .wordmark-tag { display: none; }
@@ -193,7 +195,7 @@ body:has(#auth-screen:not(.hidden)) .topbar-nav { display: none; }
   background: var(--v2-primary-container); color: var(--v2-on-primary); box-shadow: var(--v2-shadow-3);
   transition: transform .15s ease;
 }
-.nav-fab-circle .icon { width: 30px; height: 30px; stroke-width: 2.6; }
+.nav-fab-circle .icon { width: 30px; height: 30px; }
 .topbar-nav .nav-fab:hover .nav-fab-circle { transform: scale(1.05); }
 .topbar-nav .nav-fab:active .nav-fab-circle { transform: scale(.95); }
 .topbar-nav .nav-fab.active .nav-fab-circle { background: var(--v2-primary-strong); }
@@ -240,7 +242,7 @@ body:has(#app-screen:not(.hidden)) .site-footer { display: none; }
   transition: transform .12s ease, background-color .15s ease;
 }
 .primary-button:active, .secondary-button:active, .ghost-button:active { transform: scale(.98); }
-.primary-button { min-height: 52px; background: var(--v2-primary-container); color: var(--v2-on-primary); box-shadow: 0 6px 16px -4px rgba(37, 99, 235, .35); }
+.primary-button { min-height: 52px; background: var(--v2-primary-container); color: var(--v2-on-primary); box-shadow: 0 6px 16px -4px rgba(var(--brand-rgb), .35); }
 .primary-button:hover { background: var(--v2-primary); color: var(--v2-on-primary); }
 .secondary-button { background: var(--v2-surface); border-color: var(--v2-outline-strong); color: var(--v2-on-surface); }
 .secondary-button:hover { background: var(--v2-surface-low); color: var(--v2-on-surface); }
@@ -279,7 +281,7 @@ body:has(#app-screen:not(.hidden)) .site-footer { display: none; }
 .field input:hover, .field select:hover, .field textarea:hover { border-color: transparent; background-color: #e8ecf3; }
 .field input:focus, .field select:focus, .field textarea:focus, .search-field input:focus {
   outline: none; background-color: var(--v2-surface); border-color: var(--v2-primary-container);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, .15);
+  box-shadow: 0 0 0 4px rgba(var(--brand-rgb), .15);
 }
 .field input:user-invalid { border-color: var(--v2-error); }
 [aria-invalid='true'] { border-color: var(--v2-error) !important; }
@@ -422,7 +424,7 @@ button.fc-author:hover { color: var(--v2-primary); }
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--v2-sm);
   width: auto; min-height: 52px; padding: 0 var(--v2-md); border: 0; border-radius: var(--v2-r-full);
   background: var(--v2-primary-container); color: #fff; cursor: pointer; text-decoration: none;
-  font-family: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 6px 16px -4px rgba(37, 99, 235, .35);
+  font-family: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 6px 16px -4px rgba(var(--brand-rgb), .35);
 }
 .offer-card.community-card .offer-link-button:hover, #app-screen .offer-feed .offer-link-button:hover { background: var(--v2-primary); color: #fff; }
 .offer-card.community-card .offer-link-button:active { transform: scale(.98); }
@@ -477,7 +479,7 @@ button.fc-author:hover { color: var(--v2-primary); }
   flex: none; display: grid; place-items: center; width: 72px; height: 72px; border-radius: var(--v2-r);
   background: var(--v2-primary-fixed); color: var(--v2-primary-strong);
 }
-.od-icon .icon { width: 34px; height: 34px; stroke-width: 1.7; }
+.od-icon .icon { width: 34px; height: 34px; }
 .od-hero h2 { font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .od-hero h2:focus { outline: none; }
 .od-verified {
@@ -620,7 +622,7 @@ button.fc-author:hover { color: var(--v2-primary); }
 .cat-tile-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--v2-surface); color: var(--v2-primary); }
 .cat-tile-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cat-tile:hover { background: var(--v2-surface-high); }
-.cat-tile:has(input:checked) { background: var(--v2-primary-container); color: #fff; box-shadow: 0 6px 16px -4px rgba(37, 99, 235, .4); }
+.cat-tile:has(input:checked) { background: var(--v2-primary-container); color: #fff; box-shadow: 0 6px 16px -4px rgba(var(--brand-rgb), .4); }
 .cat-tile:has(input:checked) .cat-tile-icon { background: rgba(255, 255, 255, .2); color: #fff; }
 .cat-tile:has(input:focus-visible) { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
 #pub-category-tiles:has(+ *) { margin: 0; }
@@ -650,7 +652,7 @@ button.fc-author:hover { color: var(--v2-primary); }
 .choice-check { display: none; }
 .choice-chip:has(input:checked) {
   border-color: var(--v2-primary-container); background: var(--v2-primary-container); color: #fff;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, .45);
+  box-shadow: 0 4px 12px -4px rgba(var(--brand-rgb), .45);
 }
 .choice-chip:has(input:checked) .choice-check { display: inline; }
 .choice-chip:has(input:focus-visible) { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
@@ -689,7 +691,7 @@ body:has(#auth-screen:not(.hidden)) #main.layout { max-width: 480px; padding-top
 #auth-screen .auth-card-head { display: grid; justify-items: center; gap: 6px; margin: 0; padding: 0; border: 0; text-align: center; }
 #auth-screen .auth-logo {
   width: 64px; height: 64px; border-radius: 20px; font-size: 30px; margin-bottom: 6px;
-  box-shadow: 0 12px 24px -8px rgba(37, 99, 235, .55);
+  box-shadow: 0 12px 24px -8px rgba(var(--brand-rgb), .55);
 }
 #auth-screen .auth-card-head h2 { font-size: 26px; line-height: 32px; font-weight: 800; letter-spacing: .02em; }
 .auth-tagline { max-width: 32ch; font-size: 14px; color: var(--v2-on-surface-variant); }
@@ -735,7 +737,7 @@ body:has(#auth-screen:not(.hidden)) #main.layout { max-width: 480px; padding-top
 .age-choice-text { display: grid; gap: 4px; }
 .age-choice-text strong { font-size: 14px; line-height: 19px; font-weight: 800; }
 .age-choice-text small { font-size: 12px; line-height: 16px; color: var(--v2-on-surface-variant); }
-.age-choice:has(input:checked) { border-color: var(--v2-primary-container); box-shadow: 0 0 0 4px rgba(37, 99, 235, .15); }
+.age-choice:has(input:checked) { border-color: var(--v2-primary-container); box-shadow: 0 0 0 4px rgba(var(--brand-rgb), .15); }
 .age-choice:has(input:focus-visible) { outline: 3px solid var(--v2-focus); outline-offset: 2px; }
 .age-consequence {
   display: flex; gap: var(--v2-sm); align-items: flex-start; margin: 0; padding: 0; border: 0;
@@ -800,8 +802,8 @@ body:has(#auth-screen:not(.hidden)) #main.layout { max-width: 480px; padding-top
 }
 .profile-hero .avatar.large {
   width: 72px; height: 72px; flex: none; font-size: 24px; font-weight: 800;
-  background: linear-gradient(135deg, #3b82f6, var(--v2-primary-strong)); color: #fff;
-  box-shadow: 0 0 0 4px var(--v2-surface), 0 8px 20px -6px rgba(37, 99, 235, .5);
+  background: linear-gradient(135deg, var(--brand-light), var(--v2-primary-strong)); color: #fff;
+  box-shadow: 0 0 0 4px var(--v2-surface), 0 8px 20px -6px rgba(var(--brand-rgb), .5);
 }
 .profile-hero-id { min-width: 0; display: grid; gap: 2px; }
 .profile-handle { font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
@@ -922,7 +924,8 @@ p { margin: 0; }
 small { font-weight: 500; color: var(--v2-secondary); }
 .hidden { display: none !important; }
 .icon-sprite { display: none; }
-.icon { flex: none; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+/* Icônes du sprite : chaque tracé porte ses propres fill / stroke ; seule color est héritée. */
+.icon { flex: none; }
 
 .skip-link {
   position: absolute; left: 1rem; top: -5rem; z-index: 2000; padding: 0 1rem;
@@ -1103,7 +1106,7 @@ body:has(#auth-screen:not(.hidden)) .notif-stack { bottom: var(--v2-margin); }
   position: relative; width: 66px; height: 66px; border-radius: 50%; padding: 3px; border: 0; cursor: pointer;
   background: var(--v2-outline-strong);
 }
-.story-ring.is-unseen { background: conic-gradient(from 210deg, #2563eb, #7c3aed, #db2777, #f59e0b, #2563eb); }
+.story-ring.is-unseen { background: conic-gradient(from 210deg, var(--brand), #7c3aed, #db2777, #f59e0b, var(--brand)); }
 .story-ring:focus-visible { outline: 3px solid var(--v2-primary); outline-offset: 2px; }
 .story-avatar {
   display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%;
@@ -1224,13 +1227,32 @@ body[data-view="discover"] .topbar .topbar-inner { display: none; }
 #discover-view { margin: 0; transform: none !important; animation: none !important; }
 .discover-feed {
   position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain;
-  scroll-snap-type: y mandatory; background: #000; color: #fff;
+  scroll-snap-type: y mandatory; background: #000; color: #fff; --spinner-color: #8DB4FF;
 }
 .discover-slide {
   position: relative; height: 100vh; height: 100dvh; scroll-snap-align: start; scroll-snap-stop: always;
   display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 16px 0; overflow: hidden;
 }
-.discover-slide.is-empty { color: rgba(255, 255, 255, .7); }
+.discover-slide.is-empty { color: rgba(255, 255, 255, .7); background: radial-gradient(120% 70% at 50% 40%, #1a1f2e 0%, #0b0b0f 70%); }
+/* Découvrir vide : ours, titre, sous-titre, « Actualiser », centrés verticalement. */
+.discover-empty { display: grid; justify-items: center; gap: 10px; max-width: 320px; padding: 0 16px 96px; text-align: center; }
+.discover-empty-title { margin: 6px 0 0; font-size: 20px; font-weight: 800; color: #fff; }
+.discover-empty-text { margin: 0; font-size: 15px; line-height: 1.4; color: #b4bccb; }
+.discover-refresh { margin-top: 8px; }
+@keyframes bear-search {
+  0%, 78%, 100% { transform: none; }
+  84% { transform: rotate(-5deg); }
+  90% { transform: rotate(5deg); }
+  96% { transform: rotate(-2deg); }
+}
+/* Entrée douce (mascot.css), puis léger balancement toutes les 4 s, comme s'il cherchait. */
+img.mascot.discover-bear {
+  transform-origin: 50% 90%;
+  animation: mascot-in 420ms cubic-bezier(.34, 1.45, .55, 1) both, bear-search 4s ease-in-out 600ms infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  img.mascot.discover-bear { animation: none !important; }
+}
 .discover-card {
   width: min(calc(100% - 56px), 360px); aspect-ratio: 4 / 5; margin: -190px 56px 0 0; border-radius: 28px;
   display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px;
@@ -1277,7 +1299,7 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
   position: absolute; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
   border: 0; background: none; color: var(--ios-secondary); cursor: pointer;
 }
-.search-clear .icon { padding: 2px; border-radius: 50%; background: var(--ios-secondary); color: var(--ios-fill-solid); stroke-width: 3; }
+.search-clear .icon { padding: 2px; border-radius: 50%; background: var(--ios-secondary); color: var(--ios-fill-solid); }
 .filters-button {
   position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px;
   border: 0; border-radius: 12px; background: var(--ios-fill); color: var(--ios-blue); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
@@ -1301,7 +1323,14 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 14px 14px 0 0;
   background: var(--ios-sheet); box-shadow: 0 -8px 30px rgba(0, 0, 0, .18);
 }
-.sheet-grabber { justify-self: center; width: 36px; height: 5px; margin: 0 0 6px; border-radius: 3px; background: var(--ios-separator-strong); }
+/* Poignée : zone tactile élargie (fond limité au trait) ; poignée et titre sans défilement natif (geste de fermeture). */
+.sheet-grabber {
+  justify-self: center; width: 36px; height: 5px; margin: -6px 0 0; padding: 10px 40px; box-sizing: content-box;
+  border-radius: 3px; background: var(--ios-separator-strong); background-clip: content-box; cursor: grab;
+}
+.sheet-grabber, .sheet-title { touch-action: none; }
+/* Le fond s'éclaircit pendant le glissement (--sheet-fade, bindSheet). */
+.sheet[open]::backdrop { opacity: var(--sheet-fade, 1); }
 .sheet-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; text-align: center; }
 .sheet-field { margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--ios-secondary); text-transform: uppercase; letter-spacing: .02em; }
 .sheet-select {
@@ -1357,43 +1386,44 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
 .grid-badge.status-expired { background: rgba(0, 0, 0, .6); }
 .grid-cell .grid-tile .grid-badge ~ .grid-tile-tag { display: none; }
 
-/* Messages : même ergonomie que les messageries de téléphone (liste, bulles, saisie). */
-.msg-inbox { color: var(--ios-label); }
-.msg-title { margin: 4px 0 12px; font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
-.msg-pinned { display: flex; gap: 16px; padding: 4px 0 16px; }
-.msg-pin { display: grid; justify-items: center; gap: 6px; width: 96px; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.msg-pin-avatar, .msg-avatar {
+/* Avatar rond de l'équipe (en-tête de la conversation, Activité). */
+.msg-avatar {
   display: grid; place-items: center; border-radius: 50%; flex: none;
-  background: linear-gradient(135deg, #3b82f6, var(--v2-primary-strong)); color: #fff; font-weight: 800;
+  background: linear-gradient(135deg, var(--brand-light), var(--v2-primary-strong)); color: #fff; font-weight: 800;
 }
-.msg-pin-avatar { width: 80px; height: 80px; font-size: 32px; }
-.msg-pin-name { font-size: 13px; color: var(--ios-label); text-align: center; }
-.msg-list { list-style: none; margin: 0 -16px; padding: 0; }
-.msg-row {
-  position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 76px; padding: 10px 16px 10px 24px;
-  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+.msg-avatar.sm { width: 36px; height: 36px; font-size: 14px; }
+/* Menu de l'appui long sur une bulle (Copier). */
+.bubble-menu { display: grid; min-width: 160px; padding: 6px; border-radius: 16px; color: var(--ios-label); }
+.bubble-menu button {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: none; color: inherit; font: inherit; font-size: 16px; text-align: left; cursor: pointer;
 }
-.msg-row:active { background: var(--ios-fill); }
-.msg-unread { position: absolute; left: 8px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--ios-blue); }
-.msg-avatar { width: 44px; height: 44px; font-size: 18px; }
-.msg-avatar.sm { width: 32px; height: 32px; font-size: 14px; }
-.msg-row-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
-/* Séparateur fin, décalé après l'avatar. */
-.msg-list li:not(:last-child) .msg-row::after { content: ""; position: absolute; left: 80px; right: 0; bottom: 0; border-bottom: .5px solid var(--ios-separator); }
-.msg-row-top { display: flex; align-items: baseline; gap: 8px; }
-.msg-row-top strong { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-row-time { flex: none; font-size: 15px; color: var(--ios-secondary); }
-.msg-row-preview {
-  font-size: 15px; line-height: 1.3; color: var(--ios-secondary); overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+.bubble-menu button:active { background: var(--ios-fill); }
+
+/* Conversation : appui long sur une bulle (fond flouté, bulle soulevée, menu Copier). */
+.bubble-backdrop {
+  position: absolute; inset: 0; z-index: 5; background: rgba(0, 0, 0, .12);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: m-fade var(--dur-2, 220ms) ease both;
 }
-.msg-note { margin-top: 16px; }
+.bubble-backdrop.is-leaving { opacity: 0; transition: opacity var(--dur-1, 120ms) ease; }
+.bubble-row.is-focused { position: relative; z-index: 6; }
+.bubble-menu { position: absolute; z-index: 7; }
+.chat-new {
+  position: absolute; left: 50%; bottom: calc(var(--chat-form-h, 60px) + 10px); z-index: 3; translate: -50% 0;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border: 0;
+  color: var(--ios-blue); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.chat-new[hidden] { display: none; }
 .nav-badge { width: 10px; height: 10px; border-radius: 50%; background: #e11d48; flex: none; position: absolute; top: 9px; right: calc(50% - 16px); box-shadow: 0 0 0 2px var(--v2-surface); }
 
-/* Conversation : plein écran au-dessus de la barre ; hauteur = zone visible (clavier compris). */
+/*
+ * Conversation (onglet Messages du membre) : entre l'en-tête de l'app et la
+ * barre du bas, qui reste visible avec sa pastille. Clavier ouvert : collée
+ * au clavier (app.js, fitChatToViewport, recalcule --chat-top et --chat-height).
+ */
 .chat {
-  --chat-top: 0px; --chat-height: 100dvh;
-  position: fixed; left: 0; right: 0; top: var(--chat-top); height: var(--chat-height); z-index: 60;
+  --chat-top: calc(64px + env(safe-area-inset-top, 0px)); --chat-height: calc(100dvh - var(--chat-top) - 96px); touch-action: pan-y;
+  position: fixed; left: 0; right: 0; top: var(--chat-top); height: var(--chat-height); z-index: 30;
   display: flex; flex-direction: column; background: var(--ios-bg); color: var(--ios-label);
 }
 .chat[hidden] { display: none; }
@@ -1401,26 +1431,47 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
 #messages-view { transform: none !important; animation: none !important; }
 body.chat-open { overflow: hidden; }
 body.chat-open .site-footer { display: none; }
-body.chat-open .topbar-nav { display: none; }
-/* En-tête compact : une ligne de 52 px, retour + avatar + nom alignés à gauche. */
-/* En-tête et barre de saisie en verre, superposés : les messages défilent dessous. */
+/* En-tête en verre, superposé : avatar de l'équipe, nom, délai de réponse habituel. */
 .chat-head {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 2px; box-sizing: content-box; height: 52px;
-  padding: env(safe-area-inset-top, 0px) max(8px, env(safe-area-inset-right, 0px)) 0 max(4px, env(safe-area-inset-left, 0px));
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; height: 56px;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
 }
-.chat-back { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--ios-blue); cursor: pointer; }
-.chat-back .icon { width: 28px; height: 28px; stroke-width: 2.4; }
-.chat-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.chat-who strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.chat-who-text { display: grid; min-width: 0; line-height: 1.2; }
+.chat-who strong { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-who-sub { font-size: 12px; color: var(--ios-secondary); }
 .chat-messages {
   flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column;
-  padding: calc(52px + env(safe-area-inset-top, 0px) + 8px) max(12px, env(safe-area-inset-right, 0px))
+  overflow-anchor: auto; touch-action: pan-y; display: flex; flex-direction: column;
+  padding: calc(56px + 8px) max(12px, env(safe-area-inset-right, 0px))
     calc(var(--chat-form-h, 60px) + 8px) max(12px, env(safe-area-inset-left, 0px));
 }
-.chat-empty { margin: auto; color: var(--ios-secondary); text-align: center; }
-.chat-stamp { margin: 14px 0 6px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
+/* Conversation vide : l'ours et le texte juste au-dessus de la barre de saisie. */
+.chat-empty { margin: auto 0 8px; color: var(--ios-secondary); text-align: center; transition: opacity 150ms ease; }
+/* Premier message : l'état vide s'efface en 150 ms (retiré du flux aussitôt). */
+.chat-empty.is-leaving { position: absolute; left: 0; right: 0; bottom: calc(var(--chat-form-h, 60px) + 8px); opacity: 0; }
+/* Séparateurs : date (« Aujourd’hui », « Hier », date) puis heure, centrés en petit gris. */
+.chat-day, .chat-stamp { margin: 14px 0 6px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
+.chat-day { margin-top: 18px; font-size: 12px; }
+.chat-day::first-letter { text-transform: uppercase; }
+/* Anciens messages hors écran : le navigateur saute leur rendu. */
+.chat-messages > :nth-last-child(n+40) { content-visibility: auto; contain-intrinsic-size: auto 40px; }
 .chat-receipt { margin: 2px 4px 0 0; font-size: 11px; font-weight: 600; color: var(--ios-secondary); }
+.chat-receipt[hidden] { display: none; }
+.bubble-row { display: flex; flex-direction: column; align-items: flex-start; }
+.bubble-row.from-me { align-items: flex-end; }
+/* Envoi en cours : bulle un peu pâle. Échec : point d'exclamation rouge, ligne entière tactile. */
+.bubble-row.is-sending .bubble { opacity: .7; }
+.bubble-row.is-failed { cursor: pointer; }
+.bubble-row.is-failed .chat-receipt { color: #ff3b30; }
+.bubble-alert {
+  position: absolute; left: -34px; top: 50%; margin-top: -12px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  background: #ff3b30; color: #fff; font: inherit; font-size: 15px; font-weight: 800; line-height: 1; cursor: pointer;
+}
+@media (pointer: coarse) {
+  /* Appui long sur une bulle : menu Copier plutôt que la sélection du système. */
+  .bubble { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
 .bubble-wrap { display: flex; flex-direction: column; align-items: flex-end; }
 .bubble {
   position: relative; max-width: 75%; margin-top: 2px; padding: 7px 12px; border-radius: 18px;
@@ -1428,11 +1479,11 @@ body.chat-open .topbar-nav { display: none; }
 }
 .bubble.group-start { margin-top: 8px; }
 .bubble p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bubble.from-me { align-self: flex-end; background: #0A84FF; color: #fff; }
+.bubble.from-me { align-self: flex-end; background: var(--brand); color: var(--brand-on); }
 .bubble.from-team { align-self: flex-start; background: var(--ios-incoming); color: var(--ios-label); }
 /* Petite « queue » sur la dernière bulle d'un groupe (deux pseudo-éléments). */
 .bubble.tail::before, .bubble.tail::after { content: ""; position: absolute; bottom: 0; height: 20px; }
-.bubble.from-me.tail::before { right: -7px; width: 20px; background: #0A84FF; border-bottom-left-radius: 16px 14px; }
+.bubble.from-me.tail::before { right: -7px; width: 20px; background: var(--brand); border-bottom-left-radius: 16px 14px; }
 .bubble.from-me.tail::after { right: -10px; width: 10px; background: var(--ios-bg); border-bottom-left-radius: 10px; }
 .bubble.from-team.tail::before { left: -7px; width: 20px; background: var(--ios-incoming); border-bottom-right-radius: 16px 14px; }
 .bubble.from-team.tail::after { left: -10px; width: 10px; background: var(--ios-bg); border-bottom-right-radius: 10px; }
@@ -1449,19 +1500,19 @@ body.chat-open .topbar-nav { display: none; }
 }
 .chat-field textarea::placeholder { color: var(--ios-secondary); }
 .chat-field textarea:focus { outline: none; }
-.chat-field:focus-within { border-color: rgba(10, 132, 255, .45); box-shadow: 0 0 0 3px rgba(10, 132, 255, .12); }
+.chat-field:focus-within { border-color: rgba(var(--brand-rgb), .45); box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .12); }
 /* Bouton rond toujours visible : gris et désactivé sans texte, bleu sinon. Zone tactile de 44 px. */
 .chat-send {
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -1px -1px -1px 0; padding: 0;
   border: 0; background: none; cursor: pointer;
 }
-.chat-send .icon { width: 32px; height: 32px; padding: 7px; border-radius: 50%; background: #0A84FF; color: #fff; stroke-width: 2.6; transition: background-color .15s; }
+.chat-send .icon { width: 32px; height: 32px; padding: 7px; border-radius: 50%; background: var(--brand); color: var(--brand-on); transition: background-color .15s; }
 .chat-send:disabled { cursor: default; }
 .chat-send:disabled .icon { background: var(--chat-send-off, #c7c7cc); }
 
 /* Couleurs façon iOS, clair et sombre (recherche, feuille, messages). */
 :root {
-  --ios-blue: #007AFF; --ios-label: #000; --ios-secondary: #8E8E93; --ios-bg: #fff; --ios-bar: rgba(249, 249, 249, .94);
+  --ios-blue: var(--brand); --ios-label: #000; --ios-secondary: #8E8E93; --ios-bg: #fff; --ios-bar: rgba(249, 249, 249, .94);
   --ios-fill: rgba(118, 118, 128, .12); --ios-fill-solid: #fff; --ios-group: #F2F2F7; --ios-sheet: #fff;
   --ios-incoming: #E9E9EB; --ios-separator: rgba(60, 60, 67, .29); --ios-separator-strong: rgba(60, 60, 67, .36);
 }
@@ -1472,14 +1523,14 @@ body.chat-open .topbar-nav { display: none; }
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .chat, :root:not([data-theme="light"]) .sheet {
-    --ios-blue: #0A84FF; --ios-label: #fff; --ios-secondary: #8D8D93; --ios-bg: #000; --ios-bar: rgba(22, 22, 24, .94);
+    --ios-blue: var(--brand-on-dark); --ios-label: #fff; --ios-secondary: #8D8D93; --ios-bg: #000; --ios-bar: rgba(22, 22, 24, .94);
     --ios-fill: rgba(118, 118, 128, .24); --ios-fill-solid: #1C1C1E; --ios-group: #2C2C2E; --ios-sheet: #1C1C1E;
     --ios-incoming: #26252A; --ios-separator: rgba(84, 84, 88, .6); --ios-separator-strong: rgba(84, 84, 88, .75);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet {
-    --ios-blue: #0A84FF; --ios-label: #fff; --ios-secondary: #8D8D93; --ios-bg: #000; --ios-bar: rgba(22, 22, 24, .94);
+    --ios-blue: var(--brand-on-dark); --ios-label: #fff; --ios-secondary: #8D8D93; --ios-bg: #000; --ios-bar: rgba(22, 22, 24, .94);
     --ios-fill: rgba(118, 118, 128, .24); --ios-fill-solid: #1C1C1E; --ios-group: #2C2C2E; --ios-sheet: #1C1C1E;
     --ios-incoming: #26252A; --ios-separator: rgba(84, 84, 88, .6); --ios-separator-strong: rgba(84, 84, 88, .75);
   color-scheme: dark;
@@ -1500,7 +1551,7 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .activity-icon .icon { width: 22px; height: 22px; }
 .tone-ok { background: #dcfce7; color: #15803d; }
 .tone-bad { background: #ffe4e6; color: #be123c; }
-.tone-info { background: #dbeafe; color: #1d4ed8; }
+.tone-info { background: var(--brand-fixed); color: var(--brand-strong); }
 .tone-muted { background: var(--ios-fill); color: var(--ios-secondary); }
 .activity-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .activity-phrase {
@@ -1535,11 +1586,69 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .ios-switch:disabled { opacity: .45; cursor: not-allowed; }
 .ios-switch:focus-visible { outline: 3px solid var(--v2-focus); }
 
-/* « Comment faire ? » : trois étapes */
-.howto-steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 14px; }
-.howto-steps li { display: flex; align-items: flex-start; gap: 12px; font-size: 16px; line-height: 1.4; }
-.howto-steps .icon { vertical-align: -2px; color: var(--ios-blue); }
-.howto-num { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ios-blue); color: #fff; font-weight: 800; font-size: 14px; }
+/*
+ * Tuto « Installe HAISSEL en 30 secondes » (tuto-ios.js) : 5 images 572×1024
+ * (ours compris). Largeur 100 % de la feuille, 300 px au plus, jamais au-delà
+ * de 572 px ; plus petite si l'écran est bas, pour que titre, image, légende,
+ * points et boutons tiennent sans défiler sur un iPhone SE. Rapport réservé :
+ * aucun saut. Hauteur de la feuille fixe d'une étape à l'autre.
+ */
+.tuto-sheet { --tuto-w: min(100%, 300px, calc((92dvh - 280px) * 519 / 998)); }
+.tuto-sheet .sheet-panel { gap: 8px; overflow: hidden; }
+/* Verre des feuilles (.lg-glass .lg-sheet) avec un léger dégradé, plus clair en haut. */
+.tuto-sheet .sheet-panel.lg-glass {
+  --lg-tint: rgba(255, 255, 255, .72); --lg-native-tint: rgba(255, 255, 255, .6);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 55%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tuto-sheet .sheet-panel.lg-glass {
+    --lg-tint: rgba(11, 11, 15, .85); --lg-native-tint: rgba(11, 11, 15, .85);
+    background-image: linear-gradient(to bottom, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 55%);
+  }
+}
+:root[data-theme="dark"] .tuto-sheet .sheet-panel.lg-glass {
+  --lg-tint: rgba(11, 11, 15, .85); --lg-native-tint: rgba(11, 11, 15, .85);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 55%);
+}
+.tuto-title { margin: 4px 0 0; font-size: 20px; line-height: 1.25; }
+.tuto-track {
+  position: relative; display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
+  margin: 0 -16px; padding: 6px 0 14px; touch-action: pan-x pan-y;
+}
+.tuto-track::-webkit-scrollbar { display: none; }
+.tuto-track:focus { outline: none; }
+.tuto-track:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.tuto-slide { flex: 0 0 100%; margin: 0; padding: 0 16px; box-sizing: border-box; display: grid; place-items: center; scroll-snap-align: center; scroll-snap-stop: always; }
+/* Téléphones détourés (fond transparent) : posés directement sur la feuille, sans cadre ni fond. */
+.tuto-image {
+  display: block; width: var(--tuto-w); max-width: 300px; height: auto; aspect-ratio: 519 / 998; margin: 0 auto;
+  padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+  transition: transform 300ms cubic-bezier(.2, .8, .2, 1); will-change: transform; -webkit-user-select: none; user-select: none;
+}
+.tuto-caption {
+  margin: 0; min-height: calc(2 * 1.3em); max-height: calc(2 * 1.3em); overflow: hidden;
+  font-size: 17px; line-height: 1.3; font-weight: 600; text-align: center; color: var(--ios-label);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.tuto-dots { display: flex; justify-content: center; gap: 2px; }
+.tuto-dot { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.tuto-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ios-separator-strong); transition: background-color .2s ease, transform .2s ease; }
+.tuto-dot[aria-current="step"]::before { background: var(--brand); transform: scale(1.15); }
+.tuto-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.tuto-actions .sheet-apply { flex: 1; }
+.tuto-prev {
+  flex: none; min-height: 50px; padding: 0 14px; border: 0; border-radius: 12px; background: none;
+  color: var(--ios-secondary); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+/* Étape 1 : « Suivant » seul, pleine largeur ; ensuite « Précédent » à gauche, même hauteur. */
+.tuto-prev.is-hidden { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tuto-image { transition: none; transform: none !important; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tuto-dot[aria-current="step"]::before { background: var(--brand-on-dark); }
+}
+:root[data-theme="dark"] .tuto-dot[aria-current="step"]::before { background: var(--brand-on-dark); }
 
 /* ---------- Loader (loader inspiré de css-loaders.com) ---------- */
 /*
@@ -1547,12 +1656,13 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
  * sombre (l'Accueil et l'écran de démarrage restent clairs) : la couleur
  * claire ne s'applique que sur les surfaces sombres (conversation, feuille).
  */
-:root { --loader-color: #2563eb; }
+:root { --loader-color: var(--brand); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .chat, :root:not([data-theme="light"]) .sheet { --loader-color: #93c5fd; --chat-border: #3a3a3c; --chat-send-off: #48484a; }
+  :root:not([data-theme="light"]) .chat, :root:not([data-theme="light"]) .sheet { --loader-color: var(--brand-on-dark); --chat-border: #3a3a3c; --chat-send-off: #48484a; }
 }
-:root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet { --loader-color: #93c5fd; --chat-border: #3a3a3c; --chat-send-off: #48484a; }
+:root[data-theme="dark"] .chat, :root[data-theme="dark"] .sheet { --loader-color: var(--brand-on-dark); --chat-border: #3a3a3c; --chat-send-off: #48484a; }
 
+/* Loader à carrés : réservé à l'écran de démarrage (les autres chargements : spinner.js). */
 .loader {
   width: 45px;
   aspect-ratio: 1;
@@ -1561,14 +1671,11 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
   background-size: 40% 40%;
   animation: l19 1s infinite alternate;
 }
-.loader.is-small { width: 24px; }
 @keyframes l19 {
   0%, 10%   { background-position: 0 0, 0 calc(100%/3) }
   50%       { background-position: 0 0, calc(100%/3) calc(100%/3) }
   90%, 100% { background-position: 0 0, calc(100%/3) 0 }
 }
-/* Chargement de la suite du fil et des résultats de Recherche. */
-.loader-row { display: flex; justify-content: center; padding: 24px 0; }
 
 /* ---------- Écran de démarrage (boot.js) ---------- */
 /* Même fond que l'Accueil : pas de flash blanc à l'ouverture. */
@@ -1605,7 +1712,7 @@ button.activity-row:focus-visible { outline: 3px solid var(--v2-focus); outline-
 .about-meta { margin: 12px 0 0; text-align: center; font-size: 12px; color: var(--ios-secondary); }
 
 /* Logo HAISSEL (logo.svg) à la place du carré « H » : mêmes tailles. */
-img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
+img.wordmark-logo, img.splash-logo, img.msg-avatar {
   display: block; flex: none; object-fit: contain; background: none; box-shadow: none; border-radius: 0;
 }
 
@@ -1615,11 +1722,13 @@ img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
   border: 0; border-bottom: .5px solid var(--ios-separator); background: none; color: var(--v2-on-surface);
   font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer;
 }
-.install-row[hidden] { display: none; }
 .install-row-icon { width: 32px; height: 32px; border-radius: 8px; flex: none; }
 .install-row-label { flex: 1; min-width: 0; }
 .install-row .icon { width: 18px; height: 18px; color: var(--ios-secondary); flex: none; }
-#install-help { margin: 4px 0 12px; }
+/* Feuille « Installe HAISSEL » / « Ouvre HAISSEL dans Safari ». */
+.install-sheet-icon { justify-self: center; width: 64px; height: 64px; border-radius: 16px; margin-top: 4px; }
+.install-sheet-text { margin: 0; font-size: 16px; line-height: 1.45; text-align: center; color: var(--ios-label); }
+.install-sheet-status { margin: 0; min-height: 1.4em; font-size: 14px; text-align: center; color: var(--ios-secondary); }
 
 /* Bannière en verre, au-dessus de la barre de navigation, sur l'Accueil seulement. */
 .install-banner {
@@ -1637,3 +1746,57 @@ img.wordmark-logo, img.splash-logo, img.msg-pin-avatar, img.msg-avatar {
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin: -2px 0; padding: 0;
   border: 0; border-radius: 50%; background: none; color: var(--v2-secondary); font-size: 22px; line-height: 1; cursor: pointer;
 }
+
+/* Focus des menus, feuilles et fenêtres : jamais au toucher ni au clic,
+   seulement à la navigation clavier (:focus-visible), anneau --brand de 2 px. */
+:is(.bubble-menu, .sv-menu, [role="menu"], .sheet, .app-dialog) :focus:not(:focus-visible),
+:is(.sheet, .app-dialog):focus:not(:focus-visible) { outline: none; box-shadow: none; }
+:is(.bubble-menu, .sv-menu, [role="menu"], .sheet, .app-dialog) :focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px; box-shadow: none;
+}
+
+/* Mascotte (mascot.js, mascot.css) : emplacements de l'application. */
+.profile-grid > .mascot-head { grid-column: 1 / -1; }
+#learn-view > .mascot-head { margin-bottom: 4px; }
+.chat-empty.mascot-state { padding: 0; }
+.install-banner-mascot { flex: none; margin: -14px 0 -10px -6px; }
+.install-banner-mascot img.mascot { width: 72px; height: 72px; }
+.m-toast.has-mascot .m-toast-inner { gap: 6px; }
+.m-toast.has-mascot img.mascot { width: 56px; height: 56px; margin: -6px 0; }
+.offline-banner {
+  position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 85;
+  display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 0 auto; padding: 6px 14px 6px 6px; border-radius: 20px;
+  color: var(--v2-on-surface); font-weight: 600; font-size: 14px;
+}
+.offline-banner[hidden] { display: none; }
+.offline-banner p { margin: 0; }
+.offline-banner img.mascot { margin: 0; }
+.goodbye-screen {
+  position: fixed; inset: 0; z-index: 1100; display: grid; place-content: center; justify-items: center; gap: 12px;
+  background: var(--v2-bg); color: var(--v2-on-surface); font-size: 22px; font-weight: 800;
+  animation: m-fade var(--dur-2, 220ms) ease both;
+}
+.goodbye-screen p { margin: 0; }
+.goodbye-screen.is-leaving { opacity: 0; transition: opacity 200ms ease; }
+.boot-screen img.mascot { margin-bottom: 12px; }
+.boot-screen { align-content: center; }
+
+/* Badge du type d'offre : « Lien affilié » + « En savoir plus », ou « Fiche membre · lien officiel ». */
+.kind-badge { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.kind-more { font-size: 12px; font-weight: 700; color: var(--brand); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.discover-text .kind-more, .story-viewer .kind-more { color: inherit; }
+
+/* Avatar de l'équipe : l'ours, toujours rond. */
+img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }
+.activity-icon.is-team { padding: 0; overflow: hidden; background: none; }
+.activity-icon.is-team img { width: 100%; height: 100%; }
+
+/* Feuille ouverte au doigt ou à la souris : pas d'anneau sur le focus initial (« Suivant »…). */
+.sheet[data-no-ring] :focus { outline: none; box-shadow: none; }
+
+/* Liens de l'équipe : ce que l'annonceur donne au membre (carte et page de l'offre). */
+.offer-benefit { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--v2-on-surface); }
+/* Formulaire Publier (ADMIN) : campagne et suivi. */
+.pub-team { display: grid; gap: 10px; margin: 8px 0; padding: 14px; border-radius: 16px; background: var(--v2-surface-low, #eef1f6); }
+.pub-team[hidden] { display: none; }
+.pub-team-title { margin: 0; font-size: 15px; font-weight: 800; }

@@ -7,7 +7,7 @@
  * jamais de données. Connexion directe (non poolée) quand elle existe.
  */
 const { Pool } = require('pg');
-const { resolveDatabaseUrl } = require('../src/config/database');
+const { resolveDatabaseUrl, stripSslParams, poolSslConfig } = require('../src/config/database');
 const { runMigrations } = require('../src/db/migrator');
 
 if (process.env.VERCEL !== '1') {
@@ -15,7 +15,10 @@ if (process.env.VERCEL !== '1') {
   process.exit(0);
 }
 
-const pool = new Pool({ connectionString: resolveDatabaseUrl({ unpooled: true }), max: 1 });
+// Même TLS que l'application (src/config/database.js) : vérification explicite, sans sslmode dans l'adresse.
+const ssl = poolSslConfig();
+const url = resolveDatabaseUrl({ unpooled: true });
+const pool = new Pool({ connectionString: ssl ? stripSslParams(url) : url, ssl, max: 1 });
 
 runMigrations(pool)
   .then((applied) => {

@@ -59,7 +59,8 @@ describe('pas de verre sur le contenu', () => {
     for (const fn of ['function postCard', 'function gridTile', 'function communityCard', 'function chatRow', 'function activityRow', 'function linkCard']) {
       const start = app.indexOf(fn);
       expect(start).toBeGreaterThan(-1);
-      const body = app.slice(start, app.indexOf('\n}\n', start));
+      // Seule exception : la pastille posée sur le visuel coloré de la carte.
+      const body = app.slice(start, app.indexOf('\n}\n', start)).replace("'post-visual-icon lg-glass'", '');
       expect([fn, body.includes('lg-glass')]).toEqual([fn, false]);
     }
     for (const marker of ['id="home-offers"', 'id="community-list"', 'id="activity-list"', 'id="chat-messages"', 'class="about-list"', 'id="login-form"', 'id="leave-dialog"']) {
@@ -77,10 +78,10 @@ describe('pas de verre sur le contenu', () => {
 
 describe('composant CSS', () => {
   test('formes, enfoncement et ressort communs', () => {
-    expect(css).toMatch(/\.lg-glass \{[^}]*backdrop-filter: blur\(18px\) saturate\(180%\)/);
+    expect(css).toMatch(/\.lg-glass \{[^}]*backdrop-filter: blur\(16px\) saturate\(220%\) brightness\(1\.08\)/);
     for (const shape of ['.lg-pill', '.lg-bar', '.lg-sheet']) expect(css).toContain(`${shape} {`);
     expect(css).toMatch(/\.lg-press \{[^}]*var\(--lg-spring\)/);
-    expect(css).toMatch(/\.lg-press:active \{[^}]*scale\(\.96\)/);
+    expect(css).toMatch(/\.lg-press:active \{[^}]*scale\(1\.03\)/);
   });
 
   test('réfraction SVG réservée à la barre du bas', () => {
@@ -100,9 +101,43 @@ describe('composant CSS', () => {
     expect(css).not.toMatch(/@import/);
   });
 
+  test('verre prononcé : teintes, reflet spéculaire, liseré 1,5 px, ombres', () => {
+    expect(css).toContain('--lg-tint: rgba(255, 255, 255, .18);');
+    expect(css).toContain('--lg-tint: rgba(20, 22, 30, .28);');
+    expect(css).toContain('-webkit-backdrop-filter: blur(16px) saturate(220%) brightness(1.08);');
+    expect(css).toMatch(/\.lg-glass::before \{[^}]*linear-gradient\(150deg, rgba\(255, 255, 255, \.55\) 0%, rgba\(255, 255, 255, 0\) 33%\)[^}]*mix-blend-mode: soft-light/);
+    expect(css).toMatch(/\.lg-glass::after,\s*\.lg-drop::before \{[^}]*padding: 1\.5px[^}]*rgba\(255, 255, 255, \.9\), rgba\(255, 255, 255, \.1\)/);
+    expect(css).toMatch(/\.lg-glass \{[^}]*inset 0 1px 0 rgba\(255, 255, 255, \.8\), inset 0 -1px 1px rgba\(0, 0, 0, \.12\)/);
+    expect(css).toMatch(/radial-gradient\(circle at var\(--lg-x\) var\(--lg-y\)/);
+  });
+
+  test('nouvelles surfaces en verre sur les visuels, jamais sur Réglages ni formulaires', () => {
+    expect(app).toContain("className: 'post-visual-icon lg-glass'");
+    expect(app).toContain("className: 'discover-text lg-glass'");
+    expect(app).toContain("className: 'discover-side lg-glass lg-pill'");
+    expect(html).toContain('class="profile-tabs lg-glass lg-bar is-flat"');
+    expect(html).not.toMatch(/class="[^"]*(about-row|about-box|auth-form|bubble)[^"]*lg-glass/);
+    expect(css).toMatch(/\.sheet::backdrop \{[^}]*blur\(14px\)/);
+  });
+
   test('la barre du bas n’a plus de fond propre dans app-v2.css (rendu inchangé)', () => {
     const rule = appCss.match(/\.topbar-nav \.topbar-nav-inner \{[^}]*\}/)[0];
     expect(rule).not.toMatch(/background|backdrop-filter|box-shadow/);
+  });
+
+  test('en-tête : hystérésis (verre au-delà de 12 px, transparent sous 4 px), hauteur fixe', () => {
+    const vm = require('vm');
+    const sandbox = { document: { readyState: 'loading', addEventListener() {} }, navigator: {}, Math };
+    sandbox.window = sandbox;
+    vm.runInNewContext(read('liquid-glass.js'), sandbox);
+    const { nextGlass } = sandbox.HaisselGlass;
+    let glass = false;
+    const seen = [0, 5, 10, 12, 13, 10, 5, 4, 3, -40, 13].map((y) => { glass = nextGlass(glass, y); return glass; });
+    expect(seen).toEqual([false, false, false, false, true, true, true, true, false, false, true]);
+    expect(read('liquid-glass.js')).toMatch(/addEventListener\('scroll', schedule, \{ passive: true \}\)/);
+    expect(read('liquid-glass.js')).toContain('window.requestAnimationFrame(update)');
+    expect(appCss).toMatch(/\.topbar \.topbar-inner \{[^}]*height: 64px/);
+    expect(appCss).toMatch(/\.topbar \{[^}]*padding-top: env\(safe-area-inset-top, 0px\)/);
   });
 
   test('en-tête : pas de backdrop-filter sur .topbar (repère de la barre du bas)', () => {

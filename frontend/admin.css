@@ -123,7 +123,7 @@ code { font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace; font-si
 .metric-label { color: var(--muted); font-size: .85rem; font-weight: 600; }
 .metric-value { font-size: 1.65rem; font-weight: 800; letter-spacing: -.02em; }
 .metric-hint { color: var(--muted); font-size: .8rem; }
-.metric-card.blue { --accent: #2563eb; }
+.metric-card.blue { --accent: var(--brand); }
 .metric-card.violet { --accent: var(--violet); }
 .metric-card.indigo { --accent: var(--primary); }
 .metric-card.green { --accent: #059669; }
@@ -279,7 +279,7 @@ tbody tr:hover { background: #fafbff; }
 .inbox-messages { display: flex; flex-direction: column; gap: .5rem; max-height: 55vh; overflow-y: auto; }
 .inbox-bubble { max-width: 80%; padding: .5rem .8rem; border-radius: 14px; border: 1px solid var(--line); }
 .inbox-bubble p { margin: 0 0 .2rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-.inbox-bubble.team { align-self: flex-end; background: rgba(37, 99, 235, .12); }
+.inbox-bubble.team { align-self: flex-end; background: rgba(var(--brand-rgb), .12); }
 .inbox-bubble.member { align-self: flex-start; }
 .inbox-reply { display: grid; gap: .5rem; }
 .inbox-reply textarea { width: 100%; font: inherit; padding: .6rem; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: inherit; }
@@ -291,3 +291,7 @@ img.brand-mark { display: block; object-fit: contain; background: none !importan
 .push-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .push-banner[hidden] { display: none; }
 .push-banner p { margin: 0; font-weight: 600; }
+.contact-message { white-space: pre-line; overflow-wrap: anywhere; }
+
+/* Avatar de l'équipe (l'ours), rond, devant « Équipe » dans une conversation. */
+img.team-avatar { width: 20px; height: 20px; margin-right: 6px; border-radius: 50%; vertical-align: middle; object-fit: cover; }

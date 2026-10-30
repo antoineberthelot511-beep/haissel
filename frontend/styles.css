@@ -38,7 +38,7 @@
   --ad: #8a4b00;             /* mention « Publicité » */
   --ad-soft: #fff1dc;
 
-  --focus: #f2a900;
+  --focus: var(--brand);
   --radius: 8px;
   --shadow: 0 1px 2px rgba(20, 35, 40, .06), 0 2px 8px rgba(20, 35, 40, .05);
 
@@ -76,11 +76,7 @@ small { font-weight: 400; color: var(--text-muted); }
 
 .hidden { display: none !important; }
 .icon-sprite { display: none; }
-.icon {
-  width: 20px; height: 20px; flex: none;
-  fill: none; stroke: currentColor; stroke-width: 1.8;
-  stroke-linecap: round; stroke-linejoin: round;
-}
+.icon { width: 20px; height: 20px; flex: none; }
 
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 

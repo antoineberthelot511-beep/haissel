@@ -5,6 +5,8 @@ const learn = require('../controllers/learn.controller');
 const community = require('../controllers/community.controller');
 const messages = require('../controllers/messages.controller');
 const push = require('../controllers/push.controller');
+const contact = require('../controllers/contact.controller');
+const revenue = require('../controllers/revenue.controller');
 const { broadcastBurstLimiter, broadcastHourlyLimiter, pushRateLimiter } = require('../middleware/rate-limit.middleware');
 const {
   requireLocalAdmin,
@@ -61,6 +63,10 @@ router.post('/notifications', broadcastBurstLimiter, broadcastHourlyLimiter, bro
 // « M'envoyer une notification de test » : appareils de l'admin connecté uniquement.
 router.post('/push/test', pushRateLimiter, push.sendTest);
 
+// Formulaire de contact : demandes reçues, marquées « traitées ».
+router.get('/contact', contact.adminList);
+router.post('/contact/:id/handled', contact.adminMarkHandled);
+
 // Espace pédagogique : contenus, opportunités, réglages du parrainage.
 for (const [path, handlers] of [['content', learn.content], ['opportunities', learn.opportunity]]) {
   router.get(`/learn/${path}`, handlers.list);
@@ -73,6 +79,8 @@ router.get('/learn/settings', learn.getSettings);
 router.put('/learn/settings', learn.updateSettings);
 
 // Modération des offres publiées par les membres.
+// Revenus des liens de l'équipe (clics suivis, conversions, export CSV).
+router.get('/revenue', revenue.getRevenue);
 router.get('/community/offers', community.adminListOffers);
 router.post('/community/offers/:id/moderate', community.adminModerateOffer);
 router.post('/community/offers/:id/extend', community.adminExtendOffer);

@@ -59,6 +59,36 @@ describe('ligne « Installer l’application HAISSEL »', () => {
   });
 });
 
+describe('feuille d’installation selon l’appareil (5 cas)', () => {
+  const kindFor = (env, seen = false) => I.autoTutoKind({ seen, state: I.installState(env) });
+
+  test('iPhone Safari non installé : carrousel du tuto iPhone', () => {
+    expect(kindFor({ userAgent: IPHONE_SAFARI })).toBe('ios');
+  });
+  test('Android avec beforeinstallprompt : « Installe HAISSEL » (invite native)', () => {
+    expect(kindFor({ userAgent: ANDROID, hasPrompt: true })).toBe('android');
+  });
+  test('iPhone dans un autre navigateur : « Ouvre HAISSEL dans Safari »', () => {
+    expect(kindFor({ userAgent: IPHONE_CHROME })).toBe('safari');
+  });
+  test('déjà installée : rien', () => {
+    expect(kindFor({ userAgent: IPHONE_SAFARI, standalone: true })).toBeNull();
+    expect(kindFor({ userAgent: ANDROID, hasPrompt: true, displayModeStandalone: true })).toBeNull();
+  });
+  test('ordinateur : rien', () => {
+    expect(kindFor({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' })).toBeNull();
+  });
+  test('déjà vue sur le compte : jamais rouverte automatiquement', () => {
+    expect(kindFor({ userAgent: IPHONE_SAFARI }, true)).toBeNull();
+    expect(kindFor({ userAgent: ANDROID, hasPrompt: true }, true)).toBeNull();
+  });
+  test('ligne de Réglages : même feuille, tuto iPhone par défaut (déjà installée, ordinateur)', () => {
+    expect(I.tutoKind('installed')).toBeNull();
+    expect(I.tutoKind('unavailable')).toBeNull();
+    expect(I.tutoKind('ios-safari')).toBe('ios');
+  });
+});
+
 describe('bannière de l’Accueil', () => {
   const now = Date.UTC(2026, 9, 27);
 
@@ -104,12 +134,21 @@ describe('événements du navigateur', () => {
 describe('page et manifeste', () => {
   const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
 
-  test('ligne dans Réglages avec l’icône du logo, bannière en verre', () => {
+  test('ligne toujours visible dans Réglages, feuille d’installation, bannière en verre', () => {
     const settings = html.slice(html.indexOf('id="ppanel-settings"'), html.indexOf('id="about-title"'));
-    expect(settings).toMatch(/<button id="install-row"[^>]*hidden>/);
+    expect(settings).toMatch(/<button id="install-row" class="install-row" type="button">/);
     expect(settings).toContain('src="/icons/icon-192.png"');
-    expect(settings).toContain("Installer l'application HAISSEL");
-    expect(settings).toContain("Ouvre HAISSEL dans Safari pour l'installer.");
+    expect(settings).toContain("Installer l'app sur ton téléphone");
+    expect(settings).toContain('#i-chevron-right');
+    expect(html).toMatch(/<dialog id="install-sheet" class="sheet"/);
+    const app = fs.readFileSync(path.join(__dirname, '../frontend/app.js'), 'utf8');
+    expect(app).toContain("'Application installée ✓'");
+    expect(app).toContain("'Copier le lien'");
+    // Fermeture des feuilles (quelle que soit l'étape) : « vu » sur le compte.
+    expect(app).toContain('bindSheet(ui.installSheet, { onClose: markInstallTutoSeen });');
+    expect(app).toMatch(/bindSheet\(ui\.howtoSheet, \{\s*onClose: \(\) => \{\s*markInstallTutoSeen\(\);/);
+    // Jamais par-dessus l'écran de chargement ni la question de majorité.
+    expect(app).toMatch(/const blocked = document\.getElementById\('boot-screen'\) \|\| \(gate && !gate\.hidden\)/);
     expect(html).toMatch(/<div id="install-banner" class="install-banner lg-glass lg-pill"[^>]*hidden>/);
     expect(html.indexOf('src="install.js"')).toBeLessThan(html.indexOf('src="app.js"'));
   });

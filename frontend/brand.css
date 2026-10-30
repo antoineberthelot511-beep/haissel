@@ -1,0 +1,22 @@
+/*
+ * Palette de marque HAISSEL, construite autour du bleu du logo (#0B57FF).
+ * Chargée en premier par toutes les pages (app, admin, pages publiques et
+ * légales). Contrastes vérifiés par scripts/check-contrast.js (npm test) :
+ *   - texte blanc sur --brand et --brand-strong : ≥ 4,5:1 ;
+ *   - --brand en texte sur fond clair : ≥ 4,5:1 ;
+ *   - --brand-on-dark en texte sur fond sombre : ≥ 4,5:1.
+ * Les couleurs de statut (succès, erreur, alerte) ne sont pas ici.
+ */
+:root {
+  --brand: #0B57FF;          /* boutons, liens, icônes actives */
+  --brand-rgb: 11, 87, 255;  /* ombres et voiles : rgba(var(--brand-rgb), .35) */
+  --brand-strong: #0046CC;   /* survol, appui */
+  --brand-dark: #0035A0;     /* survol des liens (pages légales, styles.css) */
+  --brand-line: #B3CBFF;     /* bordures et anneaux de focus clairs */
+  --brand-light: #4D84FF;    /* départ des dégradés */
+  --brand-fixed: #D6E4FF;    /* pastilles, fonds sélectionnés */
+  --brand-soft: #EEF3FF;     /* fonds très clairs */
+  --brand-ink: #0A2E8A;      /* texte sur --brand-fixed / --brand-soft */
+  --brand-on: #FFFFFF;       /* texte sur --brand */
+  --brand-on-dark: #8DB4FF;  /* texte et icônes de marque sur fond sombre */
+}

@@ -27,7 +27,7 @@ describe('espace membre', () => {
   test('Réglages → À propos : une ligne par page légale, avec chevron', () => {
     const settings = html.slice(html.indexOf('id="ppanel-settings"'), html.indexOf('id="howto-sheet"'));
     const rows = settings.match(/<a class="about-row" href="[^"]+">[^<]+<svg[^>]*><use href="#i-chevron-right" \/><\/svg><\/a>/g) || [];
-    expect(rows.map((row) => row.match(/href="([^"]+)"/)[1])).toEqual(LEGAL);
+    expect(rows.map((row) => row.match(/href="([^"]+)"/)[1])).toEqual([...LEGAL, '/contact']);
     expect(settings).toContain("Conditions d'utilisation");
     expect(settings).toContain('class="about-meta">HAISSEL');
     expect(css).toMatch(/\.about-row \{[^}]*min-height: 44px/);

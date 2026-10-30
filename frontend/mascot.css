@@ -1,0 +1,28 @@
+/*
+ * Mascotte (mascot.js) : entrée douce (fondu + léger rebond), aucune
+ * animation en prefers-reduced-motion. L'animation repart chaque fois que
+ * l'ours réapparaît (écran affiché de nouveau).
+ */
+@keyframes mascot-in {
+  0% { opacity: 0; transform: translateY(10px) scale(.92); }
+  60% { opacity: 1; transform: translateY(-3px) scale(1.02); }
+  100% { opacity: 1; transform: none; }
+}
+img.mascot {
+  display: block; flex: none; max-width: 100%; height: auto; margin: 0 auto;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  animation: mascot-in 420ms cubic-bezier(.34, 1.45, .55, 1) both;
+}
+img.mascot[hidden] { display: none; }
+[data-mascot]:not(img) { display: block; }
+[data-mascot]:not(img):empty { display: none; }
+
+/* États vides : ours au-dessus du texte. */
+.mascot-state { display: grid; justify-items: center; gap: 10px; padding: 24px 16px; text-align: center; }
+.mascot-state p { margin: 0; }
+/* En-têtes et feuilles : ours au-dessus du titre. */
+.mascot-head { margin: 0 auto 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  img.mascot { animation: none !important; }
+}

@@ -27,12 +27,17 @@ test.each(PAGES)('%s : favicons SVG, 32 et 16 px', (page) => {
 test('plus de carré « H » : le logo est une image locale', () => {
   for (const page of ['index.html', 'admin.html']) {
     const html = read(page);
-    expect(html).not.toMatch(/class="(wordmark-logo|splash-logo|msg-pin-avatar|msg-avatar|brand-mark)[^"]*"[^>]*>H</);
+    expect(html).not.toMatch(/class="(wordmark-logo|splash-logo|msg-avatar|brand-mark)[^"]*"[^>]*>H</);
   }
   const index = read('index.html');
-  for (const cls of ['wordmark-logo', 'wordmark-logo auth-logo', 'splash-logo', 'msg-pin-avatar', 'msg-avatar', 'msg-avatar sm']) {
+  for (const cls of ['wordmark-logo', 'wordmark-logo auth-logo', 'splash-logo']) {
     expect(index).toMatch(new RegExp(`<img class="${cls}" src="/logo.svg" alt=""`));
   }
+  // Avatar de l'équipe : l'ours (rond), plus le logo « H ».
+  for (const cls of ['msg-avatar sm team-avatar']) {
+    expect(index).toMatch(new RegExp(`<img class="${cls}" src="/images/mascotte/avatar-equipe-128.webp" alt="Équipe Haissel"`));
+  }
+  expect(index).not.toMatch(/class="msg-[a-z-]*avatar[^"]*" src="\/logo.svg"/);
   expect(read('admin.html')).toMatch(/<img class="brand-mark" src="\/logo.svg" alt=""/);
 });
 

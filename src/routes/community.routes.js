@@ -11,6 +11,8 @@ router.use(authenticateToken);
 
 router.get('/offers', community.listOffers);
 router.get('/offers/mine', community.listMyOffers);
+// Profil (privé) : liens de l'équipe que j'ai ouverts.
+router.get('/offers/tried', community.listTriedOffers);
 /*
  * Publier ou modifier une offre suppose un compte éditeur MyLead, donc
  * 18 ans. Le retrait reste permis à tous : un membre doit toujours pouvoir

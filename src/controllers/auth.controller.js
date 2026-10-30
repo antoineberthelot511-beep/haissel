@@ -73,6 +73,10 @@ function publicUser(user, role) {
      */
     is_adult: user.is_adult === null || user.is_adult === undefined ? null : Boolean(user.is_adult),
     adult_declaration_required: needsDeclaration(user),
+    // Feuille d'installation de l'app déjà fermée une fois (sur n'importe quel appareil).
+    install_tuto_seen: Boolean(user.install_tuto_seen_at),
+    // Profil visible par les autres membres (Réglages) ; privé par défaut.
+    profile_public: Boolean(user.profile_public),
   };
 }
 
@@ -83,7 +87,7 @@ async function getRole(userId) {
 
 const USER_COLUMNS = `id, username, email, display_name, first_name, last_name, created_at,
   is_active, is_banned, email_verified_at, mfa_enabled, password_hash,
-  is_adult, adult_declared_at`;
+  is_adult, adult_declared_at, install_tuto_seen_at, profile_public`;
 
 // ---------------------------------------------------------------------------
 // Configuration publique (le frontend n'affiche que ce qui fonctionne)
@@ -153,6 +157,11 @@ function validateRegistration(body) {
     return { error: ['ADULT_ANSWER_REQUIRED', `Indique si tu as ${ADULT_AGE} ans ou plus : la réponse est obligatoire.`] };
   }
 
+  // Condition d'âge de l'inscription (15 ans ou accord d'un parent) : case cochée obligatoire.
+  if (source.age_terms_accepted !== true) {
+    return { error: ['AGE_TERMS_REQUIRED', 'Coche la case pour confirmer que tu as 15 ans ou plus, ou l’accord d’un parent.'] };
+  }
+
   return {
     value: {
       firstName, lastName, username, email, password,
@@ -161,6 +170,9 @@ function validateRegistration(body) {
     },
   };
 }
+
+const GENERIC_REGISTER_CONFLICT = 'Impossible de créer ce compte avec ces informations. '
+  + 'Si tu as déjà un compte, connecte-toi ou réinitialise ton mot de passe.';
 
 async function register(req, res, next) {
   try {
@@ -175,8 +187,8 @@ async function register(req, res, next) {
       const result = await pool.query(
         `
           INSERT INTO users (username, email, password_hash, display_name, first_name, last_name,
-                             is_adult, adult_declared_at, password_changed_at, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW(), NOW())
+                             is_adult, adult_declared_at, age_terms_accepted_at, password_changed_at, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW(), NOW(), NOW())
           RETURNING ${USER_COLUMNS}
         `,
         [value.username, value.email, passwordHash, value.displayName, value.firstName, value.lastName,
@@ -192,12 +204,10 @@ async function register(req, res, next) {
         await logSecurityEvent('register_duplicate_email', { req });
         return res.status(202).json({ success: true, data: { verification_required: true } });
       }
-      return sendError(
-        res,
-        409,
-        'USER_ALREADY_EXISTS',
-        isEmail ? 'Cette adresse e-mail est déjà utilisée.' : 'Ce pseudo est déjà pris.'
-      );
+      // Adresse déjà utilisée : message générique (l'existence d'un compte
+      // n'est pas révélée). Le pseudo, public, reste signalé clairement.
+      if (isEmail) await logSecurityEvent('register_duplicate_email', { req });
+      return sendError(res, 409, 'USER_ALREADY_EXISTS', isEmail ? GENERIC_REGISTER_CONFLICT : 'Ce pseudo est déjà pris.');
     }
 
     await logSecurityEvent('register', { req, userId: user.id });
@@ -386,6 +396,37 @@ function me(req, res) {
  * s'agit d'une déclaration sur l'honneur, pas d'une vérification. Chaque
  * réponse est horodatée et journalisée.
  */
+/**
+ * POST /api/auth/install-tuto/seen : feuille d'installation fermée.
+ * Mémorisé sur le compte : elle ne s'ouvrira plus d'elle-même, sur aucun
+ * appareil. La première date est conservée.
+ */
+async function markInstallTutoSeen(req, res, next) {
+  try {
+    await pool.query(
+      'UPDATE users SET install_tuto_seen_at = COALESCE(install_tuto_seen_at, NOW()) WHERE id = $1',
+      [req.user.id]
+    );
+    return res.status(200).json({ success: true, data: { install_tuto_seen: true } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/** POST /api/auth/me/profile-visibility { public: true|false } : réglage « Profil visible par les membres ». */
+async function setProfileVisibility(req, res, next) {
+  try {
+    const value = (req.body || {}).public;
+    if (typeof value !== 'boolean') {
+      return sendError(res, 400, 'INVALID_REQUEST', 'Valeur attendue : true ou false.', { field: 'public' });
+    }
+    await pool.query('UPDATE users SET profile_public = $2, updated_at = NOW() WHERE id = $1', [req.user.id, value]);
+    return res.status(200).json({ success: true, data: { profile_public: value } });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function declareAdult(req, res, next) {
   try {
     const value = (req.body || {}).is_adult;
@@ -495,7 +536,20 @@ async function resendVerification(req, res, next) {
 // Mot de passe oublié / réinitialisation
 // ---------------------------------------------------------------------------
 
+/*
+ * « Mot de passe oublié » : même réponse ET même durée, que le compte existe
+ * ou non. L'envoi d'un e-mail prend du temps : la réponse attend toujours au
+ * moins NEUTRAL_REPLY_MIN_MS depuis la réception.
+ */
+const NEUTRAL_REPLY_MIN_MS = 1500;
+
+function waitUntilElapsed(startedAt, minMs) {
+  const left = minMs - (Date.now() - startedAt);
+  return left > 0 ? new Promise((resolve) => { setTimeout(resolve, left); }) : Promise.resolve();
+}
+
 async function forgotPassword(req, res, next) {
+  const startedAt = Date.now();
   try {
     if (!isMailEnabled()) {
       return sendError(res, 503, 'MAIL_DISABLED', "L'envoi d'e-mails n'est pas configuré : contactez l'administrateur.");
@@ -512,7 +566,8 @@ async function forgotPassword(req, res, next) {
         await logSecurityEvent('password_reset_requested', { req, userId: user.id });
       }
     }
-    // Réponse identique, que le compte existe ou non.
+    // Réponse identique, que le compte existe ou non, après la même durée minimale.
+    await waitUntilElapsed(startedAt, module.exports.NEUTRAL_REPLY_MIN_MS);
     return res.status(202).json({ success: true, data: { message: NEUTRAL_EMAIL_REPLY } });
   } catch (error) {
     return next(error);
@@ -610,8 +665,20 @@ async function reauthenticate(req, password) {
   return valid;
 }
 
+/*
+ * Mise en place de la double authentification : réservée au rôle ADMIN (pour
+ * qui elle est obligatoire). Un membre qui l'avait déjà activée la garde et
+ * peut toujours la désactiver (mfaDisable reste ouvert à tous).
+ */
+function adminOnlyMfa(req, res) {
+  if (req.userRole === 'ADMIN') return false;
+  sendError(res, 403, 'MFA_ADMIN_ONLY', 'La double authentification est réservée aux administrateurs.');
+  return true;
+}
+
 async function mfaSetup(req, res, next) {
   try {
+    if (adminOnlyMfa(req, res)) return undefined;
     if (req.user.mfa_enabled) {
       return sendError(res, 409, 'MFA_ALREADY_ENABLED', 'La double authentification est déjà active.');
     }
@@ -632,6 +699,7 @@ async function mfaSetup(req, res, next) {
 
 async function mfaEnable(req, res, next) {
   try {
+    if (adminOnlyMfa(req, res)) return undefined;
     const row = (await pool.query('SELECT mfa_pending_secret_enc FROM users WHERE id = $1', [req.user.id])).rows[0];
     if (!row?.mfa_pending_secret_enc) {
       return sendError(res, 400, 'MFA_SETUP_MISSING', 'Commencez par générer une clé.');
@@ -774,6 +842,9 @@ async function deleteMyAccount(req, res, next) {
 }
 
 module.exports = {
+  setProfileVisibility,
+  NEUTRAL_REPLY_MIN_MS,
+  GENERIC_REGISTER_CONFLICT,
   getAuthConfig,
   exportMyData,
   deleteMyAccount,
@@ -785,6 +856,7 @@ module.exports = {
   logoutAll,
   verifyEmail,
   declareAdult,
+  markInstallTutoSeen,
   resendVerification,
   forgotPassword,
   resetPassword,

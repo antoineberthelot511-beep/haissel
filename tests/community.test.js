@@ -324,8 +324,11 @@ describe('modération et anti-spam', () => {
     expect(sixth.status).toBe(429);
   });
 
-  test('profil public : pseudo et ancienneté, sans nom ni e-mail', async () => {
+  test('profil : privé par défaut ; une fois rendu visible, pseudo et ancienneté, sans nom ni e-mail', async () => {
+    expect((await request(app).get(`/api/community/members/${aliceUser.username}`).set(auth(bob))).status).toBe(403);
+    await pool.query('UPDATE users SET profile_public = true WHERE id = $1', [aliceUser.id]);
     const res = await request(app).get(`/api/community/members/${aliceUser.username}`).set(auth(bob));
+    await pool.query('UPDATE users SET profile_public = false WHERE id = $1', [aliceUser.id]);
     expect(res.status).toBe(200);
     expect(Object.keys(res.body.data.profile).sort()).toEqual(['member_since', 'published_offers', 'username']);
   });
