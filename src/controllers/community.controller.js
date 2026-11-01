@@ -205,6 +205,8 @@ function text(body, name, label, { min = 0, max, required = false }) {
 function validateOffer(body, activeCategories, kind = 'campaign') {
   const source = body && typeof body === 'object' ? body : {};
   const campaign = kind === 'campaign';
+  // Bon plan gratuit de l'équipe : jamais de lien de suivi ni de monétisation.
+  const free = kind === 'free';
   const offer = {
     title: text(source, 'title', 'Titre', { min: 5, max: 120, required: true }),
     url: normalizeMemberUrl(source.url),
@@ -218,7 +220,7 @@ function validateOffer(body, activeCategories, kind = 'campaign') {
     tips: text(source, 'tips', 'Mes conseils', { max: 1500 }),
   };
 
-  if (campaign && isAffiliateTrackingUrl(offer.url)) {
+  if ((campaign || free) && isAffiliateTrackingUrl(offer.url)) {
     throw new ValidationError('AFFILIATE_LINK_FORBIDDEN', AFFILIATE_LINK_MESSAGE, 400, 'url');
   }
 
@@ -229,7 +231,7 @@ function validateOffer(body, activeCategories, kind = 'campaign') {
   }
   offer.category = source.category;
 
-  if (!campaign) {
+  if (!campaign && !free) {
     // Offre de l'équipe : âge minimum obligatoire, 13, 15, 16 ou 18.
     if (!TEAM_OFFER_AGES.includes(source.min_age)) {
       throw new ValidationError('INVALID_FIELD', 'Choisis l’âge minimum de la campagne : 13, 15, 16 ou 18 ans.', 400, 'min_age');
@@ -243,7 +245,7 @@ function validateOffer(body, activeCategories, kind = 'campaign') {
     throw new ValidationError('INVALID_FIELD', 'L’âge minimum doit être un nombre entre 10 et 99.', 400, 'min_age');
   }
 
-  Object.assign(offer, campaign
+  Object.assign(offer, campaign || free
     ? { incentive_allowed: false, member_benefit: null, payout_note: null, campaign_rules_url: null, subid_param: null }
     : teamOfferFields(source));
 
@@ -310,6 +312,14 @@ function domainOf(url) {
  * republication. Les offres ADMIN (kind = 'affiliate') ont expires_at NULL.
  */
 const STORY_HOURS = 24;
+
+/*
+ * Bon plan gratuit (kind = 'free') : sans âge minimum, ouvert à tous ; sinon
+ * même règle d'âge que les offres de l'équipe (canSeeTeamOffer).
+ */
+function canOpenFreeOffer(user, minAge) {
+  return minAge === null || minAge === undefined || canSeeTeamOffer(user, minAge);
+}
 const RENEW_COOLDOWN_HOURS = 20;
 const NOT_EXPIRED = '(o.expires_at IS NULL OR o.expires_at > NOW())';
 
@@ -320,6 +330,7 @@ function isExpired(row) {
 function formatOffer(row, userId, viewer = null) {
   const mine = row.user_id === userId;
   const team = row.kind === 'affiliate';
+  const free = row.kind === 'free';
   const viewerIsAdmin = String(viewer?.role || '').toUpperCase() === 'ADMIN';
   /*
    * Dérogation d'auteur : elle ne vaut QUE pour un majeur, et ne sert qu'à
@@ -329,7 +340,8 @@ function formatOffer(row, userId, viewer = null) {
   const expired = isExpired(row);
   const canOpen = !viewer
     || (mine && isAdult(viewer))
-    || (!expired && (team ? canSeeTeamOffer(viewer, row.min_age) : refusalForAffiliateLink(viewer, row.min_age) === null));
+    || (!expired && (free ? canOpenFreeOffer(viewer, row.min_age)
+      : team ? canSeeTeamOffer(viewer, row.min_age) : refusalForAffiliateLink(viewer, row.min_age) === null));
   return {
     id: row.id,
     kind: row.kind || 'campaign',
@@ -401,7 +413,7 @@ async function listOffers(req, res, next) {
     const author = typeof req.query.author === 'string' && /^[a-z0-9_.-]{1,50}$/i.test(req.query.author) ? req.query.author.toLowerCase() : null;
     const savedOnly = req.query.saved === '1';
     // Filtres de la feuille « Filtres » : valeurs en liste blanche, sinon ignorées.
-    const kind = req.query.kind === 'campaign' || req.query.kind === 'affiliate' ? req.query.kind : null;
+    const kind = ['campaign', 'affiliate', 'free'].includes(req.query.kind) ? req.query.kind : null;
     // Grille d'un membre (?author=) : fait partie de son profil, donc privée elle aussi.
     if (author) {
       const owner = (await pool.query('SELECT id, profile_public FROM users WHERE username = $1', [author])).rows[0];
@@ -425,7 +437,9 @@ async function listOffers(req, res, next) {
          AND ($6::boolean OR ${NOT_EXPIRED})
          AND ($9::text IS NULL OR COALESCE(o.kind, 'campaign') = $9)
          -- Offres de l'équipe : seulement si l'âge déclaré est compatible (canSeeTeamOffer).
-         AND (COALESCE(o.kind, 'campaign') <> 'affiliate' OR $10::boolean OR o.user_id = $1
+         -- Bons plans gratuits : sans âge minimum, visibles par tous ; sinon même règle.
+         AND (COALESCE(o.kind, 'campaign') NOT IN ('affiliate', 'free') OR $10::boolean OR o.user_id = $1
+              OR (o.kind = 'free' AND o.min_age IS NULL)
               OR ($11::boolean AND o.min_age IS NOT NULL AND o.min_age <= $12))
        ORDER BY ${order}GREATEST(o.published_at, COALESCE(o.renewed_at, o.published_at)) DESC, o.id DESC
        LIMIT $7 OFFSET $8`,
@@ -491,6 +505,13 @@ async function openOffer(req, res, next) {
     if (!offer) return sendError(res, 404, 'NOT_FOUND', 'Cette offre n’est plus disponible.');
 
     if (offer.kind === 'affiliate') return openTeamOffer(req, res, offer, isAdmin);
+    // Bon plan gratuit : lien tel quel, sans sous-identifiant ni clic suivi.
+    if (offer.kind === 'free') {
+      if (!isAdmin && !canOpenFreeOffer(req.user, offer.min_age)) {
+        return sendError(res, 403, 'AGE_RESTRICTED', 'Cette offre n’est pas accessible à ton âge.');
+      }
+      return res.status(200).json({ success: true, data: { url: offer.url } });
+    }
 
     // Même dérogation qu'à l'affichage : réservée aux majeurs.
     if (!(offer.user_id === req.user.id && isAdult(req.user))) {

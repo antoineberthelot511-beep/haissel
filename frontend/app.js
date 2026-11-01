@@ -998,6 +998,11 @@ function benefitLine(offer) {
  * « Fiche membre · lien officiel ».
  */
 function kindBadge(offer) {
+  if (offer.kind === 'free') {
+    return h('span', { className: 'kind-badge' },
+      h('span', { className: 'pill campaign', title: 'Bon plan gratuit de l’équipe : HAISSEL ne touche rien sur ce lien.' },
+        icon('i-info', 'icon sm'), 'Gratuit · pas un lien affilié'));
+  }
   if (offer.kind === 'campaign') {
     return h('span', { className: 'kind-badge' },
       h('span', { className: 'pill campaign', title: 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.' },
@@ -1136,7 +1141,9 @@ function offerDetail(offer) {
 
     h('section', { className: 'od-card', 'aria-labelledby': 'offer-terms-title' },
       h('h3', { id: 'offer-terms-title' }, 'Conditions claires'),
-      h('p', { className: 'od-muted' }, campaign
+      h('p', { className: 'od-muted' }, offer.kind === 'free'
+        ? 'Bon plan gratuit : ce n’est pas un lien affilié, HAISSEL ne touche rien et ton clic n’est pas suivi.'
+        : campaign
         ? 'Cette fiche mène à la page officielle : ce n’est pas un lien affilié. Pour participer à la campagne, récupère ton propre lien sur MyLead. Aucun gain n’est garanti.'
         : 'Ce lien est un lien affilié publié par l’équipe : HAISSEL peut toucher une commission. Ça ne te coûte rien de plus, et aucun gain n’est garanti.'),
       offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
@@ -1206,7 +1213,7 @@ function readFiltersFromUrl() {
   const category = params.get('category');
   if (q) ui.communityQ.value = q.slice(0, 80);
   const kind = params.get('kind');
-  if (kind === 'campaign' || kind === 'affiliate') ui.communityKind.value = kind;
+  if (kind === 'campaign' || kind === 'affiliate' || kind === 'free') ui.communityKind.value = kind;
   if (params.get('sort') === 'popular') ui.communitySort.value = 'popular';
   ui.communitySaved.checked = params.get('saved') === '1';
   paintSearchControls();
