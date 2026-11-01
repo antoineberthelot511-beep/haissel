@@ -90,9 +90,9 @@ describe('front : teamBadge', () => {
   });
 
   test('premier de la rangée de badges : carte du fil, carte de liste et page détail', () => {
-    for (const fn of ['postCard', 'communityCard']) {
-      expect([fn, fnSource(fn).includes('teamBadge(offer), kindBadge(offer)')]).toEqual([fn, true]);
-    }
+    expect(fnSource('communityCard')).toContain('teamBadge(offer), kindBadge(offer)');
+    // Fil d'Accueil : mini ours collé au nom (teamMark), badges sous l'image.
+    expect(fnSource('postCard')).toContain('teamMark(offer)');
     const detail = fnSource('offerDetail');
     expect(detail.indexOf('teamBadge(offer)')).toBeGreaterThan(-1);
     expect(detail.indexOf('teamBadge(offer)')).toBeLessThan(detail.indexOf('kindBadge(offer)'));

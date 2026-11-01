@@ -92,22 +92,24 @@ function load() {
     categoryVisual: (cat, className, ...kids) => h('div', { className }, ...kids),
     categoryIcon: () => h('svg', null),
     storyAvatar: () => h('span', { className: 'story-avatar' }),
-    kindBadge: () => h('span', { className: 'kind-badge' }),
+    kindBadge: (o, opts) => h('span', { className: opts?.compact ? 'pill pill-compact' : 'kind-badge' }, o.kind === 'free' ? 'Gratuit' : 'Lien affilié'),
+    formatAgo: () => 'il y a 44 min',
     openMember() {},
     confirmLeave: (offer) => calls.leave.push(offer.id),
     openReport: (offer) => calls.report.push(offer.id),
     openSheet: (sheet) => calls.sheets.push(['open', sheet.id]),
     closeSheet: (sheet) => calls.sheets.push(['close', sheet.id]),
   };
-  vm.runInNewContext([
-    'teamBadge', 'paintSaveButton', 'saveButtonFor', 'toggleSave', 'disclosureRow', 'discoverAction',
+  const prelude = ['FREE_PREFIX', 'CAPTION_MAX'].map((name) => APP_JS.match(new RegExp(`^const ${name} = .*$`, 'm'))[0]).join('\n');
+  vm.runInNewContext(`${prelude}\n${[
+    'teamBadge', 'teamMark', 'displayDescription', 'captionParts', 'paintSaveButton', 'saveButtonFor', 'toggleSave', 'disclosureRow', 'discoverAction',
     'discoverSlide', 'discoverSheetContent', 'openDiscoverSheet', 'openDiscoverMore',
-  ].map(fnSource).join('\n') + '\nthis.discoverSlide = discoverSlide;', ctx);
+  ].map(fnSource).join('\n')}\nthis.discoverSlide = discoverSlide;`, ctx);
   return { ctx, calls, sheetBody, moreBody };
 }
 
 const offer = (extra = {}) => ({
-  id: 7, title: 'Pass Culture', description: 'Une longue description de l’offre.', category: 'autre',
+  id: 7, title: 'Pass Culture', description: 'Gratuit · pas un lien affilié. Une longue description de l’offre.', category: 'autre', category_label: 'Éducation',
   expected_action: 'Créer ton compte', conditions: 'Résider en France', countries: 'FR', min_age: 15,
   member_benefit: null, author: { username: 'equipe' }, from_team: true, can_open: true, is_mine: false, saved: false,
   kind: 'free', ...extra,
@@ -126,8 +128,17 @@ describe('slide', () => {
     expect(byClass(slide, 'lg-glass')).toHaveLength(0);
     // Plus de « Ce qu'il faut faire » dans le fil.
     expect(text(slide)).not.toContain('Ce qu’il faut faire');
-    // Mini ours de l'équipe sur la ligne auteur.
-    expect(byClass(slide, 'team-pill')).toHaveLength(1);
+    // Mini ours de l'équipe collé au nom, pas de pastille « Équipe HAISSEL ».
+    expect(byClass(slide, 'team-mark')).toHaveLength(1);
+    expect(byClass(slide, 'team-pill')).toHaveLength(0);
+    // Un seul voile (en bas), plus de « Plus » sous les ⋯, préfixe « Gratuit » masqué.
+    expect(byClass(slide, 'discover-shade')).toHaveLength(1);
+    expect(walk(slide).some((n) => n.classList.contains('discover-action-label') && text(n) === 'Plus')).toBe(false);
+    expect(text(slide)).not.toContain('pas un lien affilié');
+    expect(text(slide)).toContain('Une longue description de l’offre.');
+    const meta = byClass(slide, 'discover-meta')[0];
+    expect(meta.classList.contains('nowrap')).toBe(true);
+    expect(text(meta)).toBe('Éducation · FR · il y a 44 min');
   });
 
   test('Visiter seulement si can_open ; ⋯ (Signaler) absent si is_mine', () => {
@@ -178,6 +189,7 @@ describe('feuille Description', () => {
     expect(calls.sheets.filter(([what, id]) => what === 'open' && id === 'discover-sheet')).toHaveLength(2);
 
     expect(text(sheetBody)).toContain('Une longue description de l’offre.');
+    expect(text(sheetBody)).not.toContain('pas un lien affilié');
     expect(walk(sheetBody).some((n) => text(n) === 'Visiter le site')).toBe(true);
     const rows = walk(sheetBody).filter((n) => n.classList.contains('od-row'));
     // « Ce que tu y gagnes » vide : pas de ligne.
@@ -206,16 +218,37 @@ describe('feuille Description', () => {
 });
 
 describe('CSS', () => {
-  test('plein écran au-dessus de la barre du bas, barre de défilement masquée', () => {
-    expect(CSS).toMatch(/\.discover-feed \{[^}]*inset: 0 0 calc\(var\(--v2-nav-height\) \+ env\(safe-area-inset-bottom, 0px\)\) 0;[^}]*scrollbar-width: none;[^}]*scroll-snap-type: y mandatory/);
+  test('plein écran sous la barre du bas, barre de défilement masquée, un seul voile en bas', () => {
+    expect(CSS).toMatch(/\.discover-feed \{[^}]*inset: 0; z-index: 30;[^}]*scrollbar-width: none;[^}]*scroll-snap-type: y mandatory/);
     expect(CSS).toContain('.discover-feed::-webkit-scrollbar { display: none; }');
     expect(CSS).toMatch(/\.discover-card \{[^}]*position: absolute; inset: 0; margin: 0; border-radius: 0;/);
-    expect(CSS).toMatch(/\.discover-shade \{[^}]*rgba\(0, 0, 0, \.6\)/);
+    const shade = CSS.match(/\.discover-shade \{[^}]*\}/)[0];
+    expect(shade).toContain('linear-gradient(to top, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 55%)');
+    expect(shade).not.toContain('to left');
+    // Texte et icônes au-dessus de la barre : hauteur de la barre + safe-area + 12 px.
+    for (const rule of ['.discover-info {', '.discover-actions {']) {
+      const block = CSS.slice(CSS.indexOf(rule), CSS.indexOf('}', CSS.indexOf(rule)));
+      expect(block).toContain('bottom: calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 12px)');
+    }
   });
 
   test('zones tactiles ≥ 44 px, pop 200 ms coupé en mouvement réduit', () => {
     expect(CSS).toMatch(/\.discover-action, \.discover-actions \.save-button \{[^}]*min-width: 52px; min-height: 52px;/);
     expect(CSS).toContain('.discover-action.is-popping .icon { animation: discover-pop 200ms ease-out; }');
     expect(CSS).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.discover-action\.is-popping \.icon \{ animation: none; \}/);
+  });
+});
+
+describe('fil d’Accueil', () => {
+  test('sous-titre sur une ligne (nowrap), badges hors de l’en-tête, sous l’image', () => {
+    const start = APP_JS.indexOf('function postCard(');
+    const body = APP_JS.slice(start, APP_JS.indexOf('\n}\n', start));
+    const head = body.slice(body.indexOf("h('header', { className: 'post-head' }"), body.indexOf("className: 'post-open'"));
+    expect(head).toContain("className: 'post-sub nowrap'");
+    expect(head).not.toContain('kindBadge(');
+    expect(head).toContain('teamMark(offer)');
+    expect(body.indexOf("className: 'post-badges badge-scroll' }, kindBadge(offer, { compact: true })")).toBeGreaterThan(body.indexOf("className: 'post-open'"));
+    expect(CSS).toMatch(/\.nowrap \{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
+    expect(CSS).toContain('#home-view { padding-bottom: calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 16px); }');
   });
 });

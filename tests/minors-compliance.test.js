@@ -123,7 +123,7 @@ describe('badge des offres', () => {
     for (const fn of ['function postCard(', 'function discoverSlide(', 'function communityCard(', 'function offerDetail(', 'function storyFace(']) {
       const start = appJs.indexOf(fn);
       const body = appJs.slice(start, appJs.indexOf('\n}\n', start));
-      expect([fn, body.includes('kindBadge(offer)')]).toEqual([fn, true]);
+      expect([fn, body.includes('kindBadge(offer')]).toEqual([fn, true]);
     }
   });
 

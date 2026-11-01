@@ -195,3 +195,6 @@ img.m-img.is-loaded { opacity: 1; }
   .activity-empty-icon, .m-float, .story-ring.is-loading::before, .m-img-wrap.is-loading::after, .chat-send[aria-busy="true"] .icon { animation: none !important; }
   .m-check path { stroke-dashoffset: 0; animation: none !important; }
 }
+
+/* Swipe entre onglets : glissement de 280 ms (tab-swipe.js, app.js). */
+html[data-swipe-nav] .view-panel:not(.hidden) { animation-duration: 280ms; }

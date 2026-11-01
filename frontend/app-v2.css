@@ -1225,9 +1225,9 @@ body[data-view="discover"] .topbar .topbar-inner { display: none; }
 /* Découvrir (façon Reels) : plein écran, une offre par écran. */
 /* Sans transformation : sinon le fil « fixed » se cale sur ce panneau (animation d'entrée des vues). */
 #discover-view { margin: 0; transform: none !important; animation: none !important; }
-/* Hauteur visible : du haut de l'écran jusqu'à la barre du bas (safe-area comprise). */
+/* Plein écran, jusqu'en bas : la barre du bas flotte par-dessus (comme Instagram). */
 .discover-feed {
-  position: fixed; inset: 0 0 calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px)) 0; z-index: 30;
+  position: fixed; inset: 0; z-index: 30;
   overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
   scroll-snap-type: y mandatory; background: #000; color: #fff; --spinner-color: #8DB4FF;
 }
@@ -1260,35 +1260,36 @@ img.mascot.discover-bear {
 .discover-card {
   position: absolute; inset: 0; margin: 0; border-radius: 0;
   display: flex; flex-direction: column; justify-content: center; gap: 12px;
-  padding: max(24px, env(safe-area-inset-top)) 84px 160px 24px;
+  padding: max(24px, env(safe-area-inset-top)) 72px calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 170px) 24px;
 }
 .discover-title { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 800; text-wrap: balance; }
-/* Dégradé sombre en bas et à droite : texte et icônes lisibles sur toutes les couleurs. */
+/* Un seul voile, en bas : texte et icônes lisibles ; fond uni sur toute la largeur. */
 .discover-shade {
   position: absolute; inset: 0; pointer-events: none;
-  background:
-    linear-gradient(to top, rgba(0, 0, 0, .6) 0%, rgba(0, 0, 0, 0) 45%),
-    linear-gradient(to left, rgba(0, 0, 0, .6) 0%, rgba(0, 0, 0, 0) 35%);
+  background: linear-gradient(to top, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 55%);
 }
 /* Bas à gauche : auteur et badges, légende, méta. */
 .discover-info {
-  position: absolute; left: 16px; right: 84px; bottom: 16px;
-  display: grid; gap: 6px; justify-items: start; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+  position: absolute; left: 16px; right: 72px; bottom: calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+  display: grid; gap: 8px; justify-items: start; min-width: 0; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
 }
 .discover-info p { margin: 0; }
-.discover-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.discover-who { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; max-width: 100%; min-width: 0; }
+.discover-who .discover-avatar { width: 32px; height: 32px; font-size: 13px; border-width: 0; flex: none; }
+.discover-who .post-author { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.discover-badges { max-width: 100%; }
 .discover-who .post-author { color: #fff; font-weight: 800; }
 .discover-caption {
-  display: block; max-width: 100%; min-height: 44px; padding: 0; border: 0; background: none;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  max-width: 100%; min-height: 44px; padding: 0; border: 0; background: none;
   color: #fff; font: inherit; font-size: 14px; line-height: 1.4; text-align: left; cursor: pointer;
 }
-.discover-caption-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.discover-caption-more { font-weight: 700; opacity: .85; }
-.discover-meta { font-size: 13px; opacity: .8; }
+.discover-caption-more { font-weight: 700; opacity: .85; white-space: nowrap; }
+.discover-meta { max-width: 100%; font-size: 12px; color: rgba(255, 255, 255, .72); }
 /* Colonne d'actions à droite : icônes nues, blanches, ombre légère. */
 .discover-actions {
-  position: absolute; right: 6px; bottom: 16px;
-  display: grid; gap: 10px; justify-items: center;
+  position: absolute; right: 6px; bottom: calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 12px);
+  display: grid; gap: 14px; justify-items: center; grid-auto-rows: 56px;
 }
 .discover-action, .discover-actions .save-button {
   display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 52px; min-height: 52px; width: auto; height: auto;
@@ -1869,3 +1870,34 @@ img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }
 @media (prefers-reduced-motion: reduce) {
   .od-row-chevron, .od-panel, .od-panel.is-open { transition: none; }
 }
+
+/* ------------------------------------------------------------------------
+ * Pastilles compactes, mini ours collé au nom, une ligne sans retour.
+ * ------------------------------------------------------------------------ */
+.nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.badge-scroll { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.badge-scroll::-webkit-scrollbar { display: none; }
+.pill-compact { flex: none; height: 22px; padding: 0 8px; border: 0; font-size: 12px; font-weight: 700; letter-spacing: 0; line-height: 22px; }
+.discover-badges .pill-compact {
+  background: rgba(255, 255, 255, .15); color: #fff;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); text-shadow: none;
+}
+.team-mark { width: 16px; height: 16px; flex: none; border: 0; border-radius: 50%; object-fit: cover; }
+
+/* Fil d'Accueil : en-tête façon Instagram, badges sous l'image, rien sous la barre. */
+#home-view { padding-bottom: calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 16px); }
+.post-head .post-avatar { width: 36px; height: 36px; font-size: 14px; border-width: 0; flex: none; }
+.post-head .post-who { flex: 1; min-width: 0; }
+.post-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.post-name .post-author { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-head .post-sub { display: block; }
+.post-more {
+  display: grid; place-items: center; width: 44px; height: 44px; flex: none; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: var(--v2-on-surface); font-size: 22px; line-height: 1; cursor: pointer;
+}
+.post-badges { padding: 10px 14px 0; }
+.post-badges .pill-compact.free, .post-badges .pill-compact.campaign { background: var(--v2-verified-soft); color: var(--v2-verified-strong); }
+.post-badges .pill-compact.ad { background: var(--v2-ad-soft); color: var(--v2-ad); }
+
+/* Swipe entre onglets : l'écran suit le doigt à la verticale native (tab-swipe.js). */
+#main { touch-action: pan-y; }

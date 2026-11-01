@@ -298,5 +298,7 @@ body[data-view="discover"] .topbar-nav .topbar-nav-inner {
   --lg-tint: rgba(20, 22, 30, .28); --lg-halo: rgba(0, 0, 0, .55);
   --lg-line: rgba(255, 255, 255, .14); --lg-drop: rgba(255, 255, 255, .16); --lg-drop-edge: rgba(255, 255, 255, .4);
 }
+/* Découvrir : la barre flotte sur la slide, en verre foncé. */
+body[data-view="discover"] .topbar-nav .topbar-nav-inner { --lg-tint: rgba(10, 12, 18, .55); --lg-solid: rgba(10, 12, 18, .85); }
 body[data-view="discover"] .topbar-nav .nav-button { color: rgba(235, 238, 248, .8); }
 body[data-view="discover"] .topbar-nav .nav-button.active { color: #fff; }

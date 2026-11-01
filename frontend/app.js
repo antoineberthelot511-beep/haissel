@@ -910,18 +910,22 @@ function postCard(offer) {
     h('h3', { className: 'post-visual-title' }, offer.title),
     offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
   return h('article', { className: 'post-card', 'data-offer-id': offer.id },
+    // [avatar] [nom + sous-titre sur une ligne] [⋯]
     h('header', { className: 'post-head' },
-      storyAvatar(offer.author.username, 'story-avatar sm'),
+      storyAvatar(offer.author.username, 'story-avatar post-avatar'),
       h('div', { className: 'post-who' },
-        h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
-        h('span', null, [offer.category_label, formatAgo(offer.shown_at || offer.published_at)].filter(Boolean).join(' · '))),
-      h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
+        h('span', { className: 'post-name' },
+          h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
+          teamMark(offer)),
+        h('span', { className: 'post-sub nowrap' }, [offer.category_label, formatAgo(offer.shown_at || offer.published_at)].filter(Boolean).join(' · '))),
+      offer.is_mine ? null : h('button', {
+        className: 'post-more', type: 'button', 'aria-label': `Plus d’options pour « ${offer.title} »`, onclick: () => openDiscoverMore(offer),
+      }, h('span', { 'aria-hidden': 'true' }, '⋯'))),
     h('button', { className: 'post-open', type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`, onclick: () => openOffer(offer) }, visual),
+    // Badges juste sous l'image, en pastilles compactes.
+    h('div', { className: 'post-badges badge-scroll' }, kindBadge(offer, { compact: true })),
     h('div', { className: 'post-actions' },
       offer.is_mine ? null : saveButtonFor(offer),
-      offer.is_mine ? null : h('button', {
-        className: 'post-action', type: 'button', 'aria-label': `Signaler « ${offer.title} »`, onclick: () => openReport(offer),
-      }, icon('i-flag', 'icon lg')),
       h('span', { className: 'post-spacer' }),
       offer.min_age ? h('span', { className: 'pill adult' }, `${offer.min_age} ans et +`) : null),
     h('p', { className: 'post-todo' }, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
@@ -942,30 +946,33 @@ function postCard(offer) {
  */
 function discoverAction(label, iconNode, ariaLabel, onclick) {
   return h('button', { className: 'discover-action', type: 'button', 'aria-label': ariaLabel, onclick },
-    iconNode, h('span', { className: 'discover-action-label', 'aria-hidden': 'true' }, label));
+    iconNode, label ? h('span', { className: 'discover-action-label', 'aria-hidden': 'true' }, label) : null);
 }
 
 function discoverSlide(offer) {
   const left = storyTimeLeft(offer);
   const save = offer.is_mine ? null : saveButtonFor(offer, { variant: 'reel' });
+  const caption = offer.description ? captionParts(offer.description) : null;
   return h('section', { className: 'discover-slide', 'aria-label': offer.title, 'data-offer-id': offer.id },
     categoryVisual(offer.category, 'discover-card',
       h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
       h('h2', { className: 'discover-title' }, offer.title),
       offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null),
+    // Un seul voile, en bas : lisibilité du texte et des icônes.
     h('div', { className: 'discover-shade', 'aria-hidden': 'true' }),
-    // Bas à gauche : auteur et badges, légende, méta (le titre est déjà au centre).
+    // Bas à gauche (le titre est déjà au centre) : auteur, pastilles, légende, méta.
     h('div', { className: 'discover-info' },
       h('p', { className: 'discover-who' },
-        storyAvatar(offer.author.username, 'story-avatar sm'),
+        storyAvatar(offer.author.username, 'story-avatar discover-avatar'),
         h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
-        h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
-      offer.description ? h('button', {
+        teamMark(offer)),
+      h('div', { className: 'discover-badges badge-scroll' }, kindBadge(offer, { compact: true })),
+      caption ? h('button', {
         className: 'discover-caption', type: 'button', 'aria-label': `Lire la description de « ${offer.title} »`,
         onclick: () => openDiscoverSheet(offer),
-      }, h('span', { className: 'discover-caption-text' }, offer.description), h('span', { className: 'discover-caption-more' }, '… plus')) : null,
-      h('p', { className: 'discover-meta' },
-        [offer.countries, offer.min_age ? `${offer.min_age} ans et +` : null, left].filter(Boolean).join(' · '))),
+      }, caption.text, caption.more ? h('span', { className: 'discover-caption-more' }, '… plus') : null) : null,
+      h('p', { className: 'discover-meta nowrap' },
+        [offer.category_label, offer.countries, formatAgo(offer.shown_at || offer.published_at), left].filter(Boolean).join(' · '))),
     // Colonne d'actions à droite, icônes nues.
     h('div', { className: 'discover-actions' },
       save,
@@ -974,7 +981,7 @@ function discoverSlide(offer) {
         ? discoverAction('Visiter', icon('i-external', 'icon'), `Visiter le site de « ${offer.title} » (site externe)`, () => confirmLeave(offer))
         : null,
       offer.is_mine ? null
-        : discoverAction('Plus', h('span', { className: 'discover-dots', 'aria-hidden': 'true' }, '⋯'), `Plus d’options pour « ${offer.title} »`, () => openDiscoverMore(offer))));
+        : discoverAction(null, h('span', { className: 'discover-dots', 'aria-hidden': 'true' }, '⋯'), `Plus d’options pour « ${offer.title} »`, () => openDiscoverMore(offer))));
 }
 
 /*
@@ -993,8 +1000,9 @@ function discoverSheetContent(offer) {
     h('h2', { id: 'discover-sheet-title', className: 'sheet-title discover-sheet-title' }, offer.title),
     h('p', { className: 'discover-sheet-who' },
       h('span', null, `@${offer.author.username}`),
-      h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
-    h('p', { className: 'od-description' }, offer.description),
+      teamMark(offer),
+      kindBadge(offer, { compact: true })),
+    h('p', { className: 'od-description' }, displayDescription(offer.description)),
     offer.can_open
       ? h('button', {
         className: 'offer-link-button discover-sheet-open', type: 'button',
@@ -1088,7 +1096,8 @@ function benefitLine(offer) {
  * avec « En savoir plus » vers la page Transparence. Fiche d'un membre :
  * « Fiche membre · lien officiel ».
  */
-function kindBadge(offer) {
+function kindBadge(offer, { compact = false } = {}) {
+  if (compact) return compactKindBadge(offer);
   if (offer.kind === 'free') {
     return h('span', { className: 'kind-badge' },
       h('span', { className: 'pill campaign', title: 'Bon plan gratuit de l’équipe : HAISSEL ne touche rien sur ce lien.' },
@@ -1103,6 +1112,42 @@ function kindBadge(offer) {
     h('span', { className: 'pill ad', title: 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.' },
       icon('i-link', 'icon sm'), 'Lien affilié'),
     h('a', { className: 'kind-more', href: 'transparence.html' }, 'En savoir plus'));
+}
+
+/*
+ * Pastille compacte (Découvrir, sous l'image du fil) : « Gratuit »,
+ * « Fiche membre » ou « Lien affilié » ; le détail reste dans le titre et
+ * dans la page de l'offre.
+ */
+function compactKindBadge(offer) {
+  const [label, title, tone] = {
+    free: ['Gratuit', 'Bon plan gratuit de l’équipe : ce n’est pas un lien affilié, HAISSEL ne touche rien.', 'free'],
+    campaign: ['Fiche membre', 'Fiche d’un membre : le lien mène à la page officielle, pas à un lien affilié.', 'campaign'],
+  }[offer.kind] || ['Lien affilié', 'Lien affilié : HAISSEL peut toucher une commission si tu réalises l’action.', 'ad'];
+  return h('span', { className: `pill pill-compact ${tone}`, title }, label);
+}
+
+/*
+ * Mini ours 16 px collé au nom de l'auteur, comme un badge vérifié
+ * (from_team vient du serveur). L'alt le nomme une seule fois.
+ */
+function teamMark(offer) {
+  if (offer?.from_team !== true) return null;
+  return h('img', { className: 'team-mark', src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe HAISSEL', width: 16, height: 16, decoding: 'async' });
+}
+
+/* Le badge « Gratuit » le dit déjà : préfixe masqué à l'affichage (la base n'est pas modifiée). */
+const FREE_PREFIX = /^\s*Gratuit · pas un lien affilié\.?\s*/;
+function displayDescription(text) {
+  return String(text || '').replace(FREE_PREFIX, '');
+}
+
+/* Légende de Découvrir : environ 2 lignes, « … plus » collé à la fin du texte. */
+const CAPTION_MAX = 90;
+function captionParts(text) {
+  const clean = displayDescription(text).replace(/\s+/g, ' ').trim();
+  if (clean.length <= CAPTION_MAX) return { text: clean, more: false };
+  return { text: clean.slice(0, CAPTION_MAX).replace(/\s+\S*$/, ''), more: true };
 }
 
 /*
@@ -1209,6 +1254,56 @@ function restoreFeedPosition(view) {
   return true;
 }
 
+/*
+ * Swipe horizontal entre les onglets (tab-swipe.js). L'onglet courant suit
+ * le doigt ; au changement, même chemin qu'un tap (setActiveView : barre du
+ * bas, adresse) et glissement de 280 ms (motion.css). Chaque onglet garde
+ * sa position de défilement. Mouvement réduit : changement direct.
+ */
+const tabScroll = {};
+
+function swipeTarget() {
+  const view = document.body.dataset.view;
+  return view === 'discover' ? ui.discoverFeed : document.getElementById(`${view}-view`);
+}
+
+function scrollsHorizontally(target) {
+  for (let node = target; node && node !== document.body; node = node.parentElement) {
+    if (node.scrollWidth > node.clientWidth + 1) {
+      const overflow = getComputedStyle(node).overflowX;
+      if (overflow === 'auto' || overflow === 'scroll') return true;
+    }
+  }
+  return false;
+}
+
+function switchTab(next) {
+  const from = document.body.dataset.view;
+  tabScroll[from] = window.scrollY;
+  document.documentElement.dataset.swipeNav = '';
+  setActiveView(next);
+  window.scrollTo({ top: tabScroll[next] || 0, behavior: 'instant' });
+  window.setTimeout(() => { delete document.documentElement.dataset.swipeNav; }, 320);
+}
+
+function bindTabSwipe() {
+  const container = document.getElementById('main');
+  if (!container || !window.HaisselTabSwipe) return;
+  window.HaisselTabSwipe.bind(container, {
+    view: () => (state.user ? document.body.dataset.view : null),
+    width: () => window.innerWidth,
+    // Feuille, modale (lecteur de stories compris) ou menu ouvert : pas de swipe.
+    isBlocked: () => Boolean(document.querySelector('dialog[open], [aria-modal="true"], .m-menu-in')),
+    scrollsHorizontally,
+    reduced: reducedMotion,
+    paint: (dx) => {
+      const target = swipeTarget();
+      if (target) target.style.transform = dx ? `translateX(${dx}px)` : '';
+    },
+    go: switchTab,
+  });
+}
+
 function closeOffer() {
   const view = state.community.returnView || 'home';
   setActiveView(view);
@@ -1288,7 +1383,7 @@ function offerDetail(offer) {
         h('div', null,
           h('span', { className: 'pill' }, offer.category_label),
           h('h2', { id: 'offer-title', tabindex: '-1' }, offer.title))),
-      h('p', { className: 'od-description' }, offer.description),
+      h('p', { className: 'od-description' }, displayDescription(offer.description)),
       published ? h('p', { className: 'od-verified' },
         icon('i-shield-check'), h('span', null, 'Vérifiée par l’équipe HAISSEL'),
         h('small', null, formatAgo(offer.published_at))) : null,
@@ -4500,6 +4595,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.installRow.addEventListener('click', () => openInstallGuide(window.HaisselInstall.tutoKind(installState()) || 'ios'));
   ui.installSheetAction.addEventListener('click', handleInstallSheetAction);
   bindSheet(ui.installSheet, { onClose: markInstallTutoSeen });
+  bindTabSwipe();
   // Découvrir : feuille Description et menu « ⋯ ».
   bindSheet(ui.discoverSheet, { onClose: restoreDiscoverFocus });
   bindSheet(ui.discoverMoreSheet, { onClose: restoreDiscoverFocus });
