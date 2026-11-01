@@ -407,7 +407,7 @@ function renderHomeLearnCard() {
 /* Vignette carrée de la grille « Recherche » : toucher ouvre le détail. */
 function gridTile(offer) {
   return h('button', {
-    className: `grid-cell${offer.expired ? ' is-expired' : ''}`, type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`,
+    className: `grid-cell${offer.expired ? ' is-expired' : ''}`, type: 'button', 'data-offer-id': offer.id, 'aria-label': `Voir l’offre « ${offer.title} »`,
     onclick: () => openOffer(offer),
   }, categoryVisual(offer.category, 'grid-tile',
     h('span', { className: 'grid-tile-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
@@ -748,6 +748,19 @@ function teamAvatar(size, className = '') {
   return h('img', { className: `team-avatar ${className}`.trim(), src: `/images/mascotte/${file}`, alt: 'Équipe Haissel', width: size, height: size, decoding: 'async' });
 }
 
+/*
+ * Publication de l'équipe : mini avatar (18 px, rond) + « Équipe HAISSEL »,
+ * en premier dans la rangée des badges. « from_team » vient du serveur
+ * (rôle de l'auteur lu en base). Le texte visible est masqué aux lecteurs
+ * d'écran : l'alt de l'image le dit déjà, une seule fois.
+ */
+function teamBadge(offer) {
+  if (offer?.from_team !== true) return null;
+  return h('span', { className: 'pill team-pill' },
+    h('img', { className: 'team-pill-avatar', src: '/images/mascotte/avatar-equipe-128.webp', alt: 'Équipe HAISSEL', width: 18, height: 18, decoding: 'async' }),
+    h('span', { 'aria-hidden': 'true' }, 'Équipe HAISSEL'));
+}
+
 /* Ours de la mascotte (mascot.js) ; rien si le script manque. */
 function bear(name, size) {
   return window.HaisselMascot ? window.HaisselMascot.mascot(name, { size }) : null;
@@ -891,13 +904,13 @@ function postCard(offer) {
     h('span', { className: 'post-visual-icon lg-glass', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
     h('h3', { className: 'post-visual-title' }, offer.title),
     offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
-  return h('article', { className: 'post-card' },
+  return h('article', { className: 'post-card', 'data-offer-id': offer.id },
     h('header', { className: 'post-head' },
       storyAvatar(offer.author.username, 'story-avatar sm'),
       h('div', { className: 'post-who' },
         h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
         h('span', null, [offer.category_label, formatAgo(offer.shown_at || offer.published_at)].filter(Boolean).join(' · '))),
-      kindBadge(offer)),
+      h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
     h('button', { className: 'post-open', type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`, onclick: () => openOffer(offer) }, visual),
     h('div', { className: 'post-actions' },
       offer.is_mine ? null : saveButtonFor(offer),
@@ -924,7 +937,7 @@ function discoverSlide(offer) {
   const sideButton = (label, iconName, onclick) => h('button', { className: 'discover-action', type: 'button', onclick },
     icon(iconName, 'icon lg'), h('span', null, label));
   const save = offer.is_mine ? null : saveButtonFor(offer);
-  return h('section', { className: 'discover-slide', 'aria-label': offer.title },
+  return h('section', { className: 'discover-slide', 'aria-label': offer.title, 'data-offer-id': offer.id },
     categoryVisual(offer.category, 'discover-card',
       h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
       h('h2', { className: 'discover-title' }, offer.title),
@@ -1021,7 +1034,7 @@ function kindBadge(offer) {
  */
 function communityCard(offer, { preview = false } = {}) {
   const author = `@${offer.author.username}`;
-  return h('article', { className: `offer-card community-card${offer.expired ? ' is-expired' : ''}` },
+  return h('article', { className: `offer-card community-card${offer.expired ? ' is-expired' : ''}`, 'data-offer-id': offer.id },
     h('div', { className: 'fc-head' },
       h('span', { className: 'fc-avatar', 'aria-hidden': 'true' }, categoryIcon(offer.category)),
       h('div', { className: 'fc-who' },
@@ -1029,7 +1042,7 @@ function communityCard(offer, { preview = false } = {}) {
           ? h('strong', { className: 'fc-author' }, author)
           : h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(offer.author.username) }, author),
         h('span', { className: 'fc-time' }, preview ? 'à l’instant' : formatAgo(offer.shown_at || offer.published_at || offer.created_at))),
-      kindBadge(offer)),
+      h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
     h('div', { className: 'fc-body' },
       h('p', { className: 'fc-meta' },
         offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
@@ -1068,8 +1081,9 @@ function openOffer(offer) {
   if (ui.memberDialog.open) closeDialog(ui.memberDialog);
   const current = document.querySelector('.view-panel:not(.hidden)');
   if (current && current.id !== 'offer-view') {
-    state.community.returnView = current.id.replace(/-view$/, '');
-    state.community.returnScroll = window.scrollY;
+    const view = current.id.replace(/-view$/, '');
+    state.community.returnView = view;
+    rememberFeedPosition(view, offer.id);
   }
   ui.offerDetail.replaceChildren(...offerDetail(offer));
   setActiveView('offer');
@@ -1079,14 +1093,77 @@ function openOffer(offer) {
   document.getElementById('offer-title')?.focus({ preventScroll: true });
 }
 
+/*
+ * Position dans le fil (feed-position.js) : une par vue et par jeu de
+ * filtres. Gardée à l'ouverture d'une publication, restaurée au retour.
+ */
+const feedPositions = window.HaisselFeedPosition.createStore();
+
+function currentFeedKey(view) {
+  return window.HaisselFeedPosition.feedKey(view, view === 'links' ? communityQuery() : '');
+}
+
+function feedCard(view, offerId) {
+  return offerId === null || offerId === undefined ? null
+    : document.querySelector(`#${view}-view [data-offer-id="${Number(offerId)}"]`);
+}
+
+function rememberFeedPosition(view, offerId) {
+  const card = feedCard(view, offerId);
+  feedPositions.save(currentFeedKey(view), {
+    scroll: window.scrollY,
+    offerId,
+    height: document.documentElement.scrollHeight,
+    cardOffset: card ? card.getBoundingClientRect().top : 0,
+  });
+}
+
+/* Restaure sans animation (aucun saut visible) ; true si une position existait. */
+function restoreFeedPosition(view) {
+  const entry = feedPositions.get(currentFeedKey(view));
+  if (!entry) return false;
+  const card = feedCard(view, entry.offerId);
+  const decision = window.HaisselFeedPosition.plan(entry, {
+    height: document.documentElement.scrollHeight,
+    cardTop: card ? card.getBoundingClientRect().top + window.scrollY : null,
+  });
+  if (decision.type !== 'none') window.scrollTo({ top: decision.top, behavior: 'instant' });
+  return true;
+}
+
 function closeOffer() {
-  setActiveView(state.community.returnView || 'home');
-  window.scrollTo({ top: state.community.returnScroll || 0 });
+  const view = state.community.returnView || 'home';
+  setActiveView(view);
+  // Le fil déjà en mémoire n'est pas rechargé ; s'il l'est, loadCommunity restaure après le rendu.
+  if (!restoreFeedPosition(view)) window.scrollTo({ top: 0, behavior: 'instant' });
+  state.community.restoreAfterRender = view;
 }
 
 function leaveOfferView() {
   if (window.history.state?.haisselOffer) window.history.back(); // → popstate → closeOffer
   else closeOffer();
+}
+
+/*
+ * Ligne dépliable (style Réglages iOS) : <button aria-expanded
+ * aria-controls> + panneau, fermée au départ ; disclosure.js gère l'état,
+ * app-v2.css l'animation (hauteur ~250 ms, chevron 90°, coupée en
+ * mouvement réduit). Aucune ligne si le contenu est vide.
+ */
+function disclosureRow(id, iconName, label, content) {
+  if (!window.HaisselDisclosure.hasContent(content)) return null;
+  const buttonId = `od-row-${id}`;
+  const panelId = `od-panel-${id}`;
+  const panel = h('div', { className: 'od-panel', id: panelId, role: 'region', 'aria-labelledby': buttonId, inert: true },
+    h('div', { className: 'od-panel-inner' }, content));
+  const button = h('button', {
+    className: 'od-row', id: buttonId, type: 'button', 'aria-expanded': 'false', 'aria-controls': panelId,
+    onclick: () => window.HaisselDisclosure.toggle(button, panel),
+  },
+  h('span', { className: 'od-row-icon', 'aria-hidden': 'true' }, icon(iconName, 'icon')),
+  h('span', { className: 'od-row-label' }, label),
+  h('span', { className: 'od-row-chevron', 'aria-hidden': 'true' }, icon('i-chevron-right', 'icon sm')));
+  return h('li', { className: 'od-group-item' }, button, panel);
 }
 
 function offerDetail(offer) {
@@ -1099,65 +1176,44 @@ function offerDetail(offer) {
   const published = offer.status === 'published';
   const campaign = offer.kind === 'campaign';
   const openLabel = campaign ? 'Voir la page officielle' : 'Ouvrir le lien (site officiel)';
+  const facts = [
+    campaign ? fact('Campagne MyLead', offer.campaign_name) : null,
+    fact('Catégorie', offer.category_label),
+    fact('Pays', offer.countries),
+    offer.min_age ? fact('Âge minimum', `${offer.min_age} ans`) : null,
+    fact('Site', offer.domain),
+  ].filter(Boolean);
+  const gains = [
+    // Lien de l'équipe : ce que l'ANNONCEUR donne au membre (jamais une promesse de HAISSEL).
+    fact('Ce que tu y gagnes', offer.member_benefit, 'donné par l’annonceur, selon ses conditions'),
+    // Aucun montant inventé : seulement ce que l'auteur a saisi, avec la mise en garde.
+    fact('Rémunération annoncée', offer.payout_text, 'indicatif, non garanti'),
+  ].filter(Boolean);
+  const termsText = offer.kind === 'free'
+    ? 'Bon plan gratuit : ce n’est pas un lien affilié, HAISSEL ne touche rien et ton clic n’est pas suivi.'
+    : campaign
+      ? 'Cette fiche mène à la page officielle : ce n’est pas un lien affilié. Pour participer à la campagne, récupère ton propre lien sur MyLead. Aucun gain n’est garanti.'
+      : 'Ce lien est un lien affilié publié par l’équipe : HAISSEL peut toucher une commission. Ça ne te coûte rien de plus, et aucun gain n’est garanti.';
 
   return [
     h('div', { className: 'od-top' },
       h('button', { className: 'round-button', type: 'button', 'aria-label': 'Retour', onclick: leaveOfferView }, icon('i-arrow-left')),
-      h('div', { className: 'od-badges' },
-        offer.countries ? h('span', { className: 'pill' }, icon('i-globe', 'icon sm'), offer.countries) : null,
-        kindBadge(offer))),
+      h('div', { className: 'od-badges badge-row' },
+        teamBadge(offer),
+        kindBadge(offer),
+        offer.countries ? h('span', { className: 'pill' }, icon('i-globe', 'icon sm'), offer.countries) : null)),
 
+    // Infos principales, en clair : titre, description, badges, bouton du lien.
     h('article', { className: 'od-card od-hero' },
       h('div', { className: 'od-hero-head' },
         h('span', { className: 'od-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
         h('div', null,
           h('span', { className: 'pill' }, offer.category_label),
           h('h2', { id: 'offer-title', tabindex: '-1' }, offer.title))),
+      h('p', { className: 'od-description' }, offer.description),
       published ? h('p', { className: 'od-verified' },
         icon('i-shield-check'), h('span', null, 'Vérifiée par l’équipe HAISSEL'),
         h('small', null, formatAgo(offer.published_at))) : null,
-      h('dl', { className: 'od-facts' },
-        campaign ? fact('Campagne MyLead', offer.campaign_name) : null,
-        fact('Catégorie', offer.category_label),
-        fact('Pays', offer.countries),
-        offer.min_age ? fact('Âge minimum', `${offer.min_age} ans`) : null,
-        // Aucun montant inventé : seulement ce que l'auteur a saisi, avec la mise en garde.
-        fact('Rémunération annoncée', offer.payout_text, 'indicatif, non garanti'),
-        // Lien de l'équipe : ce que l'ANNONCEUR donne au membre (jamais une promesse de HAISSEL).
-        fact('Ce que tu y gagnes', offer.member_benefit, 'donné par l’annonceur, selon ses conditions'),
-        fact('Site', offer.domain))),
-
-    h('section', { className: 'od-card', 'aria-labelledby': 'offer-todo-title' },
-      h('h3', { id: 'offer-todo-title', className: 'od-title-dot' }, 'Ce qu’il faut faire'),
-      h('p', { className: 'od-description' }, offer.description),
-      h('ol', { className: 'od-steps' },
-        step(1, `Clique sur « ${campaign ? 'Voir la page officielle' : 'Ouvrir le lien'} » ci-dessous`, 'HAISSEL te demande de confirmer avant de quitter le site.'),
-        step(2, offer.expected_action, 'C’est l’action attendue par le site partenaire.'),
-        step(3, 'Lis les conditions du site partenaire', 'Elles priment toujours sur ce résumé.'))),
-
-    campaign && offer.tips ? h('section', { className: 'od-card', 'aria-labelledby': 'offer-tips-title' },
-      h('h3', { id: 'offer-tips-title' }, `Les conseils de @${author}`),
-      h('p', { className: 'od-description' }, offer.tips)) : null,
-
-    h('section', { className: 'od-card', 'aria-labelledby': 'offer-terms-title' },
-      h('h3', { id: 'offer-terms-title' }, 'Conditions claires'),
-      h('p', { className: 'od-muted' }, offer.kind === 'free'
-        ? 'Bon plan gratuit : ce n’est pas un lien affilié, HAISSEL ne touche rien et ton clic n’est pas suivi.'
-        : campaign
-        ? 'Cette fiche mène à la page officielle : ce n’est pas un lien affilié. Pour participer à la campagne, récupère ton propre lien sur MyLead. Aucun gain n’est garanti.'
-        : 'Ce lien est un lien affilié publié par l’équipe : HAISSEL peut toucher une commission. Ça ne te coûte rien de plus, et aucun gain n’est garanti.'),
-      offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
-      h('div', { className: 'od-tags' },
-        offer.min_age ? h('span', { className: 'pill' }, icon('i-shield', 'icon sm'), `Réservé aux ${offer.min_age} ans et +`) : null,
-        h('a', { className: 'pill pill-link', href: 'transparence.html' }, icon('i-info', 'icon sm'), 'Transparence affiliation'))),
-
-    h('section', { className: 'od-card od-author' },
-      h('span', { className: 'avatar', 'aria-hidden': 'true' }, initialsFromName(author)),
-      h('div', null,
-        h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(author) }, `@${author}`),
-        h('p', null, `Membre de la communauté · publiée ${formatAgo(offer.published_at || offer.created_at)}`))),
-
-    h('div', { className: 'od-actions' },
       /*
        * can_open vient du serveur. Un mineur, ou une offre dont l'âge minimum
        * dépasse ce que HAISSEL peut certifier, voit la raison plutôt qu'un
@@ -1169,7 +1225,32 @@ function offerDetail(offer) {
           className: 'offer-link-button od-open', type: 'button',
           'aria-label': `${openLabel} : « ${offer.title} » (site externe, nouvel onglet)`,
           onclick: () => confirmLeave(offer),
-        }, openLabel, icon('i-external')),
+        }, openLabel, icon('i-external'))),
+
+    // Le détail, replié : une ligne par section, fermée par défaut.
+    h('ul', { className: 'od-group lg-glass', 'aria-label': 'Détails de l’offre' },
+      disclosureRow('todo', 'i-check-circle', 'Comment en profiter',
+        h('ol', { className: 'od-steps' },
+          step(1, `Clique sur « ${campaign ? 'Voir la page officielle' : 'Ouvrir le lien'} »`, 'HAISSEL te demande de confirmer avant de quitter le site.'),
+          step(2, offer.expected_action, 'C’est l’action attendue par le site partenaire.'),
+          step(3, 'Lis les conditions du site partenaire', 'Elles priment toujours sur ce résumé.'))),
+      disclosureRow('gains', 'i-sparkle', 'Ce que tu y gagnes', gains.length ? h('dl', { className: 'od-facts' }, ...gains) : null),
+      campaign && offer.tips ? disclosureRow('tips', 'i-book', `Les conseils de @${author}`, h('p', { className: 'od-description' }, offer.tips)) : null,
+      disclosureRow('terms', 'i-shield', 'Conditions', [
+        h('p', { className: 'od-muted' }, termsText),
+        offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
+        h('div', { className: 'od-tags' },
+          offer.min_age ? h('span', { className: 'pill' }, icon('i-shield', 'icon sm'), `Réservé aux ${offer.min_age} ans et +`) : null,
+          h('a', { className: 'pill pill-link', href: 'transparence.html' }, icon('i-info', 'icon sm'), 'Transparence affiliation'))]),
+      disclosureRow('facts', 'i-info', 'Infos', facts.length ? h('dl', { className: 'od-facts' }, ...facts) : null)),
+
+    h('section', { className: 'od-card od-author' },
+      h('span', { className: 'avatar', 'aria-hidden': 'true' }, initialsFromName(author)),
+      h('div', null,
+        h('button', { className: 'fc-author', type: 'button', onclick: () => openMember(author) }, `@${author}`),
+        h('p', null, `${offer.from_team ? 'Équipe HAISSEL' : 'Membre de la communauté'} · publiée ${formatAgo(offer.published_at || offer.created_at)}`))),
+
+    h('div', { className: 'od-actions' },
       offer.is_mine ? null : saveButtonFor(offer, { variant: 'text' }),
       offer.is_mine ? null : h('button', { className: 'text-button od-report', type: 'button', onclick: () => openReport(offer) },
         icon('i-flag', 'icon sm'), 'Un problème ? Signaler cette offre')),
@@ -1197,7 +1278,7 @@ function syncFiltersToUrl() {
   const query = communityQuery();
   const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
   try {
-    window.history.replaceState(null, '', url + window.location.hash);
+    window.history.replaceState(window.history.state, '', url + window.location.hash);
   } catch (error) { /* navigateur sans History API : sans conséquence */ }
 }
 
@@ -1288,6 +1369,12 @@ async function loadCommunity() {
           h('p', null, 'Aucune offre pour le moment. Tu peux être le premier à en publier une.'))]));
       // Premier rendu visible : entrée en cascade (8 éléments au plus, motion.js).
       if (feed.length && ui.homeOffers.offsetParent) window.HaisselMotion?.cascade(ui.homeOffers);
+    }
+    // Retour d'une publication pendant un rechargement : position restaurée après le rendu.
+    const back = state.community.restoreAfterRender;
+    if (back && document.getElementById('offer-view').classList.contains('hidden')) {
+      state.community.restoreAfterRender = null;
+      restoreFeedPosition(back);
     }
   } catch (error) {
     if (error.status === 401 || error.status === 403) return;
@@ -4352,7 +4439,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });
-  // Bouton « retour » du téléphone : ferme le détail d'une offre.
+  // Position du fil gérée par l'app (feed-position.js), pas par le navigateur.
+  if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+  // Bouton « retour » du téléphone ou du navigateur (geste iOS compris) : ferme le détail d'une offre.
   window.addEventListener('popstate', () => {
     if (!document.getElementById('offer-view').classList.contains('hidden')) closeOffer();
   });

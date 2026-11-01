@@ -371,7 +371,13 @@ function formatOffer(row, userId, viewer = null) {
     shown_at: row.renewed_at && row.renewed_at > row.published_at ? row.renewed_at : row.published_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    // L'auteur n'expose que son pseudo (profils privés).
     author: { username: row.author_username },
+    /*
+     * Publication de l'équipe : rôle de l'AUTEUR lu en base (table admins),
+     * jamais un champ envoyé par le client.
+     */
+    from_team: row.author_is_team === true,
     is_mine: row.user_id === userId,
     saved: Boolean(row.saved),
     ...(row.user_id === userId ? { moderation_note: row.moderation_note } : {}),
@@ -392,6 +398,7 @@ function handleError(error, res, next) {
 
 const OFFER_SELECT = `
   SELECT o.*, u.username AS author_username,
+         EXISTS (SELECT 1 FROM admins a WHERE a.user_id = o.user_id AND upper(a.role) = 'ADMIN') AS author_is_team,
          EXISTS (SELECT 1 FROM member_offer_saves s WHERE s.offer_id = o.id AND s.user_id = $1) AS saved
   FROM member_offers o
   JOIN users u ON u.id = o.user_id`;
@@ -793,7 +800,7 @@ async function createOffer(req, res, next) {
     return res.status(201).json({
       success: true,
       data: {
-        offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id, req.user),
+        offer: formatOffer({ ...result.rows[0], author_username: req.user.username, author_is_team: String(req.userRole || '').toUpperCase() === 'ADMIN' }, req.user.id, req.user),
         message: kind === 'campaign'
           ? 'Ta fiche a été envoyée. Elle sera visible après vérification par l’équipe.'
           : 'Ton offre a été envoyée. Elle sera visible après vérification par l’équipe.',
@@ -821,7 +828,8 @@ async function createOffer(req, res, next) {
  */
 async function loadOwnedOffer(req, res, id) {
   const found = await pool.query(
-    `SELECT o.id, o.user_id, o.status, o.kind, u.username AS author_username
+    `SELECT o.id, o.user_id, o.status, o.kind, u.username AS author_username,
+            EXISTS (SELECT 1 FROM admins a WHERE a.user_id = o.user_id AND upper(a.role) = 'ADMIN') AS author_is_team
      FROM member_offers o JOIN users u ON u.id = o.user_id
      WHERE o.id = $1`,
     [id]
@@ -884,7 +892,7 @@ async function updateOffer(req, res, next) {
       data: {
         // Le pseudo affiché est celui de l'AUTEUR, pas du demandeur : un ADMIN
         // qui corrige une offre ne doit pas apparaître comme son auteur.
-        offer: formatOffer({ ...result.rows[0], author_username: access.offer.author_username }, req.user.id, req.user),
+        offer: formatOffer({ ...result.rows[0], author_username: access.offer.author_username, author_is_team: access.offer.author_is_team }, req.user.id, req.user),
         message: 'Modification envoyée : ton offre sera de nouveau visible après vérification.',
       },
     });
@@ -1025,6 +1033,7 @@ async function adminListOffers(req, res, next) {
     const filter = ADMIN_FILTERS[req.query.status] || ADMIN_FILTERS.pending;
     const result = await pool.query(
       `SELECT o.*, u.username AS author_username,
+              EXISTS (SELECT 1 FROM admins a WHERE a.user_id = o.user_id AND upper(a.role) = 'ADMIN') AS author_is_team,
               (SELECT COUNT(*) FROM member_offer_reports r WHERE r.offer_id = o.id AND r.status = 'open')::int AS open_reports,
               (SELECT json_agg(json_build_object('reason', r.reason, 'details', r.details, 'created_at', r.created_at)
                                ORDER BY r.created_at DESC)
@@ -1155,7 +1164,7 @@ async function renewOffer(req, res, next) {
     return res.status(200).json({
       success: true,
       data: {
-        offer: formatOffer({ ...result.rows[0], author_username: req.user.username }, req.user.id, req.user),
+        offer: formatOffer({ ...result.rows[0], author_username: req.user.username, author_is_team: String(req.userRole || '').toUpperCase() === 'ADMIN' }, req.user.id, req.user),
         message: 'Ta fiche est de nouveau visible 24 h.',
       },
     });

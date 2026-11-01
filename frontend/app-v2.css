@@ -1800,3 +1800,35 @@ img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }
 .pub-team { display: grid; gap: 10px; margin: 8px 0; padding: 14px; border-radius: 16px; background: var(--v2-surface-low, #eef1f6); }
 .pub-team[hidden] { display: none; }
 .pub-team-title { margin: 0; font-size: 15px; font-weight: 800; }
+
+/* ------------------------------------------------------------------------
+ * Badge « Équipe HAISSEL » : mini ours 18 px, premier de la rangée.
+ * ------------------------------------------------------------------------ */
+.badge-row { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.team-pill { gap: 6px; padding-left: 4px; }
+.team-pill-avatar { width: 18px; height: 18px; flex: none; border: 0; border-radius: 50%; object-fit: cover; vertical-align: middle; }
+
+/* ------------------------------------------------------------------------
+ * Page d'une offre : liste groupée façon Réglages iOS (disclosure.js).
+ * Hauteur animée (~250 ms), chevron qui tourne de 90°, rien en mouvement réduit.
+ * ------------------------------------------------------------------------ */
+.od-hero .od-open { margin-top: var(--v2-xs); }
+.od-group { list-style: none; margin: 0; padding: 0; border-radius: 18px; overflow: hidden; }
+.od-group-item + .od-group-item { border-top: 1px solid rgba(127, 127, 127, .18); }
+.od-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 16px;
+  border: 0; background: none; color: inherit; font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.od-row:focus-visible { outline: 2px solid var(--v2-primary); outline-offset: -2px; }
+.od-row-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--v2-primary-container); color: #fff; }
+.od-row-icon .icon { width: 18px; height: 18px; }
+.od-row-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.od-row-chevron { display: grid; place-items: center; color: var(--v2-secondary); transition: transform 250ms ease; }
+.od-row[aria-expanded="true"] .od-row-chevron { transform: rotate(90deg); }
+.od-panel { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 250ms ease, visibility 0s linear 250ms; }
+.od-panel.is-open { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 250ms ease, visibility 0s; }
+.od-panel-inner { min-height: 0; overflow: hidden; display: grid; gap: var(--v2-sm); padding: 0 16px; }
+.od-panel.is-open .od-panel-inner { padding-bottom: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .od-row-chevron, .od-panel, .od-panel.is-open { transition: none; }
+}
