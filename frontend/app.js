@@ -838,6 +838,11 @@ function paintSaveButton(button, saved) {
   button.setAttribute('aria-pressed', String(saved));
   if (button.dataset.variant === 'text') {
     button.replaceChildren(icon(saved ? 'i-bookmark-fill' : 'i-bookmark'), label);
+  } else if (button.dataset.variant === 'reel') {
+    // Découvrir : icône nue + petit libellé ; le nom accessible suit l'état.
+    button.setAttribute('aria-label', saved ? 'Enregistré' : 'Enregistrer');
+    button.replaceChildren(icon(saved ? 'i-bookmark-fill' : 'i-bookmark', 'icon'),
+      h('span', { className: 'discover-action-label', 'aria-hidden': 'true' }, saved ? 'Enregistré' : 'Enregistrer'));
   } else {
     button.replaceChildren(icon(saved ? 'i-bookmark-fill' : 'i-bookmark', 'icon lg'), h('span', { className: 'visually-hidden' }, label));
   }
@@ -845,7 +850,7 @@ function paintSaveButton(button, saved) {
 
 function saveButtonFor(offer, { variant = 'icon', disabled = false } = {}) {
   const button = h('button', {
-    className: variant === 'text' ? 'save-button text' : 'save-button', type: 'button', disabled,
+    className: { text: 'save-button text', reel: 'save-button discover-action' }[variant] || 'save-button', type: 'button', disabled,
     'data-variant': variant, title: 'Sauvegarder pour plus tard',
     onclick: () => toggleSave(offer, button),
   });
@@ -928,33 +933,106 @@ function postCard(offer) {
 
 /*
  * Découvrir (façon Reels) : une offre par écran, défilement vertical aimanté
- * (scroll-snap). Rien n'est lu automatiquement ; « Voir » passe par la
- * confirmation de sortie habituelle et n'apparaît que si le serveur permet
- * d'ouvrir le lien (mineurs, âge minimum : règles inchangées).
+ * (scroll-snap). Le visuel de la catégorie remplit l'écran ; un dégradé
+ * sombre en bas et à droite garde le texte lisible. Bas à gauche : auteur,
+ * badges, légende (2 lignes, « … plus ») et méta. Colonne d'icônes nues à
+ * droite : Enregistrer, Infos, Visiter (si le serveur permet d'ouvrir le
+ * lien), « ⋯ » (Signaler). Rien n'est lu automatiquement ; « Visiter » passe
+ * par la confirmation de sortie habituelle (règles d'âge inchangées).
  */
+function discoverAction(label, iconNode, ariaLabel, onclick) {
+  return h('button', { className: 'discover-action', type: 'button', 'aria-label': ariaLabel, onclick },
+    iconNode, h('span', { className: 'discover-action-label', 'aria-hidden': 'true' }, label));
+}
+
 function discoverSlide(offer) {
   const left = storyTimeLeft(offer);
-  const sideButton = (label, iconName, onclick) => h('button', { className: 'discover-action', type: 'button', onclick },
-    icon(iconName, 'icon lg'), h('span', null, label));
-  const save = offer.is_mine ? null : saveButtonFor(offer);
+  const save = offer.is_mine ? null : saveButtonFor(offer, { variant: 'reel' });
   return h('section', { className: 'discover-slide', 'aria-label': offer.title, 'data-offer-id': offer.id },
     categoryVisual(offer.category, 'discover-card',
       h('span', { className: 'post-visual-icon', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
       h('h2', { className: 'discover-title' }, offer.title),
       offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null),
-    // Panneau texte et colonne de boutons en verre sombre, posés sur l'image.
-    h('div', { className: 'discover-text lg-glass' },
+    h('div', { className: 'discover-shade', 'aria-hidden': 'true' }),
+    // Bas à gauche : auteur et badges, légende, méta (le titre est déjà au centre).
+    h('div', { className: 'discover-info' },
       h('p', { className: 'discover-who' },
         storyAvatar(offer.author.username, 'story-avatar sm'),
         h('button', { className: 'post-author', type: 'button', onclick: () => openMember(offer.author.username) }, offer.author.username),
-        kindBadge(offer)),
-      h('p', null, h('strong', null, 'Ce qu’il faut faire : '), offer.expected_action),
+        h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
+      offer.description ? h('button', {
+        className: 'discover-caption', type: 'button', 'aria-label': `Lire la description de « ${offer.title} »`,
+        onclick: () => openDiscoverSheet(offer),
+      }, h('span', { className: 'discover-caption-text' }, offer.description), h('span', { className: 'discover-caption-more' }, '… plus')) : null,
       h('p', { className: 'discover-meta' },
         [offer.countries, offer.min_age ? `${offer.min_age} ans et +` : null, left].filter(Boolean).join(' · '))),
-    h('div', { className: 'discover-side lg-glass lg-pill' },
+    // Colonne d'actions à droite, icônes nues.
+    h('div', { className: 'discover-actions' },
       save,
-      offer.is_mine ? null : sideButton('Signaler', 'i-flag', () => openReport(offer)),
-      offer.can_open ? sideButton('Voir', 'i-external', () => confirmLeave(offer)) : null));
+      discoverAction('Infos', icon('i-info', 'icon'), `Infos sur « ${offer.title} »`, () => openDiscoverSheet(offer)),
+      offer.can_open
+        ? discoverAction('Visiter', icon('i-external', 'icon'), `Visiter le site de « ${offer.title} » (site externe)`, () => confirmLeave(offer))
+        : null,
+      offer.is_mine ? null
+        : discoverAction('Plus', h('span', { className: 'discover-dots', 'aria-hidden': 'true' }, '⋯'), `Plus d’options pour « ${offer.title} »`, () => openDiscoverMore(offer))));
+}
+
+/*
+ * Feuille « Description » (comme les commentaires de Reels) : environ 70 %
+ * de l'écran, poignée et glisser vers le bas (bindSheet, sheet-gesture.js).
+ * La fermer rend le focus au bouton d'origine sans faire défiler : on
+ * retombe sur la même slide.
+ */
+function discoverSheetContent(offer) {
+  const conditions = [
+    offer.min_age ? h('p', null, `Réservé aux ${offer.min_age} ans et +.`) : null,
+    offer.countries ? h('p', null, `Pays : ${offer.countries}.`) : null,
+    offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
+  ].filter(Boolean);
+  return [
+    h('h2', { id: 'discover-sheet-title', className: 'sheet-title discover-sheet-title' }, offer.title),
+    h('p', { className: 'discover-sheet-who' },
+      h('span', null, `@${offer.author.username}`),
+      h('span', { className: 'badge-row' }, teamBadge(offer), kindBadge(offer))),
+    h('p', { className: 'od-description' }, offer.description),
+    offer.can_open
+      ? h('button', {
+        className: 'offer-link-button discover-sheet-open', type: 'button',
+        'aria-label': `Visiter le site : « ${offer.title} » (site externe)`,
+        onclick: () => confirmLeave(offer),
+      }, 'Visiter le site', icon('i-external'))
+      : null,
+    h('ul', { className: 'od-group lg-glass', 'aria-label': 'Détails de l’offre' },
+      disclosureRow('ds-todo', 'i-check-circle', 'Comment en profiter', offer.expected_action ? h('p', null, offer.expected_action) : null),
+      disclosureRow('ds-terms', 'i-shield', 'Conditions', conditions),
+      disclosureRow('ds-gains', 'i-sparkle', 'Ce que tu y gagnes', offer.member_benefit ? h('p', null, offer.member_benefit) : null)),
+  ];
+}
+
+function openDiscoverSheet(offer) {
+  const sheet = ui.discoverSheet;
+  state.discoverTrigger = document.activeElement;
+  document.getElementById('discover-sheet-body').replaceChildren(...discoverSheetContent(offer));
+  openSheet(sheet);
+}
+
+/* « ⋯ » : petite feuille avec « Signaler ». */
+function openDiscoverMore(offer) {
+  const sheet = ui.discoverMoreSheet;
+  state.discoverTrigger = document.activeElement;
+  document.getElementById('discover-more-body').replaceChildren(
+    h('button', {
+      className: 'discover-more-row', type: 'button',
+      onclick: () => { closeSheet(sheet); openReport(offer); },
+    }, icon('i-flag', 'icon'), 'Signaler'));
+  openSheet(sheet);
+}
+
+/* Focus rendu au bouton de la slide, sans défilement : même slide. */
+function restoreDiscoverFocus() {
+  const trigger = state.discoverTrigger;
+  state.discoverTrigger = null;
+  if (trigger && trigger.isConnected) trigger.focus({ preventScroll: true });
 }
 
 function renderDiscover(items) {
@@ -2991,6 +3069,11 @@ async function toggleSave(offer, button) {
     await api(`/api/community/offers/${encodeURIComponent(offer.id)}/save`, { method: offer.saved ? 'DELETE' : 'POST' });
     offer.saved = !offer.saved;
     paintSaveButton(button, offer.saved);
+    if (button.dataset.variant === 'reel') {
+      button.classList.remove('is-popping');
+      void button.offsetWidth; // relance l'animation
+      button.classList.add('is-popping');
+    }
     if (ui.communitySaved.checked && !offer.saved) loadCommunity();
   } catch (error) {
     window.alert(error.message);
@@ -4270,7 +4353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     homeLearnText: 'home-learn-text', homeLearnGo: 'home-learn-go',
     communityList: 'community-list', communityQ: 'community-q', communityCategory: 'community-category',
     communityKind: 'community-kind', communitySort: 'community-sort', communitySaved: 'community-saved', communityFilters: 'community-filters',
-    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installRowLabel: 'install-row-label', installSheet: 'install-sheet', installSheetTitle: 'install-sheet-title', installSheetText: 'install-sheet-text', installSheetStatus: 'install-sheet-status', installSheetAction: 'install-sheet-action', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
+    communityQClear: 'community-q-clear', bellButton: 'bell-button', bellBadge: 'bell-badge', activityList: 'activity-list', notifSwitch: 'notif-switch', notifHelp: 'notif-help', notifHowto: 'notif-howto', howtoSheet: 'howto-sheet', installRow: 'install-row', installRowLabel: 'install-row-label', installSheet: 'install-sheet', discoverSheet: 'discover-sheet', discoverMoreSheet: 'discover-more-sheet', installSheetTitle: 'install-sheet-title', installSheetText: 'install-sheet-text', installSheetStatus: 'install-sheet-status', installSheetAction: 'install-sheet-action', installBanner: 'install-banner', installBannerText: 'install-banner-text', installBannerAction: 'install-banner-action', installBannerClose: 'install-banner-close', filtersOpen: 'filters-open', filtersCount: 'filters-count', filtersSheet: 'filters-sheet',
     leaveDialog: 'leave-dialog', leaveDomain: 'leave-domain', leaveAge: 'leave-age',
     reportDialog: 'report-dialog', reportForm: 'report-form', reportOffer: 'report-offer', reportError: 'report-error',
     reportReason: 'report-reason', reportDetails: 'report-details',
@@ -4417,6 +4500,9 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.installRow.addEventListener('click', () => openInstallGuide(window.HaisselInstall.tutoKind(installState()) || 'ios'));
   ui.installSheetAction.addEventListener('click', handleInstallSheetAction);
   bindSheet(ui.installSheet, { onClose: markInstallTutoSeen });
+  // Découvrir : feuille Description et menu « ⋯ ».
+  bindSheet(ui.discoverSheet, { onClose: restoreDiscoverFocus });
+  bindSheet(ui.discoverMoreSheet, { onClose: restoreDiscoverFocus });
   ui.installBannerAction.addEventListener('click', handleInstallBannerAction);
   ui.installBannerClose.addEventListener('click', closeInstallBanner);
   window.addEventListener('haissel-install-change', () => {

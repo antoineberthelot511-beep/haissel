@@ -1225,12 +1225,15 @@ body[data-view="discover"] .topbar .topbar-inner { display: none; }
 /* Découvrir (façon Reels) : plein écran, une offre par écran. */
 /* Sans transformation : sinon le fil « fixed » se cale sur ce panneau (animation d'entrée des vues). */
 #discover-view { margin: 0; transform: none !important; animation: none !important; }
+/* Hauteur visible : du haut de l'écran jusqu'à la barre du bas (safe-area comprise). */
 .discover-feed {
-  position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain;
+  position: fixed; inset: 0 0 calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px)) 0; z-index: 30;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
   scroll-snap-type: y mandatory; background: #000; color: #fff; --spinner-color: #8DB4FF;
 }
+.discover-feed::-webkit-scrollbar { display: none; }
 .discover-slide {
-  position: relative; height: 100vh; height: 100dvh; scroll-snap-align: start; scroll-snap-stop: always;
+  position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always;
   display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) 16px 0; overflow: hidden;
 }
 .discover-slide.is-empty { color: rgba(255, 255, 255, .7); background: radial-gradient(120% 70% at 50% 40%, #1a1f2e 0%, #0b0b0f 70%); }
@@ -1253,30 +1256,64 @@ img.mascot.discover-bear {
 @media (prefers-reduced-motion: reduce) {
   img.mascot.discover-bear { animation: none !important; }
 }
+/* Visuel de la catégorie en fond plein écran (sans marge ni coins arrondis). */
 .discover-card {
-  width: min(calc(100% - 56px), 360px); aspect-ratio: 4 / 5; margin: -190px 56px 0 0; border-radius: 28px;
-  display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 28px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  position: absolute; inset: 0; margin: 0; border-radius: 0;
+  display: flex; flex-direction: column; justify-content: center; gap: 12px;
+  padding: max(24px, env(safe-area-inset-top)) 84px 160px 24px;
 }
 .discover-title { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 800; text-wrap: balance; }
-.discover-text {
-  position: absolute; left: 16px; right: 84px; bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  display: grid; gap: 6px; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+/* Dégradé sombre en bas et à droite : texte et icônes lisibles sur toutes les couleurs. */
+.discover-shade {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, .6) 0%, rgba(0, 0, 0, 0) 45%),
+    linear-gradient(to left, rgba(0, 0, 0, .6) 0%, rgba(0, 0, 0, 0) 35%);
 }
-.discover-text p { margin: 0; }
-.discover-who { display: flex; align-items: center; gap: 8px; }
-.discover-who .post-author { color: #fff; }
+/* Bas à gauche : auteur et badges, légende, méta. */
+.discover-info {
+  position: absolute; left: 16px; right: 84px; bottom: 16px;
+  display: grid; gap: 6px; justify-items: start; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+.discover-info p { margin: 0; }
+.discover-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.discover-who .post-author { color: #fff; font-weight: 800; }
+.discover-caption {
+  display: block; max-width: 100%; min-height: 44px; padding: 0; border: 0; background: none;
+  color: #fff; font: inherit; font-size: 14px; line-height: 1.4; text-align: left; cursor: pointer;
+}
+.discover-caption-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.discover-caption-more { font-weight: 700; opacity: .85; }
 .discover-meta { font-size: 13px; opacity: .8; }
-.discover-side {
-  position: absolute; right: 10px; bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-  display: grid; gap: 14px; justify-items: center;
+/* Colonne d'actions à droite : icônes nues, blanches, ombre légère. */
+.discover-actions {
+  position: absolute; right: 6px; bottom: 16px;
+  display: grid; gap: 10px; justify-items: center;
 }
-.discover-action, .discover-side .save-button {
-  display: grid; justify-items: center; gap: 2px; padding: 0; border: 0; background: none; color: #fff; cursor: pointer;
-  font: inherit; font-size: 12px; font-weight: 700; box-shadow: none; width: auto; height: auto;
+.discover-action, .discover-actions .save-button {
+  display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 52px; min-height: 52px; width: auto; height: auto;
+  padding: 2px; border: 0; border-radius: 0; background: none; box-shadow: none; color: #fff; cursor: pointer;
+  font: inherit; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
 }
-.discover-side .save-button .icon { width: 30px; height: 30px; }
-.discover-action .icon { width: 30px; height: 30px; }
+.discover-action .icon { width: 30px; height: 30px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45)); }
+.discover-dots { display: grid; place-items: center; width: 30px; height: 30px; font-size: 28px; line-height: 1; }
+.discover-action:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 12px; }
+@keyframes discover-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+.discover-action.is-popping .icon { animation: discover-pop 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .discover-action.is-popping .icon { animation: none; }
+}
+/* Feuille Description : ~70 % de l'écran, verre comme les autres feuilles. */
+.discover-sheet .sheet-panel { height: 70dvh; align-content: start; }
+.discover-sheet-body { display: grid; gap: 12px; padding-bottom: 8px; }
+.discover-sheet-title { margin-bottom: 0; font-size: 20px; text-align: left; }
+.discover-sheet-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-weight: 700; }
+.discover-sheet-open { width: 100%; justify-content: center; }
+.discover-more-body { display: grid; }
+.discover-more-row {
+  display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 16px; border: 0; border-radius: 12px;
+  background: none; color: var(--v2-error, #c62828); font: inherit; font-size: 17px; font-weight: 600; cursor: pointer;
+}
 body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-footer { display: none; }
 
 /* Recherche : une barre façon iOS + « Filtres » ; grille de 3 colonnes. */
@@ -1784,7 +1821,7 @@ img.wordmark-logo, img.splash-logo, img.msg-avatar {
 /* Badge du type d'offre : « Lien affilié » + « En savoir plus », ou « Fiche membre · lien officiel ». */
 .kind-badge { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .kind-more { font-size: 12px; font-weight: 700; color: var(--brand); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
-.discover-text .kind-more, .story-viewer .kind-more { color: inherit; }
+.discover-info .kind-more, .story-viewer .kind-more { color: inherit; }
 
 /* Avatar de l'équipe : l'ours, toujours rond. */
 img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }

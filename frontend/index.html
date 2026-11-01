@@ -991,6 +991,21 @@
               </dialog>
 
               <!-- Installer : Android (invite native) ou autre navigateur iOS (« Ouvre HAISSEL dans Safari »). -->
+              <dialog id="discover-sheet" class="sheet discover-sheet" aria-labelledby="discover-sheet-title">
+                <div class="sheet-panel lg-glass lg-sheet">
+                  <div class="sheet-grabber" aria-hidden="true"></div>
+                  <div id="discover-sheet-body" class="discover-sheet-body"></div>
+                </div>
+              </dialog>
+
+              <dialog id="discover-more-sheet" class="sheet" aria-label="Plus d’options">
+                <div class="sheet-panel lg-glass lg-sheet">
+                  <div class="sheet-grabber" aria-hidden="true"></div>
+                  <div id="discover-more-body" class="discover-more-body"></div>
+                  <button class="sheet-reset" type="button" data-close-sheet>Annuler</button>
+                </div>
+              </dialog>
+
               <dialog id="install-sheet" class="sheet" aria-labelledby="install-sheet-title">
                 <div class="sheet-panel lg-glass lg-sheet">
                   <div class="sheet-grabber" aria-hidden="true"></div>

@@ -170,13 +170,6 @@
   --lg-tint: rgba(10, 12, 20, .4); --lg-halo: rgba(0, 0, 0, .4); --lg-solid: rgba(10, 12, 20, .55);
   --lg-line: rgba(255, 255, 255, .3); --lg-shadow: 0 8px 24px rgba(0, 0, 0, .16);
 }
-.discover-text.lg-glass, .discover-side.lg-glass {
-  --lg-tint: rgba(10, 12, 20, .42); --lg-native-tint: rgba(10, 12, 20, .42); --lg-halo: rgba(0, 0, 0, .5);
-  --lg-line: rgba(255, 255, 255, .18); --lg-solid: #1d2030;
-  --lg-shadow: 0 12px 36px rgba(0, 0, 0, .35);
-}
-.discover-text.lg-glass { padding: 14px 16px; border-radius: 22px; }
-.discover-side.lg-glass { padding: 12px 6px; }
 
 /* Profil : barre d'onglets collée sous l'en-tête, en verre seulement collée. */
 #profile-view .profile-tabs.lg-glass {

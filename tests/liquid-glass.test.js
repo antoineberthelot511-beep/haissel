@@ -113,8 +113,9 @@ describe('composant CSS', () => {
 
   test('nouvelles surfaces en verre sur les visuels, jamais sur Réglages ni formulaires', () => {
     expect(app).toContain("className: 'post-visual-icon lg-glass'");
-    expect(app).toContain("className: 'discover-text lg-glass'");
-    expect(app).toContain("className: 'discover-side lg-glass lg-pill'");
+    // Découvrir façon Reels : plus de panneau ni de pilule en verre sur la slide.
+    expect(app).not.toMatch(/discover-(text|side)/);
+    expect(html).toMatch(/<dialog id="discover-sheet" class="sheet discover-sheet"[^>]*>\s*<div class="sheet-panel lg-glass lg-sheet">/);
     expect(html).toContain('class="profile-tabs lg-glass lg-bar is-flat"');
     expect(html).not.toMatch(/class="[^"]*(about-row|about-box|auth-form|bubble)[^"]*lg-glass/);
     expect(css).toMatch(/\.sheet::backdrop \{[^}]*blur\(14px\)/);
