@@ -909,7 +909,8 @@ function postCard(offer) {
     h('span', { className: 'post-visual-icon lg-glass', 'aria-hidden': 'true' }, categoryIcon(offer.category, 'icon')),
     h('h3', { className: 'post-visual-title' }, offer.title),
     offer.kind === 'campaign' && offer.campaign_name ? h('p', { className: 'post-visual-sub' }, offer.campaign_name) : null);
-  return h('article', { className: 'post-card', 'data-offer-id': offer.id },
+  const open = h('button', { className: 'post-open', type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »` }, visual);
+  const card = h('article', { className: 'post-card', 'data-offer-id': offer.id },
     // [avatar] [nom + sous-titre sur une ligne] [⋯]
     h('header', { className: 'post-head' },
       storyAvatar(offer.author.username, 'story-avatar post-avatar'),
@@ -921,7 +922,7 @@ function postCard(offer) {
       offer.is_mine ? null : h('button', {
         className: 'post-more', type: 'button', 'aria-label': `Plus d’options pour « ${offer.title} »`, onclick: () => openDiscoverMore(offer),
       }, h('span', { 'aria-hidden': 'true' }, '⋯'))),
-    h('button', { className: 'post-open', type: 'button', 'aria-label': `Voir l’offre « ${offer.title} »`, onclick: () => openOffer(offer) }, visual),
+    open,
     // Badges juste sous l'image, en pastilles compactes.
     h('div', { className: 'post-badges badge-scroll' }, kindBadge(offer, { compact: true })),
     h('div', { className: 'post-actions' },
@@ -933,6 +934,8 @@ function postCard(offer) {
     h('p', { className: 'post-meta' },
       offer.countries ? h('span', null, icon('i-globe', 'icon sm'), offer.countries) : null,
       left ? h('span', null, icon('i-clock', 'icon sm'), left) : null));
+  bindPostDoubleTap(open, offer, card);
+  return card;
 }
 
 /*
@@ -1036,6 +1039,99 @@ function openDiscoverMore(offer) {
   openSheet(sheet);
 }
 
+/*
+ * Double tap sur le fond d'une slide = Enregistrer (comme le like de Reels),
+ * jamais « désenregistrer » : déjà enregistrée, on rejoue l'animation. Hors
+ * boutons, liens, légende, nom et pastilles. Rien pour sa propre offre ni
+ * hors connexion. Un simple tap ne fait rien.
+ */
+const DISCOVER_NO_DOUBLE_TAP = 'button, a, input, .discover-caption, .discover-who, .discover-badges, .discover-actions';
+
+function discoverBurst(host, x, y) {
+  if (reducedMotion()) return;
+  const rect = host.getBoundingClientRect();
+  const burst = h('span', { className: 'discover-burst', 'aria-hidden': 'true' }, icon('i-bookmark-fill', 'icon'));
+  burst.style.left = `${x - rect.left}px`;
+  burst.style.top = `${y - rect.top}px`;
+  host.append(burst);
+  const remove = () => burst.remove();
+  burst.addEventListener('animationend', remove, { once: true });
+  window.setTimeout(remove, 800);
+}
+
+/* Commun à Découvrir et à l'Accueil : host reçoit le signet, button est le bouton Enregistrer. */
+function saveFromDoubleTap(offer, button, host, x, y) {
+  if (!state.user || !offer || offer.is_mine) return;
+  discoverBurst(host, x, y);
+  if (!button) return;
+  // Requête déjà en cours (button.disabled) : on ne relance rien, sinon l'état s'inverserait.
+  if (!offer.saved && !button.disabled) {
+    toggleSave(offer, button);
+  } else {
+    button.classList.remove('is-popping');
+    void button.offsetWidth; // relance l'animation
+    button.classList.add('is-popping');
+  }
+}
+
+/*
+ * Accueil : double tap sur l'image d'une publication = Enregistrer. Un simple
+ * tap ouvre toujours l'offre, avec 300 ms d'attente (le temps de savoir si un
+ * 2e tap suit) ; clavier : ouverture immédiate.
+ */
+function bindPostDoubleTap(open, offer, card) {
+  const detector = window.HaisselDoubleTap?.createDetector();
+  let timer = null;
+  let skipClick = false;
+  open.addEventListener('click', (event) => {
+    if (skipClick) { skipClick = false; return; }
+    if (!detector || !state.user || offer.is_mine || event.detail === 0) { openOffer(offer); return; }
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => { timer = null; openOffer(offer); }, window.HaisselDoubleTap.DOUBLE_TAP.delay);
+  });
+  if (!detector) return;
+  open.addEventListener('pointerdown', (event) => {
+    if (event.isPrimary === false) { detector.cancel(); return; }
+    detector.down(event.clientX, event.clientY, event.timeStamp);
+  });
+  open.addEventListener('pointermove', (event) => detector.move(event.clientX, event.clientY));
+  open.addEventListener('pointercancel', () => detector.cancel());
+  window.addEventListener('scroll', () => detector.cancel(), { passive: true });
+  open.addEventListener('pointerup', (event) => {
+    if (!detector.up(event.clientX, event.clientY, event.timeStamp)) return;
+    if (!state.user || offer.is_mine) return;
+    window.clearTimeout(timer);
+    timer = null;
+    skipClick = true;
+    window.setTimeout(() => { skipClick = false; }, 400);
+    saveFromDoubleTap(offer, card.querySelector('.post-actions .save-button'), open.firstElementChild || open, event.clientX, event.clientY);
+  });
+}
+
+function bindDiscoverDoubleTap() {
+  const feed = ui.discoverFeed;
+  if (!feed || !window.HaisselDoubleTap) return;
+  const detector = window.HaisselDoubleTap.createDetector();
+  feed.addEventListener('pointerdown', (event) => {
+    if (event.isPrimary === false || event.target.closest(DISCOVER_NO_DOUBLE_TAP) || !event.target.closest('.discover-slide[data-offer-id]')) {
+      detector.cancel();
+      return;
+    }
+    detector.down(event.clientX, event.clientY, event.timeStamp);
+  });
+  feed.addEventListener('pointermove', (event) => detector.move(event.clientX, event.clientY));
+  feed.addEventListener('pointercancel', () => detector.cancel());
+  // Un défilement entre les deux taps annule.
+  feed.addEventListener('scroll', () => detector.cancel(), { passive: true });
+  feed.addEventListener('pointerup', (event) => {
+    if (!detector.up(event.clientX, event.clientY, event.timeStamp)) return;
+    const slide = event.target.closest('.discover-slide[data-offer-id]');
+    if (!slide) return;
+    const offer = state.discoverOffers?.get(slide.dataset.offerId);
+    saveFromDoubleTap(offer, slide.querySelector('.discover-actions .save-button'), slide, event.clientX, event.clientY);
+  });
+}
+
 /* Focus rendu au bouton de la slide, sans défilement : même slide. */
 function restoreDiscoverFocus() {
   const trigger = state.discoverTrigger;
@@ -1046,6 +1142,7 @@ function restoreDiscoverFocus() {
 function renderDiscover(items) {
   if (!ui.discoverFeed) return;
   const list = [...items.filter((offer) => offer.kind !== 'campaign'), ...items.filter((offer) => offer.kind === 'campaign')];
+  state.discoverOffers = new Map(list.map((offer) => [String(offer.id), offer]));
   ui.discoverFeed.replaceChildren(...(list.length ? list.map(discoverSlide) : [discoverEmpty()]));
 }
 
@@ -4602,6 +4699,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.installSheetAction.addEventListener('click', handleInstallSheetAction);
   bindSheet(ui.installSheet, { onClose: markInstallTutoSeen });
   bindTabSwipe();
+  bindDiscoverDoubleTap();
   // Découvrir : feuille Description et menu « ⋯ ».
   bindSheet(ui.discoverSheet, { onClose: restoreDiscoverFocus });
   bindSheet(ui.discoverMoreSheet, { onClose: restoreDiscoverFocus });

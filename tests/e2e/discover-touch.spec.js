@@ -1,6 +1,6 @@
 /*
  * Découvrir sur iPhone (WebKit, émulation iPhone 13, tactile) : boutons
- * atteignables, défilement vertical, Infos / Visiter.
+ * atteignables, défilement vertical, Infos / Visiter, double tap = Enregistrer.
  */
 const fs = require('fs');
 const os = require('os');
@@ -126,5 +126,56 @@ test.describe('Découvrir sur iPhone', () => {
   test('tap sur la légende : feuille Description', async ({ page }) => {
     await slide(page).locator('.discover-caption').tap();
     await expect(page.locator('#discover-sheet')).toHaveAttribute('open', '');
+  });
+
+  test('double tap sur le fond : enregistrée, et un 2e double tap ne désenregistre pas', async ({ page }) => {
+    const first = slide(page);
+    const save = first.locator('.discover-actions .save-button');
+    await expect(save).toHaveAttribute('aria-pressed', 'false');
+    const box = await first.boundingBox();
+    const point = { x: box.x + box.width * 0.4, y: box.y + box.height * 0.3 };
+    await page.touchscreen.tap(point.x, point.y);
+    await page.touchscreen.tap(point.x, point.y);
+    await expect(save).toHaveAttribute('aria-pressed', 'true');
+    await expect(save).toHaveAttribute('aria-label', 'Enregistré');
+    // Grand signet sans bloquer les touchers, retiré du DOM après l'animation.
+    expect(await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.className = 'discover-burst';
+      document.body.append(probe);
+      const value = getComputedStyle(probe).pointerEvents;
+      probe.remove();
+      return value;
+    })).toBe('none');
+    await expect(page.locator('.discover-burst')).toHaveCount(0, { timeout: 2000 });
+    await page.touchscreen.tap(point.x, point.y);
+    await page.touchscreen.tap(point.x, point.y);
+    await page.waitForTimeout(400);
+    await expect(save).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('simple tap sur le fond : rien', async ({ page }) => {
+    await showSlide(page, 1);
+    const first = slide(page, 1);
+    const box = await first.boundingBox();
+    await page.touchscreen.tap(box.x + box.width * 0.4, box.y + box.height * 0.3);
+    await page.waitForTimeout(450);
+    await expect(first.locator('.discover-actions .save-button')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#discover-sheet')).not.toHaveAttribute('open', '');
+  });
+
+  test('double tap sur un bouton ou une pastille : pas d’enregistrement', async ({ page }) => {
+    await showSlide(page, 2);
+    const first = slide(page, 2);
+    // Pastilles (zone exclue).
+    const badges = await first.locator('.discover-badges').boundingBox();
+    await page.touchscreen.tap(badges.x + 5, badges.y + badges.height / 2);
+    await page.touchscreen.tap(badges.x + 5, badges.y + badges.height / 2);
+    // Bouton Infos : il ouvre la feuille, rien n'est enregistré.
+    const infos = await first.getByRole('button', { name: /^Infos sur/ }).boundingBox();
+    await page.touchscreen.tap(infos.x + infos.width / 2, infos.y + infos.height / 2);
+    await page.touchscreen.tap(infos.x + infos.width / 2, infos.y + infos.height / 2);
+    await page.waitForTimeout(400);
+    await expect(first.locator('.discover-actions .save-button')).toHaveAttribute('aria-pressed', 'false');
   });
 });

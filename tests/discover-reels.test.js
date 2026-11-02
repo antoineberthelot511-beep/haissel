@@ -243,11 +243,11 @@ describe('fil d’Accueil', () => {
   test('sous-titre sur une ligne (nowrap), badges hors de l’en-tête, sous l’image', () => {
     const start = APP_JS.indexOf('function postCard(');
     const body = APP_JS.slice(start, APP_JS.indexOf('\n}\n', start));
-    const head = body.slice(body.indexOf("h('header', { className: 'post-head' }"), body.indexOf("className: 'post-open'"));
+    const head = body.slice(body.indexOf("h('header', { className: 'post-head' }"), body.indexOf('    open,\n'));
     expect(head).toContain("className: 'post-sub nowrap'");
     expect(head).not.toContain('kindBadge(');
     expect(head).toContain('teamMark(offer)');
-    expect(body.indexOf("className: 'post-badges badge-scroll' }, kindBadge(offer, { compact: true })")).toBeGreaterThan(body.indexOf("className: 'post-open'"));
+    expect(body.indexOf("className: 'post-badges badge-scroll' }, kindBadge(offer, { compact: true })")).toBeGreaterThan(body.indexOf('    open,\n'));
     expect(CSS).toMatch(/\.nowrap \{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis;/);
     expect(CSS).toContain('#home-view { padding-bottom: calc(var(--v2-nav-height) + env(safe-area-inset-bottom, 0px) + 16px); }');
   });
