@@ -1899,5 +1899,15 @@ img.team-avatar { border-radius: 50%; object-fit: cover; background: #e8efff; }
 .post-badges .pill-compact.free, .post-badges .pill-compact.campaign { background: var(--v2-verified-soft); color: var(--v2-verified-strong); }
 .post-badges .pill-compact.ad { background: var(--v2-ad-soft); color: var(--v2-ad); }
 
-/* Swipe entre onglets : l'écran suit le doigt à la verticale native (tab-swipe.js). */
-#main { touch-action: pan-y; }
+/*
+ * Swipe entre onglets (tab-swipe.js) : pan-y sur les vues, JAMAIS sur #main.
+ * Sur iOS, un touch-action posé sur #main s'appliquait aussi au fil fixe de
+ * Découvrir (.discover-feed, conteneur défilant imbriqué) : défilement et
+ * taps bloqués. Découvrir garde le comportement natif ; ses slides sont en
+ * « manipulation » : défilement normal, pas de zoom au double tap.
+ */
+.view-panel:not(#discover-view) { touch-action: pan-y; }
+.discover-slide { touch-action: manipulation; }
+
+/* Découvrir : la page de dessous ne défile plus sous le fil fixe (iOS) ; rendu en quittant l'onglet. */
+html:has(body[data-view="discover"]), body[data-view="discover"] { overflow: hidden; overscroll-behavior: none; }

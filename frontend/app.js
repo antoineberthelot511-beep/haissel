@@ -1264,7 +1264,8 @@ const tabScroll = {};
 
 function swipeTarget() {
   const view = document.body.dataset.view;
-  return view === 'discover' ? ui.discoverFeed : document.getElementById(`${view}-view`);
+  // Jamais le fil de Découvrir : aucune transformation ne doit y rester.
+  return view === 'discover' ? null : document.getElementById(`${view}-view`);
 }
 
 function scrollsHorizontally(target) {
@@ -1644,7 +1645,12 @@ function closeSheet(dialog, { apply = false } = {}) {
     ? panel.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' })
     : panel.animate([{ transform: panel.style.transform || 'none' }, { transform: 'translateY(100%)' }],
       { duration: 200, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
-  animation.finished.then(() => { done(); animation.cancel(); }, done);
+  // Filet de sécurité (WebKit) : si l'animation ne finit jamais, la feuille
+  // modale resterait ouverte et invisible, tout le reste inerte.
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; done(); animation.cancel(); };
+  animation.finished.then(finish, finish);
+  window.setTimeout(finish, 600);
 }
 
 /*

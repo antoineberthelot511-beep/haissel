@@ -104,6 +104,13 @@ describe('aucun changement', () => {
     expect(edge.went).toEqual([]);
   });
 
+  test('geste qui commence dans le fil de Découvrir', () => {
+    const s = setup({ view: 'discover' });
+    s.gesture({ dx: -0.4 * WIDTH, from: target('.discover-feed') });
+    expect(s.went).toEqual([]);
+    expect(s.painted).toEqual([]);
+  });
+
   test('feuille ouverte', () => {
     const s = setup({ blocked: true });
     s.gesture({ dx: -0.4 * WIDTH });
@@ -125,7 +132,12 @@ describe('branchement', () => {
     const switchTab = APP_JS.slice(APP_JS.indexOf('function switchTab('), APP_JS.indexOf('function bindTabSwipe('));
     expect(switchTab).toContain('setActiveView(next);');
     expect(switchTab).toContain('tabScroll[from] = window.scrollY;');
-    expect(CSS).toContain('#main { touch-action: pan-y; }');
+    // Régression iOS : jamais de touch-action sur #main (ancêtre du fil fixe de Découvrir).
+    expect(CSS).not.toMatch(/#main {[^}]*touch-action/);
+    expect(CSS).toContain('.view-panel:not(#discover-view) { touch-action: pan-y; }');
+    expect(CSS).toContain('.discover-slide { touch-action: manipulation; }');
+    // Jamais de transformation posée sur le fil de Découvrir.
+    expect(APP_JS).toContain("return view === 'discover' ? null : document.getElementById(");
     expect(INDEX.indexOf('src="tab-swipe.js"')).toBeLessThan(INDEX.indexOf('src="app.js"'));
   });
 });

@@ -20,6 +20,8 @@
   const SWIPE = { start: 10, ratio: 1.5, commit: 0.25, velocity: 0.5, edge: 24, elastic: 0.3, velocityWindowMs: 100 };
   // Éléments d'où un swipe ne part jamais : défilement horizontal, saisie, conversation.
   const NO_SWIPE = [
+    // Découvrir : fil fixe à défilement vertical natif, double tap ; pas de swipe d'onglet.
+    '.discover-feed',
     '.stories-row', '.chip-row', '.badge-scroll', '.tuto-carousel', '[data-no-tab-swipe]',
     'input', 'textarea', 'select', '[contenteditable]', '.chat', 'dialog',
   ].join(', ');
@@ -97,7 +99,7 @@
       if (!drag || drag.id !== event.pointerId) return;
       const current = drag;
       drag = null;
-      if (current.axis !== 'h') return;
+      if (current.axis !== 'h') { if (current.dx) deps.paint(0); return; }
       const [t0, x0] = current.samples[0];
       const [t1, x1] = current.samples[current.samples.length - 1];
       const vx = t1 > t0 ? (x1 - x0) / (t1 - t0) : 0;
