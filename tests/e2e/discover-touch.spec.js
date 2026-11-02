@@ -178,4 +178,59 @@ test.describe('Découvrir sur iPhone', () => {
     await page.waitForTimeout(400);
     await expect(first.locator('.discover-actions .save-button')).toHaveAttribute('aria-pressed', 'false');
   });
+
+  test('double tap sur une slide : enregistrée, aucun zoom', async ({ page }) => {
+    await showSlide(page, 3);
+    const s = slide(page, 3);
+    const save = s.locator('.discover-actions .save-button');
+    const box = await s.boundingBox();
+    const p = { x: box.x + box.width * 0.4, y: box.y + box.height * 0.3 };
+    await page.touchscreen.tap(p.x, p.y);
+    await page.touchscreen.tap(p.x, p.y);
+    await expect(save).toHaveAttribute('aria-pressed', 'true');
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => window.visualViewport.scale)).toBe(1);
+  });
+
+  test('2 taps rapides sur Infos puis fermeture : pas de zoom, fil immobile, taps toujours OK', async ({ page }) => {
+    await showSlide(page, 1);
+    const feed = page.locator('#discover-feed');
+    const before = await feed.evaluate((el) => el.scrollTop);
+    const infos = await slide(page, 1).getByRole('button', { name: /^Infos sur/ }).boundingBox();
+    const cx = infos.x + infos.width / 2;
+    const cy = infos.y + infos.height / 2;
+    await page.touchscreen.tap(cx, cy);
+    await page.touchscreen.tap(cx, cy);
+    await expect(page.locator('#discover-sheet')).toHaveAttribute('open', '');
+    await page.locator('#discover-sheet').press('Escape');
+    await expect(page.locator('#discover-sheet')).not.toHaveAttribute('open', '');
+    await page.waitForTimeout(700);
+    const after = await page.evaluate(() => {
+      const feedEl = document.getElementById('discover-feed');
+      const ancestors = [];
+      for (let n = feedEl.parentElement; n; n = n.parentElement) {
+        if (n.inert || getComputedStyle(n).transform !== 'none') ancestors.push(n.id || n.tagName);
+      }
+      return { scale: window.visualViewport.scale, top: feedEl.scrollTop, doc: document.scrollingElement.scrollTop, ancestors };
+    });
+    expect(after).toEqual({ scale: 1, top: before, doc: 0, ancestors: [] });
+    // ⋯ : ouverture et fermeture sans décalage non plus.
+    await slide(page, 1).getByRole('button', { name: /^Plus d’options/ }).tap();
+    await expect(page.locator('#discover-more-sheet')).toHaveAttribute('open', '');
+    await page.locator('#discover-more-sheet').press('Escape');
+    await expect(page.locator('#discover-more-sheet')).not.toHaveAttribute('open', '');
+    await page.waitForTimeout(700);
+    expect(await feed.evaluate((el) => el.scrollTop)).toBe(before);
+    await slide(page, 1).locator('.discover-who .post-author').tap();
+    await expect(page.locator('#member-dialog')).toHaveAttribute('open', '');
+  });
+
+  test('Enregistrer : le fil n’est pas re-rendu (même nœud de slide)', async ({ page }) => {
+    await page.evaluate(() => { window.__slide = document.querySelector('#discover-feed .discover-slide[data-offer-id]'); });
+    const save = slide(page).locator('.discover-actions .save-button');
+    const was = await save.getAttribute('aria-pressed');
+    await save.tap();
+    await expect(save).toHaveAttribute('aria-pressed', was === 'true' ? 'false' : 'true');
+    expect(await page.evaluate(() => window.__slide === document.querySelector('#discover-feed .discover-slide[data-offer-id]') && window.__slide.isConnected)).toBe(true);
+  });
 });

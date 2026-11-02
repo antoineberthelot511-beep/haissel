@@ -1931,3 +1931,10 @@ html:has(body[data-view="discover"]), body[data-view="discover"] { overflow: hid
 @media (prefers-reduced-motion: reduce) {
   .discover-burst { display: none; }
 }
+
+/* iPhone, comme une app : pas de zoom au double tap (no-zoom.js en filet de sécurité). */
+html { touch-action: manipulation; }
+/* Champs à 16 px minimum sur mobile : sinon iOS zoome à la mise au point. */
+@media (max-width: 1024px), (pointer: coarse) {
+  input, textarea, select { font-size: max(16px, 1em) !important; }
+}
