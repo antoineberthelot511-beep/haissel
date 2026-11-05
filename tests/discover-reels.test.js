@@ -103,7 +103,7 @@ function load() {
   const prelude = ['FREE_PREFIX', 'CAPTION_MAX'].map((name) => APP_JS.match(new RegExp(`^const ${name} = .*$`, 'm'))[0]).join('\n');
   vm.runInNewContext(`${prelude}\n${[
     'teamBadge', 'teamMark', 'displayDescription', 'captionParts', 'paintSaveButton', 'saveButtonFor', 'toggleSave', 'disclosureRow', 'discoverAction',
-    'discoverSlide', 'discoverSheetContent', 'openDiscoverSheet', 'openDiscoverMore',
+    'discoverSlide', 'discoverSheetContent', 'discoverInfosButton', 'openDiscoverSheet', 'openDiscoverMore',
   ].map(fnSource).join('\n')}\nthis.discoverSlide = discoverSlide;`, ctx);
   return { ctx, calls, sheetBody, moreBody };
 }
@@ -213,7 +213,7 @@ describe('feuille Description', () => {
   test('feuille en verre avec poignée, reliée au geste commun ; ~70 % de l’écran', () => {
     expect(INDEX).toMatch(/<dialog id="discover-sheet" class="sheet discover-sheet"[^>]*>\s*<div class="sheet-panel lg-glass lg-sheet">\s*<div class="sheet-grabber"/);
     expect(APP_JS).toContain("bindSheet(ui.discoverSheet, { onClose: restoreDiscoverFocus });");
-    expect(CSS).toContain('.discover-sheet .sheet-panel { height: 70dvh;');
+    expect(CSS).toContain('.discover-sheet .sheet-panel { height: 70svh; max-height: 70svh;');
   });
 });
 

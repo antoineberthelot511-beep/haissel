@@ -458,35 +458,6 @@
                 </button>
               </form>
 
-              <!-- Feuille « Filtres » : <select> natifs (roue sur iPhone, menu système sur Android). -->
-              <dialog id="filters-sheet" class="sheet" aria-labelledby="filters-title">
-                <div class="sheet-panel lg-glass lg-sheet">
-                  <div class="sheet-grabber" aria-hidden="true"></div>
-                  <h2 id="filters-title" class="sheet-title">Filtres</h2>
-                  <label class="sheet-field" for="community-category">Catégorie</label>
-                  <select id="community-category" class="sheet-select"><option value="">Toutes</option></select>
-                  <label class="sheet-field" for="community-kind">Type</label>
-                  <select id="community-kind" class="sheet-select">
-                    <option value="">Tous</option>
-                    <option value="campaign">Fiches campagne des membres</option>
-                    <option value="affiliate">Liens de l'équipe</option>
-                    <option value="free">Bons plans gratuits</option>
-                  </select>
-                  <label class="sheet-field" for="community-sort">Trier par</label>
-                  <select id="community-sort" class="sheet-select">
-                    <option value="">Plus récents</option>
-                    <option value="popular">Plus populaires</option>
-                  </select>
-                  <label class="sheet-toggle">
-                    <input id="community-saved" type="checkbox" />
-                    <span>Seulement mes offres sauvegardées</span>
-                  </label>
-                  <div class="sheet-actions">
-                    <button id="filters-reset" class="sheet-reset" type="button">Réinitialiser</button>
-                    <button id="filters-apply" class="primary-button sheet-apply" type="button">Afficher les résultats</button>
-                  </div>
-                </div>
-              </dialog>
               <p class="ad-notice">Les offres marquées « Lien affilié » sont publiées par l'équipe HAISSEL : HAISSEL peut toucher une commission si tu réalises l'action demandée. Les « Fiches campagne » des membres mènent à la page officielle et ne rapportent rien à leur auteur. <strong>Aucun gain n'est garanti.</strong> Rien ne t'oblige à cliquer.</p>
 
               <h3 class="subsection-title visually-hidden">Offres</h3>
@@ -974,51 +945,9 @@
                 </section>
               </div>
 
-              <!-- Installer sur iPhone : 5 images (tuto-ios.js), hauteur fixe. -->
-              <dialog id="howto-sheet" class="sheet tuto-sheet" aria-labelledby="howto-title">
-                <div class="sheet-panel lg-glass lg-sheet">
-                  <div class="sheet-grabber" aria-hidden="true"></div>
-                  <!-- L'ours est sur chaque image : pas d'ours en en-tête. -->
-                  <h2 id="howto-title" class="sheet-title tuto-title">Installe HAISSEL en 30 secondes</h2>
-                  <div id="tuto-track" class="tuto-track" role="group" aria-roledescription="carrousel" aria-label="Étapes de l'installation" tabindex="0"></div>
-                  <p id="tuto-caption" class="tuto-caption" aria-live="polite"></p>
-                  <div id="tuto-dots" class="tuto-dots"></div>
-                  <div class="tuto-actions">
-                    <button id="tuto-prev" class="tuto-prev" type="button">Précédent</button>
-                    <button id="tuto-next" class="primary-button sheet-apply" type="button" autofocus>Suivant</button>
-                  </div>
-                </div>
-              </dialog>
 
-              <!-- Installer : Android (invite native) ou autre navigateur iOS (« Ouvre HAISSEL dans Safari »). -->
-              <dialog id="discover-sheet" class="sheet discover-sheet" aria-labelledby="discover-sheet-title">
-                <div class="sheet-panel lg-glass lg-sheet">
-                  <div class="sheet-grabber" aria-hidden="true"></div>
-                  <div id="discover-sheet-body" class="discover-sheet-body"></div>
-                </div>
-              </dialog>
 
-              <dialog id="discover-more-sheet" class="sheet" aria-label="Plus d’options">
-                <div class="sheet-panel lg-glass lg-sheet">
-                  <div class="sheet-grabber" aria-hidden="true"></div>
-                  <div id="discover-more-body" class="discover-more-body"></div>
-                  <button class="sheet-reset" type="button" data-close-sheet>Annuler</button>
-                </div>
-              </dialog>
 
-              <dialog id="install-sheet" class="sheet" aria-labelledby="install-sheet-title">
-                <div class="sheet-panel lg-glass lg-sheet">
-                  <div class="sheet-grabber" aria-hidden="true"></div>
-                  <img class="install-sheet-icon" src="/icons/icon-192.png" alt="" width="64" height="64" />
-                  <h2 id="install-sheet-title" class="sheet-title">Installe HAISSEL</h2>
-                  <p id="install-sheet-text" class="install-sheet-text"></p>
-                  <p id="install-sheet-status" class="install-sheet-status" role="status" aria-live="polite"></p>
-                  <div class="sheet-actions">
-                    <button id="install-sheet-action" class="primary-button sheet-apply" type="button">Installer</button>
-                    <button class="sheet-reset" type="button" data-close-sheet>Plus tard</button>
-                  </div>
-                </div>
-              </dialog>
 
               <div id="ppanel-security" class="profile-panel profile-grid" role="tabpanel" aria-label="Sécurité" hidden>
                 <span class="mascot-head" data-mascot="securite" data-mascot-size="88"></span>
@@ -1179,6 +1108,84 @@
       <span data-mascot="hors-ligne" data-mascot-size="72"></span>
       <p>Tu es hors ligne. HAISSEL se remettra à jour dès que la connexion revient.</p>
     </div>
+
+    <!-- Feuilles du bas : enfants directs de <body> (WebKit iOS positionne mal un <dialog> modal sous le fil fixe de Découvrir). -->
+    <!-- Feuille « Filtres » : <select> natifs (roue sur iPhone, menu système sur Android). -->
+    <dialog id="filters-sheet" class="sheet" aria-labelledby="filters-title">
+      <div class="sheet-panel lg-glass lg-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <h2 id="filters-title" tabindex="-1" class="sheet-title">Filtres</h2>
+        <label class="sheet-field" for="community-category">Catégorie</label>
+        <select id="community-category" class="sheet-select"><option value="">Toutes</option></select>
+        <label class="sheet-field" for="community-kind">Type</label>
+        <select id="community-kind" class="sheet-select">
+          <option value="">Tous</option>
+          <option value="campaign">Fiches campagne des membres</option>
+          <option value="affiliate">Liens de l'équipe</option>
+          <option value="free">Bons plans gratuits</option>
+        </select>
+        <label class="sheet-field" for="community-sort">Trier par</label>
+        <select id="community-sort" class="sheet-select">
+          <option value="">Plus récents</option>
+          <option value="popular">Plus populaires</option>
+        </select>
+        <label class="sheet-toggle">
+          <input id="community-saved" type="checkbox" />
+          <span>Seulement mes offres sauvegardées</span>
+        </label>
+        <div class="sheet-actions">
+          <button id="filters-reset" class="sheet-reset" type="button">Réinitialiser</button>
+          <button id="filters-apply" class="primary-button sheet-apply" type="button">Afficher les résultats</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Installer sur iPhone : 5 images (tuto-ios.js), hauteur fixe. -->
+    <dialog id="howto-sheet" class="sheet tuto-sheet" aria-labelledby="howto-title">
+      <div class="sheet-panel lg-glass lg-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <!-- L'ours est sur chaque image : pas d'ours en en-tête. -->
+        <h2 id="howto-title" tabindex="-1" class="sheet-title tuto-title">Installe HAISSEL en 30 secondes</h2>
+        <div id="tuto-track" class="tuto-track" role="group" aria-roledescription="carrousel" aria-label="Étapes de l'installation" tabindex="0"></div>
+        <p id="tuto-caption" class="tuto-caption" aria-live="polite"></p>
+        <div id="tuto-dots" class="tuto-dots"></div>
+        <div class="tuto-actions">
+          <button id="tuto-prev" class="tuto-prev" type="button">Précédent</button>
+          <button id="tuto-next" class="primary-button sheet-apply" type="button">Suivant</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Installer : Android (invite native) ou autre navigateur iOS (« Ouvre HAISSEL dans Safari »). -->
+    <dialog id="discover-sheet" class="sheet discover-sheet" aria-labelledby="discover-sheet-title">
+      <div class="sheet-panel lg-glass lg-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div id="discover-sheet-body" class="discover-sheet-body"></div>
+      </div>
+    </dialog>
+
+    <dialog id="discover-more-sheet" class="sheet" aria-labelledby="discover-more-title">
+      <div class="sheet-panel lg-glass lg-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <h2 id="discover-more-title" tabindex="-1" class="sheet-title">Plus d’options</h2>
+        <div id="discover-more-body" class="discover-more-body"></div>
+        <button class="sheet-reset" type="button" data-close-sheet>Annuler</button>
+      </div>
+    </dialog>
+
+    <dialog id="install-sheet" class="sheet" aria-labelledby="install-sheet-title">
+      <div class="sheet-panel lg-glass lg-sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <img class="install-sheet-icon" src="/icons/icon-192.png" alt="" width="64" height="64" />
+        <h2 id="install-sheet-title" tabindex="-1" class="sheet-title">Installe HAISSEL</h2>
+        <p id="install-sheet-text" class="install-sheet-text"></p>
+        <p id="install-sheet-status" class="install-sheet-status" role="status" aria-live="polite"></p>
+        <div class="sheet-actions">
+          <button id="install-sheet-action" class="primary-button sheet-apply" type="button">Installer</button>
+          <button class="sheet-reset" type="button" data-close-sheet>Plus tard</button>
+        </div>
+      </div>
+    </dialog>
 
     <!-- Avant d'ouvrir un lien publié par un membre -->
     <dialog id="leave-dialog" class="app-dialog" aria-labelledby="leave-title">

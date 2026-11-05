@@ -225,6 +225,75 @@ test.describe('Découvrir sur iPhone', () => {
     await expect(page.locator('#member-dialog')).toHaveAttribute('open', '');
   });
 
+  test('Infos : ligne dépliée, fermeture par la poignée, puis Enregistrer, ⋯ et Visiter marchent', async ({ page }) => {
+    await showSlide(page, 1);
+    const feed = page.locator('#discover-feed');
+    const before = await feed.evaluate((el) => el.scrollTop);
+    const sheet = page.locator('#discover-sheet');
+    // Les feuilles sont des enfants directs de <body>.
+    expect(await page.evaluate(() => ['filters-sheet', 'howto-sheet', 'discover-sheet', 'discover-more-sheet', 'install-sheet']
+      .filter((id) => document.getElementById(id).parentElement !== document.body))).toEqual([]);
+    await slide(page, 1).getByRole('button', { name: /^Infos sur/ }).tap();
+    await expect(sheet).toHaveAttribute('open', '');
+    await expect(page.locator('#discover-sheet-title')).toBeFocused();
+    // Ni overflow touché sur html/body, ni défilement de la page.
+    expect(await page.evaluate(() => [document.documentElement.style.overflow, document.body.style.overflow, document.scrollingElement.scrollTop])).toEqual(['', '', 0]);
+    const panel = sheet.locator('.sheet-panel');
+    const height = await panel.evaluate((el) => el.offsetHeight);
+    const row = sheet.locator('.od-row').first();
+    await row.tap();
+    await expect(row).toHaveAttribute('aria-expanded', 'true');
+    await page.waitForTimeout(350);
+    expect(await panel.evaluate((el) => el.offsetHeight)).toBe(height);
+    // Glissement de la poignée vers le bas.
+    const grab = await sheet.locator('.sheet-grabber').boundingBox();
+    const x = grab.x + grab.width / 2;
+    const y = grab.y + grab.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i += 1) await page.mouse.move(x, y + i * 60);
+    await page.mouse.up();
+    await expect(sheet).not.toHaveAttribute('open', '');
+    await page.waitForTimeout(700);
+    const after = await page.evaluate(() => {
+      const feedEl = document.getElementById('discover-feed');
+      const ancestors = [];
+      for (let n = feedEl.parentElement; n; n = n.parentElement) {
+        if (n.inert || getComputedStyle(n).transform !== 'none') ancestors.push(n.id || n.tagName);
+      }
+      const active = document.activeElement;
+      return { top: feedEl.scrollTop, doc: document.scrollingElement.scrollTop, ancestors, focus: active && active.getAttribute('aria-label') };
+    });
+    expect(after).toEqual({ top: before, doc: 0, ancestors: [], focus: expect.stringMatching(/^Infos sur/) });
+    const s = slide(page, 1);
+    const save = s.locator('.discover-actions .save-button');
+    const was = await save.getAttribute('aria-pressed');
+    await save.tap();
+    await expect(save).toHaveAttribute('aria-pressed', was === 'true' ? 'false' : 'true');
+    await s.getByRole('button', { name: /^Plus d’options/ }).tap();
+    await expect(page.locator('#discover-more-sheet')).toHaveAttribute('open', '');
+    await page.locator('#discover-more-sheet').press('Escape');
+    await expect(page.locator('#discover-more-sheet')).not.toHaveAttribute('open', '');
+    await page.waitForTimeout(700);
+    await s.getByRole('button', { name: /^Visiter le site/ }).tap();
+    await expect(page.locator('#leave-dialog')).toHaveAttribute('open', '');
+  });
+
+  test('Infos : fermeture par le fond et par le bouton', async ({ page }) => {
+    const sheet = page.locator('#discover-sheet');
+    await slide(page).getByRole('button', { name: /^Infos sur/ }).tap();
+    await expect(sheet).toHaveAttribute('open', '');
+    await page.touchscreen.tap(20, 20);
+    await expect(sheet).not.toHaveAttribute('open', '');
+    await page.waitForTimeout(700);
+    await slide(page).getByRole('button', { name: /^Plus d’options/ }).tap();
+    await expect(page.locator('#discover-more-sheet')).toHaveAttribute('open', '');
+    await page.locator('#discover-more-sheet [data-close-sheet]').tap();
+    await expect(page.locator('#discover-more-sheet')).not.toHaveAttribute('open', '');
+    await page.waitForTimeout(700);
+    expect(await page.evaluate(() => document.querySelectorAll('[inert]:not(.od-panel)').length)).toBe(0);
+  });
+
   test('Enregistrer : le fil n’est pas re-rendu (même nœud de slide)', async ({ page }) => {
     await page.evaluate(() => { window.__slide = document.querySelector('#discover-feed .discover-slide[data-offer-id]'); });
     const save = slide(page).locator('.discover-actions .save-button');

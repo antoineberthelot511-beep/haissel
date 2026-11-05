@@ -1305,7 +1305,8 @@ img.mascot.discover-bear {
   .discover-action.is-popping .icon { animation: none; }
 }
 /* Feuille Description : ~70 % de l'écran, verre comme les autres feuilles. */
-.discover-sheet .sheet-panel { height: 70dvh; align-content: start; }
+/* svh : ne bouge pas quand la barre de Safari apparaît ; les lignes dépliables s'ouvrent dans la zone qui défile. */
+.discover-sheet .sheet-panel { height: 70svh; max-height: 70svh; align-content: start; contain: size; }
 .discover-sheet-body { display: grid; gap: 12px; padding-bottom: 8px; }
 .discover-sheet-title { margin-bottom: 0; font-size: 20px; text-align: left; }
 .discover-sheet-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-weight: 700; }
@@ -1352,12 +1353,12 @@ body[data-view="discover"] #main .site-footer, body[data-view="discover"] .site-
 
 /* Feuille du bas (Filtres) : <dialog> modal, panneau collé en bas. */
 .sheet {
-  position: fixed; inset: auto 0 0 0; width: 100%; max-width: 560px; max-height: 92dvh; margin: 0 auto; padding: 0;
+  position: fixed; inset: auto 0 0 0; width: 100%; max-width: 560px; max-height: 92svh; margin: 0 auto; padding: 0;
   border: 0; background: transparent; color: var(--ios-label); overflow: visible;
 }
 .sheet::backdrop { background: rgba(0, 0, 0, .4); }
 .sheet-panel {
-  display: grid; gap: 6px; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+  display: grid; gap: 6px; max-height: 92svh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius: 14px 14px 0 0;
   background: var(--ios-sheet); box-shadow: 0 -8px 30px rgba(0, 0, 0, .18);
 }

@@ -1000,7 +1000,7 @@ function discoverSheetContent(offer) {
     offer.conditions ? h('p', { className: 'od-conditions' }, offer.conditions) : null,
   ].filter(Boolean);
   return [
-    h('h2', { id: 'discover-sheet-title', className: 'sheet-title discover-sheet-title' }, offer.title),
+    h('h2', { id: 'discover-sheet-title', tabindex: '-1', className: 'sheet-title discover-sheet-title' }, offer.title),
     h('p', { className: 'discover-sheet-who' },
       h('span', null, `@${offer.author.username}`),
       teamMark(offer),
@@ -1020,9 +1020,17 @@ function discoverSheetContent(offer) {
   ];
 }
 
+/* Safari ne donne pas le focus au bouton touché : on retrouve « Infos » de la slide. */
+function discoverInfosButton(offer) {
+  const active = document.activeElement;
+  if (active && active !== document.body && active.closest && active.closest('#discover-feed')) return active;
+  const slide = document.querySelector && document.querySelector(`#discover-feed .discover-slide[data-offer-id="${CSS.escape(String(offer.id))}"]`);
+  return (slide && slide.querySelector('.discover-action[aria-label^="Infos"]')) || active;
+}
+
 function openDiscoverSheet(offer) {
   const sheet = ui.discoverSheet;
-  state.discoverTrigger = document.activeElement;
+  state.discoverTrigger = discoverInfosButton(offer);
   document.getElementById('discover-sheet-body').replaceChildren(...discoverSheetContent(offer));
   openSheet(sheet);
 }
@@ -1719,6 +1727,11 @@ function openSheet(dialog) {
   dialog.dataset.noRing = '';
   dialog.addEventListener('keydown', () => { delete dialog.dataset.noRing; }, { once: true });
   dialog.showModal();
+  // Focus sur le titre, sans défilement : sinon iOS fait défiler la page vers
+  // le premier bouton de la feuille. Aucun overflow touché sur html/body.
+  const title = dialog.querySelector('.sheet-title[tabindex]');
+  if (title) title.focus({ preventScroll: true });
+  panel.scrollTop = 0;
   panel.style.transform = '';
   dialog.style.setProperty('--sheet-fade', '1');
   if (reducedMotion()) panel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });

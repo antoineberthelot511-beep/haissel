@@ -86,8 +86,20 @@ describe('branchement', () => {
     expect(css).toContain('.sheet[open]::backdrop { opacity: var(--sheet-fade, 1); }');
   });
 
-  test('tuto : focus initial sur « Suivant », contour du carrousel au clavier seulement', () => {
-    expect(read('index.html')).toMatch(/<button id="tuto-next" class="primary-button sheet-apply" type="button" autofocus>Suivant<\/button>/);
+  test('feuilles : enfants directs de <body>, focus initial sur le titre sans défilement', () => {
+    const html = read('index.html');
+    const main = html.slice(html.indexOf('<main id="main"'), html.indexOf('</main>'));
+    for (const id of ['filters-sheet', 'howto-sheet', 'discover-sheet', 'discover-more-sheet', 'install-sheet']) {
+      expect(main).not.toContain(`id="${id}"`);
+      expect(html).toMatch(new RegExp(`\n    <dialog id="${id}" class="sheet`));
+    }
+    expect(html).not.toMatch(/autofocus/);
+    expect(read('app.js')).toContain("title.focus({ preventScroll: true });");
+    expect(css).toMatch(/\.sheet \{[^}]*max-height: 92svh;/);
+    expect(css).toMatch(/\.sheet-panel \{[^}]*max-height: 92svh;/);
+  });
+
+  test('tuto : contour du carrousel au clavier seulement', () => {
     expect(css).toContain('.tuto-track:focus { outline: none; }');
     expect(css).toContain('.tuto-track:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }');
   });
